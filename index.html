@@ -154,8 +154,9 @@ input[type=range]{width:100%;accent-color:#185FA5;height:4px}
     </div>
 
     <div class="section">
-      <div class="sec-title">📷 工事写真（最大4枚）</div>
+      <div class="sec-title">📷 工事写真</div>
       <div class="photo-grid" id="pgrid"></div>
+      <button class="add-btn" onclick="addPhoto()" style="margin-top:8px">＋ 写真を追加</button>
     </div>
 
     <div class="btn-row">
@@ -189,8 +190,7 @@ input[type=range]{width:100%;accent-color:#185FA5;height:4px}
 <script>
 const SAFETY=['ヘルメット','安全帯','安全靴','防塵マスク','保護眼鏡','作業手袋'];
 const UNITS=['個','枚','本','m','m²','m³','袋','t','kg','L','式'];
-const PLABELS=['着工前','作業中','完了後','その他'];
-let workers=[],materials=[],safety={},photos=new Array(4).fill(null);
+let workers=[],materials=[],safety={},photos=[];
 
 function $(id){return document.getElementById(id)}
 
@@ -244,26 +244,36 @@ function initSafety(){
 }
 function togS(n,v){safety[n]=v;const el=$('si-'+n);v?el.classList.add('on'):el.classList.remove('on')}
 
-function initPhotos(){
-  $('pgrid').innerHTML=PLABELS.map((l,i)=>`
-    <div class="ps" id="ps-${i}">
-      <span class="pico" id="pi-${i}">📷</span>
-      <span class="pl" id="pl-${i}">${l}</span>
-      <input type="file" accept="image/*" capture="environment" onchange="loadP(${i},this)">
+function addPhoto(){
+  const id='p'+Date.now();
+  photos.push({id,data:null,label:''});
+  renderPhotos();
+  setTimeout(()=>{
+    const inp=document.getElementById('pinp-'+id);
+    if(inp) inp.click();
+  },100);
+}
+function renderPhotos(){
+  $('pgrid').innerHTML=photos.map((p,i)=>`
+    <div class="ps" id="ps-${p.id}" style="position:relative">
+      ${p.data?`<img src="${p.data}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0">`:''}
+      ${!p.data?`<span class="pico">📷</span><span class="pl">タップして撮影</span>`:''}
+      <input type="file" accept="image/*" capture="environment" id="pinp-${p.id}" onchange="loadPhoto('${p.id}',this)" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2">
+      <button onclick="removePhoto('${p.id}')" style="position:absolute;top:4px;right:4px;z-index:3;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,0.5);color:#fff;border:none;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;padding:0">✕</button>
+      ${p.data?`<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.45);z-index:3;padding:2px 4px"><input type="text" placeholder="メモ（任意）" value="${esc(p.label)}" oninput="updatePhotoLabel('${p.id}',this.value)" style="width:100%;background:transparent;border:none;color:#fff;font-size:11px;padding:0" onclick="event.stopPropagation()"></div>`:''}
     </div>`).join('');
 }
-function loadP(i,inp){
+function loadPhoto(id,inp){
   const f=inp.files[0];if(!f)return;
   const r=new FileReader();
   r.onload=e=>{
-    photos[i]=e.target.result;
-    const slot=$('ps-'+i);
-    let img=slot.querySelector('img');
-    if(!img){img=document.createElement('img');slot.insertBefore(img,slot.firstChild);}
-    img.src=e.target.result;
-    $('pi-'+i).style.display='none';$('pl-'+i).style.display='none';
+    const p=photos.find(x=>x.id===id);
+    if(p){p.data=e.target.result;}
+    renderPhotos();
   };r.readAsDataURL(f);
 }
+function removePhoto(id){photos=photos.filter(p=>p.id!==id);renderPhotos();}
+function updatePhotoLabel(id,val){const p=photos.find(x=>x.id===id);if(p)p.label=val;}
 
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
 
@@ -286,7 +296,7 @@ function saveR(){
     progress:$('f-prog').value,
     materials:JSON.parse(JSON.stringify(materials)),
     safety:JSON.parse(JSON.stringify(safety)),
-    photos:[...photos],
+    photos:photos.map(p=>({data:p.data,label:p.label})),
     savedAt:new Date().toISOString()
   };
   const stored=JSON.parse(localStorage.getItem('dr_v2')||'[]');
@@ -299,8 +309,8 @@ function saveR(){
 function resetForm(){
   $('f-site').value='';$('f-rep').value='';$('f-wx').value='';$('f-tmp').value='';
   $('f-work').value='';$('f-note').value='';$('f-prog').value=50;$('pv').textContent='50%';
-  workers=[];materials=[];photos=new Array(4).fill(null);
-  renderW();renderM();initSafety();initPhotos();initDate();
+  workers=[];materials=[];photos=[];
+  renderW();renderM();initSafety();renderPhotos();initDate();
 }
 
 function renderHist(){
@@ -312,7 +322,7 @@ function renderHist(){
     const ok=Object.values(r.safety||{}).filter(Boolean).length;
     const tot=Object.values(r.safety||{}).length;
     const tw=r.workers.reduce((a,w)=>a+(parseInt(w.c)||0),0);
-    const pc=r.photos?r.photos.filter(Boolean).length:0;
+    const pc=r.photos?r.photos.filter(p=>p&&p.data).length:0;
     return `<div class="hi">
       <div style="display:flex;justify-content:space-between;align-items:start">
         <div>
@@ -365,7 +375,7 @@ function buildWorkbook(reports){
   const listRows=[['日付','現場名','報告者','天気','気温(℃)','作業員合計(名)','進捗(%)','作業内容','特記事項','写真枚数']];
   reports.forEach(r=>{
     const tw=r.workers.reduce((a,w)=>a+(parseInt(w.c)||0),0);
-    const pc=r.photos?r.photos.filter(Boolean).length:0;
+    const pc=r.photos?r.photos.filter(p=>p&&p.data).length:0;
     listRows.push([r.date,r.site,r.reporter||'',r.weather||'',r.temp?Number(r.temp):'',tw,Number(r.progress),r.work||'',r.note||'',pc]);
   });
   const lws=XLSX.utils.aoa_to_sheet(listRows);
@@ -397,14 +407,14 @@ function buildWorkbook(reports){
   });
 
   // 工事写真帳シート
-  const prows=[['日付','現場名','写真種別','ファイル情報']];
+  const prows=[['日付','現場名','写真番号','メモ','ファイル情報']];
   reports.forEach(r=>{
-    PLABELS.forEach((lbl,i)=>{
-      if(r.photos&&r.photos[i]){
-        const info=r.photos[i].startsWith('data:image/')
-          ?'画像データあり（'+Math.round(r.photos[i].length*0.75/1024)+'KB相当）'
+    (r.photos||[]).forEach((p,i)=>{
+      if(p&&p.data){
+        const info=p.data.startsWith('data:image/')
+          ?'画像データあり（'+Math.round(p.data.length*0.75/1024)+'KB相当）'
           :'データあり';
-        prows.push([r.date,r.site,lbl,info]);
+        prows.push([r.date,r.site,'写真'+(i+1),p.label||'',info]);
       }
     });
   });
@@ -433,7 +443,7 @@ function exportAll(){
   toast('📥 全現場のExcelをダウンロードしました');
 }
 
-initDate();addW();addM();initSafety();initPhotos();
+initDate();addW();addM();initSafety();renderPhotos();
 </script>
 </body>
 </html>
