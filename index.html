@@ -287,7 +287,7 @@ const GAS_URL='https://script.google.com/macros/s/AKfycby9b1XxHyum6h_k50ki3kFLDr
 async function saveR(){
   const date=$('f-date').value,site=$('f-site').value.trim();
   if(!date||!site){toast('⚠️ 日付と現場名を入力してください');return;}
-  // 写真データも含めて保存（ローカルは枚数のみ、GASにフル送信）
+  // 写真データは別キーで保存（容量注意のため写真のみ分離）
   const photoCount=photos.filter(p=>p.data).length;
   const rep={
     id:Date.now(),date,site,
@@ -301,22 +301,28 @@ async function saveR(){
     materials:JSON.parse(JSON.stringify(materials)),
     safety:JSON.parse(JSON.stringify(safety)),
     photoCount:photoCount,
+    photosSent:false,
     savedAt:new Date().toISOString()
   };
-  // 即座にローカル保存
+  // 写真データを別キーで保存
+  if(photoCount>0){
+    try{
+      localStorage.setItem('photos_'+rep.id, JSON.stringify(photos.map(p=>({data:p.data,label:p.label}))));
+    }catch(e){console.log('写真保存失敗（容量不足）');}
+  }
+  // 日報データをローカル保存
   const stored=JSON.parse(localStorage.getItem('dr_v2')||'[]');
   stored.unshift(rep);
   localStorage.setItem('dr_v2',JSON.stringify(stored));
   toast('✅ 日報を保存しました！');
   resetForm();
-  // 写真含むデータをGASにバックグラウンド送信
+  // テキストデータのみGASにバックグラウンド送信
   try{
-    const repForGAS={...rep,photoCount:undefined,photos:photos.map(p=>({data:p.data,label:p.label}))};
+    const repForGAS={...rep,photos:[]};
     navigator.sendBeacon(GAS_URL, JSON.stringify(repForGAS));
   }catch(e){
     try{
-      const repForGAS={...rep,photoCount:undefined,photos:photos.map(p=>({data:p.data,label:p.label}))};
-      fetch(GAS_URL,{method:'POST',body:JSON.stringify(repForGAS),keepalive:true}).catch(()=>{});
+      fetch(GAS_URL,{method:'POST',body:JSON.stringify({...rep,photos:[]}),keepalive:true}).catch(()=>{});
     }catch(e2){}
   }
 }
@@ -351,8 +357,13 @@ function renderHist(){
         <div class="pb"><div style="width:${r.progress}%"></div></div>
         <span style="font-size:12px;color:#185FA5;font-weight:600;white-space:nowrap">${r.progress}%</span>
       </div>
-      <div style="display:flex;justify-content:flex-end;margin-top:8px">
-        <button onclick="delR(${r.id})" style="font-size:12px;padding:5px 10px;border:1px solid #e0e0e0;border-radius:7px;background:#fff;cursor:pointer;color:#999;font-family:inherit">🗑️ 削除</button>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+        <span style="font-size:12px;color:#185FA5;font-weight:600">進捗 ${r.progress}%</span>
+        <div style="display:flex;gap:6px;align-items:center">
+          ${r.photoCount>0&&!r.photosSent?`<button onclick="sendPhotos(${r.id})" style="font-size:12px;padding:5px 10px;border:1px solid #185FA5;border-radius:7px;background:#EBF4FF;cursor:pointer;color:#185FA5;font-family:inherit">📤 写真送信</button>`:''}
+          ${r.photoCount>0&&r.photosSent?`<span style="font-size:11px;color:#1a7a3e;font-weight:600">📷 送信済み</span>`:''}
+          <button onclick="delR(${r.id})" style="font-size:12px;padding:5px 10px;border:1px solid #e0e0e0;border-radius:7px;background:#fff;cursor:pointer;color:#999;font-family:inherit">🗑️ 削除</button>
+        </div>
       </div>
     </div>`;
   }).join('');
@@ -360,8 +371,40 @@ function renderHist(){
 
 function delR(id){
   if(!confirm('この日報を削除しますか？'))return;
+  localStorage.removeItem('photos_'+id);
   const d=JSON.parse(localStorage.getItem('dr_v2')||'[]').filter(r=>r.id!==id);
   localStorage.setItem('dr_v2',JSON.stringify(d));renderHist();
+}
+
+async function sendPhotos(id){
+  const stored=JSON.parse(localStorage.getItem('dr_v2')||'[]');
+  const rep=stored.find(r=>r.id===id);
+  if(!rep){toast('日報が見つかりません');return;}
+  const photoData=localStorage.getItem('photos_'+id);
+  if(!photoData){toast('⚠️ 写真データが見つかりません（削除済みの可能性があります）');return;}
+  const btn=document.querySelector(`button[onclick="sendPhotos(${id})"]`);
+  if(btn){btn.disabled=true;btn.textContent='送信中...';}
+  try{
+    const photos=JSON.parse(photoData);
+    const payload={...rep,photos};
+    const res=await fetch(GAS_URL,{method:'POST',body:JSON.stringify(payload)});
+    const json=await res.json();
+    if(json.status==='ok'){
+      // 送信済みフラグを立てる
+      const idx=stored.findIndex(r=>r.id===id);
+      stored[idx].photosSent=true;
+      localStorage.setItem('dr_v2',JSON.stringify(stored));
+      localStorage.removeItem('photos_'+id);
+      toast('✅ 写真をGoogle Driveに送信しました！');
+      renderHist();
+    } else {
+      toast('⚠️ 送信に失敗しました。もう一度お試しください。');
+      if(btn){btn.disabled=false;btn.textContent='📤 写真送信';}
+    }
+  }catch(e){
+    toast('⚠️ 送信エラー。WiFi接続を確認してください。');
+    if(btn){btn.disabled=false;btn.textContent='📤 写真送信';}
+  }
 }
 
 function renderExportTab(){
