@@ -282,9 +282,13 @@ function toast(msg){
   setTimeout(()=>t.classList.remove('show'),2800);
 }
 
-function saveR(){
+const GAS_URL='https://script.google.com/macros/s/AKfycby9b1XxHyum6h_k50ki3kFLDrauDAEXPXAq5GwzSXcr61A9DpvRlf5q3nLCYSYlO9_j/exec';
+
+async function saveR(){
   const date=$('f-date').value,site=$('f-site').value.trim();
   if(!date||!site){toast('⚠️ 日付と現場名を入力してください');return;}
+  const btn=document.querySelector('.btn-save');
+  btn.disabled=true;btn.textContent='⏳ 保存中...';
   const rep={
     id:Date.now(),date,site,
     reporter:$('f-rep').value.trim(),
@@ -302,7 +306,13 @@ function saveR(){
   const stored=JSON.parse(localStorage.getItem('dr_v2')||'[]');
   stored.unshift(rep);
   localStorage.setItem('dr_v2',JSON.stringify(stored));
-  toast('✅ 日報を保存しました！');
+  try {
+    await fetch(GAS_URL,{method:'POST',body:JSON.stringify(rep)});
+    toast('✅ 日報を保存・スプレッドシートに送信しました！');
+  } catch(e) {
+    toast('💾 端末に保存しました（オフライン）');
+  }
+  btn.disabled=false;btn.innerHTML='💾 日報を保存';
   resetForm();
 }
 
