@@ -157,6 +157,7 @@ input[type=range]{width:100%;accent-color:#185FA5;height:4px}
       <div class="sec-title">📷 工事写真</div>
       <div class="photo-grid" id="pgrid"></div>
       <button class="add-btn" onclick="addPhoto()" style="margin-top:8px">＋ 写真を追加</button>
+      <button class="add-btn" id="send-photo-btn" onclick="sendCurrentPhotos()" style="margin-top:8px;display:none;border-color:#185FA5;color:#185FA5;background:#EBF4FF">📤 写真をDriveに送信</button>
     </div>
 
     <div class="btn-row">
@@ -270,10 +271,43 @@ function loadPhoto(id,inp){
     const p=photos.find(x=>x.id===id);
     if(p){p.data=e.target.result;}
     renderPhotos();
+    updateSendBtn();
   };r.readAsDataURL(f);
 }
-function removePhoto(id){photos=photos.filter(p=>p.id!==id);renderPhotos();}
+function removePhoto(id){photos=photos.filter(p=>p.id!==id);renderPhotos();updateSendBtn();}
 function updatePhotoLabel(id,val){const p=photos.find(x=>x.id===id);if(p)p.label=val;}
+function updateSendBtn(){
+  const btn=$('send-photo-btn');
+  if(!btn)return;
+  const hasPhotos=photos.some(p=>p.data);
+  btn.style.display=hasPhotos?'flex':'none';
+}
+
+async function sendCurrentPhotos(){
+  const site=$('f-site').value.trim();
+  const date=$('f-date').value;
+  if(!site||!date){toast('⚠️ 現場名と日付を入力してください');return;}
+  const hasPhotos=photos.some(p=>p.data);
+  if(!hasPhotos){toast('⚠️ 写真がありません');return;}
+  const btn=$('send-photo-btn');
+  btn.disabled=true;btn.textContent='📤 送信中...';
+  try{
+    const payload={date,site,photos:photos.map(p=>({data:p.data,label:p.label})),photoOnly:true};
+    const res=await fetch(GAS_URL,{method:'POST',body:JSON.stringify(payload)});
+    const json=await res.json();
+    if(json.status==='ok'){
+      toast('✅ 写真をGoogle Driveに送信しました！');
+      // 送信済み写真をクリア
+      photos=photos.map(p=>({...p,data:null}));
+      renderPhotos();updateSendBtn();
+    } else {
+      toast('⚠️ 送信失敗。もう一度お試しください。');
+    }
+  }catch(e){
+    toast('⚠️ 送信エラー。WiFi接続を確認してください。');
+  }
+  btn.disabled=false;btn.innerHTML='📤 写真をDriveに送信';
+}
 
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
 
