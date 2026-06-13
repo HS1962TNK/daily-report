@@ -287,6 +287,8 @@ const GAS_URL='https://script.google.com/macros/s/AKfycby9b1XxHyum6h_k50ki3kFLDr
 async function saveR(){
   const date=$('f-date').value,site=$('f-site').value.trim();
   if(!date||!site){toast('⚠️ 日付と現場名を入力してください');return;}
+  // 写真データも含めて保存（ローカルは枚数のみ、GASにフル送信）
+  const photoCount=photos.filter(p=>p.data).length;
   const rep={
     id:Date.now(),date,site,
     reporter:$('f-rep').value.trim(),
@@ -298,7 +300,7 @@ async function saveR(){
     progress:$('f-prog').value,
     materials:JSON.parse(JSON.stringify(materials)),
     safety:JSON.parse(JSON.stringify(safety)),
-    photos:photos.map(p=>({data:p.data,label:p.label})),
+    photoCount:photoCount,
     savedAt:new Date().toISOString()
   };
   // 即座にローカル保存
@@ -307,12 +309,16 @@ async function saveR(){
   localStorage.setItem('dr_v2',JSON.stringify(stored));
   toast('✅ 日報を保存しました！');
   resetForm();
-  // スプレッドシートへは完全バックグラウンド（結果を待たない）
+  // 写真含むデータをGASにバックグラウンド送信
   try{
-    const repForGAS={...rep,photos:(rep.photos||[]).map(p=>({data:null,label:p.label,hasPhoto:!!p.data}))};
-    const encoded=encodeURIComponent(JSON.stringify(repForGAS));
-    new Image().src=GAS_URL+'?data='+encoded;
-  }catch(e){}
+    const repForGAS={...rep,photoCount:undefined,photos:photos.map(p=>({data:p.data,label:p.label}))};
+    navigator.sendBeacon(GAS_URL, JSON.stringify(repForGAS));
+  }catch(e){
+    try{
+      const repForGAS={...rep,photoCount:undefined,photos:photos.map(p=>({data:p.data,label:p.label}))};
+      fetch(GAS_URL,{method:'POST',body:JSON.stringify(repForGAS),keepalive:true}).catch(()=>{});
+    }catch(e2){}
+  }
 }
 
 function resetForm(){
@@ -331,7 +337,7 @@ function renderHist(){
     const ok=Object.values(r.safety||{}).filter(Boolean).length;
     const tot=Object.values(r.safety||{}).length;
     const tw=r.workers.reduce((a,w)=>a+(parseInt(w.c)||0),0);
-    const pc=r.photos?r.photos.filter(p=>p&&p.data).length:0;
+    const pc=r.photoCount||0;
     return `<div class="hi">
       <div style="display:flex;justify-content:space-between;align-items:start">
         <div>
@@ -384,7 +390,7 @@ function buildWorkbook(reports){
   const listRows=[['日付','現場名','報告者','天気','気温(℃)','作業員合計(名)','進捗(%)','作業内容','特記事項','写真枚数']];
   reports.forEach(r=>{
     const tw=r.workers.reduce((a,w)=>a+(parseInt(w.c)||0),0);
-    const pc=r.photos?r.photos.filter(p=>p&&p.data).length:0;
+    const pc=r.photoCount||0;
     listRows.push([r.date,r.site,r.reporter||'',r.weather||'',r.temp?Number(r.temp):'',tw,Number(r.progress),r.work||'',r.note||'',pc]);
   });
   const lws=XLSX.utils.aoa_to_sheet(listRows);
