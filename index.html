@@ -306,16 +306,16 @@ async function saveR(){
   const stored=JSON.parse(localStorage.getItem('dr_v2')||'[]');
   stored.unshift(rep);
   localStorage.setItem('dr_v2',JSON.stringify(stored));
-  try {
-    // 写真データは除外してスプレッドシートに送信（容量制限対策）
-    const repForGAS={...rep,photos:(rep.photos||[]).map(p=>({data:null,label:p.label,hasPhoto:!!p.data}))};
-    await fetch(GAS_URL,{method:'POST',body:JSON.stringify(repForGAS)});
-    toast('✅ 日報を保存・スプレッドシートに送信しました！');
-  } catch(e) {
-    toast('💾 端末に保存しました（オフライン）');
-  }
+  // ローカル保存完了を先に通知してフォームリセット
   btn.disabled=false;btn.innerHTML='💾 日報を保存';
   resetForm();
+  // スプレッドシートへはバックグラウンドで送信（5秒タイムアウト）
+  const repForGAS={...rep,photos:(rep.photos||[]).map(p=>({data:null,label:p.label,hasPhoto:!!p.data}))};
+  const controller=new AbortController();
+  const tid=setTimeout(()=>controller.abort(),5000);
+  fetch(GAS_URL,{method:'POST',body:JSON.stringify(repForGAS),signal:controller.signal})
+    .then(()=>{clearTimeout(tid);toast('✅ スプレッドシートにも送信しました！');})
+    .catch(()=>{toast('💾 端末に保存しました（スプレッドシート送信は後で再試行）');});
 }
 
 function resetForm(){
