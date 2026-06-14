@@ -4,42 +4,37 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="作業日報">
 <title>工事作業日報</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif;background:#f5f5f0;color:#1a1a1a;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sans-serif;background:#f5f5f0;color:#111;-webkit-tap-highlight-color:transparent}
 .app{max-width:480px;margin:0 auto;min-height:100vh}
 .header{background:#fff;border-bottom:1px solid #e8e8e8;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
-.header-title{font-size:17px;font-weight:600;color:#1a1a1a}
+.header-title{font-size:17px;font-weight:600}
 .header-sub{font-size:12px;color:#888;margin-top:1px}
 .nav{display:flex;background:#fff;border-bottom:1px solid #e8e8e8;position:sticky;top:57px;z-index:99}
-.nav-btn{flex:1;padding:10px 4px 8px;font-size:11px;background:none;border:none;cursor:pointer;color:#888;border-bottom:2.5px solid transparent;transition:all .15s;font-family:inherit}
+.nav-btn{flex:1;padding:10px 4px 8px;font-size:11px;background:none;border:none;cursor:pointer;color:#888;border-bottom:2.5px solid transparent;font-family:inherit}
 .nav-btn.active{color:#185FA5;border-bottom-color:#185FA5;font-weight:600}
-.nav-icon{display:block;font-size:19px;margin:0 auto 3px;line-height:1}
+.nav-icon{display:block;font-size:19px;margin:0 auto 3px}
 .section{background:#fff;border-radius:12px;margin:10px;padding:14px 15px}
-.sec-title{font-size:12px;font-weight:600;color:#888;margin-bottom:10px;display:flex;align-items:center;gap:6px;text-transform:uppercase;letter-spacing:.5px}
+.sec-title{font-size:12px;font-weight:600;color:#888;margin-bottom:10px;letter-spacing:.5px}
 .fl{margin-bottom:10px}
-.fl:last-child{margin-bottom:0}
 .fl label{font-size:12px;color:#888;display:block;margin-bottom:4px;font-weight:500}
-input[type=text],input[type=number],input[type=date],select,textarea{width:100%;padding:9px 11px;font-size:15px;border:1px solid #ddd;border-radius:8px;background:#fafafa;color:#1a1a1a;font-family:inherit;-webkit-appearance:none;appearance:none}
-input:focus,select:focus,textarea:focus{outline:none;border-color:#185FA5;background:#fff}
+input[type=text],input[type=number],input[type=date],select,textarea{width:100%;padding:9px 11px;font-size:15px;border:1px solid #ddd;border-radius:8px;background:#fafafa;color:#111;font-family:inherit;-webkit-appearance:none}
 textarea{resize:vertical;min-height:72px;line-height:1.6}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .row-item{display:flex;gap:6px;align-items:center;margin-bottom:8px}
 .row-item input[type=text]{flex:2;min-width:0}
 .row-item input[type=number]{flex:1;min-width:0}
 .row-item select{flex:1;min-width:0}
-.del-btn{width:34px;height:34px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;cursor:pointer;color:#aaa;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;font-family:inherit}
-.del-btn:active{background:#fafafa}
+.del-btn{width:34px;height:34px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;cursor:pointer;color:#aaa;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px}
 .add-btn{width:100%;padding:9px;background:none;border:1.5px dashed #c0d4e8;border-radius:8px;cursor:pointer;color:#185FA5;font-size:13px;display:flex;align-items:center;justify-content:center;gap:5px;font-family:inherit}
-.add-btn:active{background:#f0f6ff}
 .prog-lbl{display:flex;justify-content:space-between;font-size:12px;color:#888;margin-bottom:5px}
 .prog-lbl b{color:#185FA5;font-size:14px}
-input[type=range]{width:100%;accent-color:#185FA5;height:4px}
+input[type=range]{width:100%;accent-color:#185FA5}
 .safety-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.si{display:flex;align-items:center;gap:8px;padding:10px;border:1px solid #e8e8e8;border-radius:8px;cursor:pointer;transition:all .1s;-webkit-user-select:none;user-select:none}
+.si{display:flex;align-items:center;gap:8px;padding:10px;border:1px solid #e8e8e8;border-radius:8px;cursor:pointer;-webkit-user-select:none}
 .si.on{background:#EBF4FF;border-color:#185FA5}
 .si input{accent-color:#185FA5;width:16px;height:16px;flex-shrink:0}
 .si span{font-size:13px}
@@ -49,8 +44,8 @@ input[type=range]{width:100%;accent-color:#185FA5;height:4px}
 .ps .pico{font-size:26px;color:#bbb;z-index:1}
 .ps .pl{font-size:11px;color:#aaa;z-index:1;font-weight:500}
 .ps input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2}
-.btn-row{padding:10px;display:flex;gap:8px}
-.btn-save{flex:1;padding:13px;background:#185FA5;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;font-family:inherit}
+.btn-row{padding:10px;padding-bottom:24px}
+.btn-save{width:100%;padding:13px;background:#185FA5;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;font-family:inherit}
 .btn-save:active{background:#0e4a82}
 .tab{display:none}
 .tab.active{display:block;padding-bottom:24px}
@@ -62,9 +57,8 @@ input[type=range]{width:100%;accent-color:#185FA5;height:4px}
 .b-ng{background:#FEE;color:#c0392b}
 .pb-wrap{display:flex;align-items:center;gap:8px;margin-top:8px}
 .pb{flex:1;height:5px;background:#eee;border-radius:3px}
-.pb div{height:100%;background:#185FA5;border-radius:3px;transition:width .3s}
+.pb div{height:100%;background:#185FA5;border-radius:3px}
 .empty{text-align:center;padding:40px 16px;color:#bbb;font-size:14px}
-.empty-icon{font-size:36px;display:block;margin-bottom:10px}
 .toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#2c2c2a;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
 .toast.show{opacity:1}
 .xl-section{background:#fff;border-radius:12px;margin:10px;padding:14px 15px}
@@ -73,10 +67,7 @@ input[type=range]{width:100%;accent-color:#185FA5;height:4px}
 .xl-name{font-size:14px;font-weight:600}
 .xl-cnt{font-size:12px;color:#888;margin-top:2px}
 .dl-btn{padding:7px 13px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600}
-.dl-btn:active{background:#0e4a82}
-.xl-all{width:100%;padding:12px;background:#fff;border:1.5px solid #185FA5;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;color:#185FA5;display:flex;align-items:center;justify-content:center;gap:7px;margin:0 10px;width:calc(100% - 20px);font-family:inherit}
-.xl-all:active{background:#f0f6ff}
-.info-box{background:#EBF4FF;border-radius:10px;padding:12px 14px;margin:10px;font-size:13px;color:#185FA5;line-height:1.7}
+.xl-all{width:calc(100% - 20px);margin:0 10px;padding:12px;background:#fff;border:1.5px solid #185FA5;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;color:#185FA5;display:flex;align-items:center;justify-content:center;gap:7px;font-family:inherit}
 </style>
 </head>
 <body>
@@ -88,20 +79,12 @@ input[type=range]{width:100%;accent-color:#185FA5;height:4px}
     </div>
     <span style="font-size:24px">🏗️</span>
   </div>
-
   <div class="nav">
-    <button class="nav-btn active" onclick="sw('form',this)">
-      <span class="nav-icon">✏️</span>入力
-    </button>
-    <button class="nav-btn" onclick="sw('history',this)">
-      <span class="nav-icon">📂</span>履歴
-    </button>
-    <button class="nav-btn" onclick="sw('export',this)">
-      <span class="nav-icon">📊</span>Excel出力
-    </button>
+    <button class="nav-btn active" onclick="sw('form',this)"><span class="nav-icon">✏️</span>入力</button>
+    <button class="nav-btn" onclick="sw('history',this)"><span class="nav-icon">📂</span>履歴</button>
+    <button class="nav-btn" onclick="sw('export',this)"><span class="nav-icon">📊</span>Excel出力</button>
   </div>
 
-  <!-- 入力タブ -->
   <div id="tab-form" class="tab active">
     <div class="section">
       <div class="sec-title">📍 基本情報</div>
@@ -109,85 +92,66 @@ input[type=range]{width:100%;accent-color:#185FA5;height:4px}
       <div class="fl"><label>現場名</label><input type="text" id="f-site" placeholder="例：○○マンション新築工事"></div>
       <div class="fl"><label>報告者名</label><input type="text" id="f-rep" placeholder="氏名"></div>
     </div>
-
     <div class="section">
       <div class="sec-title">🌤️ 天気・気温</div>
       <div class="g2">
         <div class="fl" style="margin:0"><label>天気</label>
           <select id="f-wx"><option value="">選択</option><option>晴れ</option><option>曇り</option><option>雨</option><option>雪</option></select>
         </div>
-        <div class="fl" style="margin:0"><label>気温（℃）</label>
-          <input type="number" id="f-tmp" placeholder="28">
-        </div>
+        <div class="fl" style="margin:0"><label>気温（℃）</label><input type="number" id="f-tmp" placeholder="28"></div>
       </div>
     </div>
-
     <div class="section">
       <div class="sec-title">👷 作業員・人数</div>
       <div id="wlist"></div>
       <button class="add-btn" onclick="addW()">＋ 職種・人員を追加</button>
     </div>
-
     <div class="section">
       <div class="sec-title">📝 作業内容・進捗</div>
-      <div class="fl"><label>本日の作業内容</label>
-        <textarea id="f-work" placeholder="実施した作業を詳しく記入してください"></textarea>
-      </div>
-      <div class="fl"><label>特記事項・問題点</label>
-        <textarea id="f-note" placeholder="トラブル・変更事項など" style="min-height:56px"></textarea>
-      </div>
+      <div class="fl"><label>本日の作業内容</label><textarea id="f-work" placeholder="実施した作業を詳しく記入"></textarea></div>
+      <div class="fl"><label>特記事項・問題点</label><textarea id="f-note" placeholder="トラブル・変更事項など" style="min-height:56px"></textarea></div>
       <div class="fl">
         <div class="prog-lbl"><span>全体進捗</span><b id="pv">50%</b></div>
         <input type="range" min="0" max="100" step="5" value="50" id="f-prog" oninput="document.getElementById('pv').textContent=this.value+'%'">
       </div>
     </div>
-
     <div class="section">
       <div class="sec-title">📦 使用材料・数量</div>
       <div id="mlist"></div>
       <button class="add-btn" onclick="addM()">＋ 材料を追加</button>
     </div>
-
     <div class="section">
       <div class="sec-title">🦺 保護具の着用確認</div>
       <div class="safety-grid" id="sgrid"></div>
     </div>
-
     <div class="section">
       <div class="sec-title">📷 工事写真</div>
       <div class="photo-grid" id="pgrid"></div>
       <button class="add-btn" onclick="addPhoto()" style="margin-top:8px">＋ 写真を追加</button>
     </div>
-
     <div class="btn-row">
       <button class="btn-save" onclick="saveR()">💾 日報を保存</button>
     </div>
   </div>
 
-  <!-- 履歴タブ -->
-  <div id="tab-history" class="tab">
-    <div id="hlist"></div>
-  </div>
+  <div id="tab-history" class="tab"><div id="hlist"></div></div>
 
-  <!-- Excel出力タブ -->
   <div id="tab-export" class="tab">
-    <div class="info-box">
-      現場ごとにシートを分けて出力します。<br>
-      「工事写真帳」シートに写真情報、「一覧」シートで全現場を横断確認できます。
+    <div class="section" style="margin-top:10px;font-size:13px;color:#666;line-height:1.7">
+      現場ごとにシートを分けて出力します。写真はGoogle Driveの「工事写真アルバム」フォルダで確認できます。
     </div>
     <div class="xl-section">
       <div class="sec-title">🏗️ 現場別ダウンロード</div>
       <div id="site-list"></div>
     </div>
     <button class="xl-all" onclick="exportAll()">📥 全現場まとめてダウンロード</button>
-    <div style="height:12px"></div>
   </div>
 </div>
-
 <div class="toast" id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
+const GAS_URL='https://script.google.com/macros/s/AKfycby9b1XxHyum6h_k50ki3kFLDrauDAEXPXAq5GwzSXcr61A9DpvRlf5q3nLCYSYlO9_j/exec';
 const SAFETY=['ヘルメット','安全帯','安全靴','防塵マスク','保護眼鏡','作業手袋'];
 const UNITS=['個','枚','本','m','m²','m³','袋','t','kg','L','式'];
 let workers=[],materials=[],safety={},photos=[];
@@ -203,15 +167,12 @@ function initDate(){
 function sw(name,btn){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
-  $('tab-'+name).classList.add('active');
-  btn.classList.add('active');
+  $('tab-'+name).classList.add('active');btn.classList.add('active');
   if(name==='history') renderHist();
   if(name==='export') renderExportTab();
 }
 
-function addW(r='',c=''){
-  const id='w'+Date.now();workers.push({id,r,c});renderW();
-}
+function addW(r='',c=''){const id='w'+Date.now();workers.push({id,r,c});renderW();}
 function renderW(){
   $('wlist').innerHTML=workers.map(w=>`<div class="row-item">
     <input type="text" placeholder="職種（例：鉄筋工）" value="${esc(w.r)}" oninput="updW('${w.id}','r',this.value)">
@@ -222,9 +183,7 @@ function renderW(){
 function updW(id,k,v){workers.find(w=>w.id===id)[k]=v}
 function delW(id){workers=workers.filter(w=>w.id!==id);renderW()}
 
-function addM(n='',q='',u='個'){
-  const id='m'+Date.now();materials.push({id,n,q,u});renderM();
-}
+function addM(n='',q='',u='個'){const id='m'+Date.now();materials.push({id,n,q,u});renderM();}
 function renderM(){
   $('mlist').innerHTML=materials.map(m=>`<div class="row-item">
     <input type="text" placeholder="材料名" value="${esc(m.n)}" oninput="updM('${m.id}','n',this.value)">
@@ -248,29 +207,23 @@ function addPhoto(){
   const id='p'+Date.now();
   photos.push({id,data:null,label:''});
   renderPhotos();
-  setTimeout(()=>{
-    const inp=document.getElementById('pinp-'+id);
-    if(inp) inp.click();
-  },100);
+  setTimeout(()=>{const inp=document.getElementById('pinp-'+id);if(inp)inp.click();},100);
 }
 function renderPhotos(){
   $('pgrid').innerHTML=photos.map((p,i)=>`
-    <div class="ps" id="ps-${p.id}" style="position:relative">
-      ${p.data?`<img src="${p.data}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0">`:''}
+    <div class="ps" id="ps-${p.id}">
+      ${p.data?`<img src="${p.data}">`:''}
       ${!p.data?`<span class="pico">📷</span><span class="pl">タップして撮影</span>`:''}
-      <input type="file" accept="image/*" capture="environment" id="pinp-${p.id}" onchange="loadPhoto('${p.id}',this)" style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2">
-      <button onclick="removePhoto('${p.id}')" style="position:absolute;top:4px;right:4px;z-index:3;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,0.5);color:#fff;border:none;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;padding:0">✕</button>
-      ${p.data?`<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.45);z-index:3;padding:2px 4px"><input type="text" placeholder="メモ（任意）" value="${esc(p.label)}" oninput="updatePhotoLabel('${p.id}',this.value)" style="width:100%;background:transparent;border:none;color:#fff;font-size:11px;padding:0" onclick="event.stopPropagation()"></div>`:''}
+      <input type="file" accept="image/*" capture="environment" id="pinp-${p.id}" onchange="loadPhoto('${p.id}',this)">
+      <button onclick="removePhoto('${p.id}')" style="position:absolute;top:4px;right:4px;z-index:3;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.5);color:#fff;border:none;cursor:pointer;font-size:13px;padding:0">✕</button>
+      ${p.data?`<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.45);z-index:3;padding:2px 4px"><input type="text" placeholder="メモ（任意）" value="${esc(p.label)}" oninput="updatePhotoLabel('${p.id}',this.value)" style="width:100%;background:transparent;border:none;color:#fff;font-size:11px;padding:0" onclick="event.stopPropagation()"></div>`:''}
     </div>`).join('');
 }
 function loadPhoto(id,inp){
   const f=inp.files[0];if(!f)return;
   const r=new FileReader();
-  r.onload=e=>{
-    const p=photos.find(x=>x.id===id);
-    if(p){p.data=e.target.result;}
-    renderPhotos();
-  };r.readAsDataURL(f);
+  r.onload=e=>{const p=photos.find(x=>x.id===id);if(p){p.data=e.target.result;}renderPhotos();};
+  r.readAsDataURL(f);
 }
 function removePhoto(id){photos=photos.filter(p=>p.id!==id);renderPhotos();}
 function updatePhotoLabel(id,val){const p=photos.find(x=>x.id===id);if(p)p.label=val;}
@@ -282,13 +235,10 @@ function toast(msg){
   setTimeout(()=>t.classList.remove('show'),2800);
 }
 
-const GAS_URL='https://script.google.com/macros/s/AKfycby9b1XxHyum6h_k50ki3kFLDrauDAEXPXAq5GwzSXcr61A9DpvRlf5q3nLCYSYlO9_j/exec';
-
-async function saveR(){
+function saveR(){
   const date=$('f-date').value,site=$('f-site').value.trim();
   if(!date||!site){toast('⚠️ 日付と現場名を入力してください');return;}
   const photoCount=photos.filter(p=>p.data).length;
-  const photoData=photoCount>0?photos.map(p=>({data:p.data,label:p.label})):[];
   const rep={
     id:Date.now(),date,site,
     reporter:$('f-rep').value.trim(),
@@ -308,19 +258,18 @@ async function saveR(){
   stored.unshift(rep);
   localStorage.setItem('dr_v2',JSON.stringify(stored));
   toast('✅ 日報を保存しました！');
-  resetForm();
-  // ①テキストデータをスプレッドシートに送信（写真なし・軽量）
+
+  // ①テキストデータをGASに送信（写真なし）
   const textPayload={...rep,photos:[]};
-  try{
-    await fetch(GAS_URL,{method:'POST',body:JSON.stringify(textPayload)});
-  }catch(e){}
-  // ②写真がある場合は別途Drive送信
+  fetch(GAS_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(textPayload)}).catch(()=>{});
+
+  // ②写真がある場合はDriveに送信
   if(photoCount>0){
-    try{
-      const photoPayload={date,site,photos:photoData,photoOnly:true};
-      fetch(GAS_URL,{method:'POST',body:JSON.stringify(photoPayload)}).catch(()=>{});
-    }catch(e){}
+    const photoPayload={date,site,photos:photos.map(p=>({data:p.data,label:p.label})),photoOnly:true};
+    fetch(GAS_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(photoPayload)}).catch(()=>{});
   }
+
+  resetForm();
 }
 
 function resetForm(){
@@ -332,9 +281,7 @@ function resetForm(){
 
 function renderHist(){
   const data=JSON.parse(localStorage.getItem('dr_v2')||'[]');
-  if(!data.length){
-    $('hlist').innerHTML='<div class="empty"><span class="empty-icon">📭</span>保存された日報はありません</div>';return;
-  }
+  if(!data.length){$('hlist').innerHTML='<div class="empty">📭<br>保存された日報はありません</div>';return;}
   $('hlist').innerHTML=data.map(r=>{
     const ok=Object.values(r.safety||{}).filter(Boolean).length;
     const tot=Object.values(r.safety||{}).length;
@@ -342,19 +289,14 @@ function renderHist(){
     const pc=r.photoCount||0;
     return `<div class="hi">
       <div style="display:flex;justify-content:space-between;align-items:start">
-        <div>
-          <div class="hi-date">${r.date}　${esc(r.site)}</div>
-          <div class="hi-meta">🌤️ ${r.weather||'—'} ${r.temp?r.temp+'℃':''}　👷 ${tw}名　📷 ${pc}枚</div>
-        </div>
+        <div><div class="hi-date">${r.date}　${esc(r.site)}</div>
+        <div class="hi-meta">🌤️ ${r.weather||'—'} ${r.temp?r.temp+'℃':''}　👷 ${tw}名　📷 ${pc}枚</div></div>
         <span class="badge ${ok===tot?'b-ok':'b-ng'}">${ok===tot?'✓ 安全OK':'⚠️ 要確認'}</span>
       </div>
       ${r.work?`<div style="margin-top:8px;font-size:13px;color:#666;line-height:1.5;border-top:1px solid #f0f0f0;padding-top:8px">${esc(r.work.substring(0,80))}${r.work.length>80?'…':''}</div>`:''}
-      <div class="pb-wrap">
-        <div class="pb"><div style="width:${r.progress}%"></div></div>
-        <span style="font-size:12px;color:#185FA5;font-weight:600;white-space:nowrap">${r.progress}%</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
-        <span style="font-size:12px;color:#185FA5;font-weight:600">進捗 ${r.progress}%</span>
+      <div class="pb-wrap"><div class="pb"><div style="width:${r.progress}%"></div></div>
+        <span style="font-size:12px;color:#185FA5;font-weight:600">${r.progress}%</span></div>
+      <div style="display:flex;justify-content:flex-end;margin-top:8px">
         <button onclick="delR(${r.id})" style="font-size:12px;padding:5px 10px;border:1px solid #e0e0e0;border-radius:7px;background:#fff;cursor:pointer;color:#999;font-family:inherit">🗑️ 削除</button>
       </div>
     </div>`;
@@ -363,55 +305,18 @@ function renderHist(){
 
 function delR(id){
   if(!confirm('この日報を削除しますか？'))return;
-  localStorage.removeItem('photos_'+id);
   const d=JSON.parse(localStorage.getItem('dr_v2')||'[]').filter(r=>r.id!==id);
   localStorage.setItem('dr_v2',JSON.stringify(d));renderHist();
 }
 
-async function sendPhotos(id){
-  const stored=JSON.parse(localStorage.getItem('dr_v2')||'[]');
-  const rep=stored.find(r=>r.id===id);
-  if(!rep){toast('日報が見つかりません');return;}
-  const photoData=localStorage.getItem('photos_'+id);
-  if(!photoData){toast('⚠️ 写真データが見つかりません（削除済みの可能性があります）');return;}
-  const btn=document.querySelector(`button[onclick="sendPhotos(${id})"]`);
-  if(btn){btn.disabled=true;btn.textContent='送信中...';}
-  try{
-    const photos=JSON.parse(photoData);
-    const payload={...rep,photos};
-    const res=await fetch(GAS_URL,{method:'POST',body:JSON.stringify(payload)});
-    const json=await res.json();
-    if(json.status==='ok'){
-      // 送信済みフラグを立てる
-      const idx=stored.findIndex(r=>r.id===id);
-      stored[idx].photosSent=true;
-      localStorage.setItem('dr_v2',JSON.stringify(stored));
-      localStorage.removeItem('photos_'+id);
-      toast('✅ 写真をGoogle Driveに送信しました！');
-      renderHist();
-    } else {
-      toast('⚠️ 送信に失敗しました。もう一度お試しください。');
-      if(btn){btn.disabled=false;btn.textContent='📤 写真送信';}
-    }
-  }catch(e){
-    toast('⚠️ 送信エラー。WiFi接続を確認してください。');
-    if(btn){btn.disabled=false;btn.textContent='📤 写真送信';}
-  }
-}
-
 function renderExportTab(){
   const data=JSON.parse(localStorage.getItem('dr_v2')||'[]');
-  if(!data.length){
-    $('site-list').innerHTML='<div class="empty" style="padding:20px 0"><span class="empty-icon">📭</span>保存された日報がありません</div>';return;
-  }
+  if(!data.length){$('site-list').innerHTML='<div class="empty" style="padding:20px 0">📭<br>保存された日報がありません</div>';return;}
   const sites={};
   data.forEach(r=>{if(!sites[r.site])sites[r.site]=[];sites[r.site].push(r);});
   $('site-list').innerHTML=Object.entries(sites).map(([site,reps])=>`
     <div class="xl-row">
-      <div>
-        <div class="xl-name">${esc(site)}</div>
-        <div class="xl-cnt">${reps.length}件の日報</div>
-      </div>
+      <div><div class="xl-name">${esc(site)}</div><div class="xl-cnt">${reps.length}件の日報</div></div>
       <button class="dl-btn" onclick="exportSite(${JSON.stringify(site)})">📥 DL</button>
     </div>`).join('');
 }
@@ -421,58 +326,40 @@ function buildWorkbook(reports){
   const sites={};
   reports.forEach(r=>{if(!sites[r.site])sites[r.site]=[];sites[r.site].push(r);});
 
-  // 一覧シート
   const listRows=[['日付','現場名','報告者','天気','気温(℃)','作業員合計(名)','進捗(%)','作業内容','特記事項','写真枚数']];
   reports.forEach(r=>{
     const tw=r.workers.reduce((a,w)=>a+(parseInt(w.c)||0),0);
-    const pc=r.photoCount||0;
-    listRows.push([r.date,r.site,r.reporter||'',r.weather||'',r.temp?Number(r.temp):'',tw,Number(r.progress),r.work||'',r.note||'',pc]);
+    listRows.push([r.date,r.site,r.reporter||'',r.weather||'',r.temp?Number(r.temp):'',tw,Number(r.progress),r.work||'',r.note||'',r.photoCount||0]);
   });
   const lws=XLSX.utils.aoa_to_sheet(listRows);
   lws['!cols']=[{wch:12},{wch:28},{wch:10},{wch:6},{wch:8},{wch:14},{wch:8},{wch:40},{wch:28},{wch:8}];
   XLSX.utils.book_append_sheet(wb,lws,'一覧');
 
-  // 現場別シート
   Object.entries(sites).forEach(([site,reps])=>{
     const hdr=['日付','報告者','天気','気温(℃)','作業員合計','進捗(%)','作業内容','特記事項',
       '職種1','人数1','職種2','人数2','職種3','人数3',
-      '材料1','数量1','単位1','材料2','数量2','単位2','材料3','数量3','単位3',
+      '材料1','数量1','単位1','材料2','数量2','単位2',
       'ヘルメット','安全帯','安全靴','防塵マスク','保護眼鏡','作業手袋'];
     const rows=[[`■ 現場名：${site}`],[''],hdr];
     reps.forEach(r=>{
       const tw=r.workers.reduce((a,w)=>a+(parseInt(w.c)||0),0);
       const row=[r.date,r.reporter||'',r.weather||'',r.temp?Number(r.temp):'',tw,Number(r.progress),r.work||'',r.note||''];
       for(let i=0;i<3;i++){const w=r.workers[i]||{};row.push(w.r||'',w.c?Number(w.c):'');}
-      for(let i=0;i<3;i++){const m=r.materials[i]||{};row.push(m.n||'',m.q?Number(m.q):'',m.u||'');}
+      for(let i=0;i<2;i++){const m=r.materials[i]||{};row.push(m.n||'',m.q?Number(m.q):'',m.u||'');}
       SAFETY.forEach(s=>row.push(r.safety&&r.safety[s]?'○':'×'));
       rows.push(row);
     });
     const ws=XLSX.utils.aoa_to_sheet(rows);
-    ws['!cols']=[{wch:12},{wch:10},{wch:6},{wch:8},{wch:12},{wch:8},{wch:36},{wch:24},
-      {wch:12},{wch:6},{wch:12},{wch:6},{wch:12},{wch:6},
-      {wch:14},{wch:7},{wch:5},{wch:14},{wch:7},{wch:5},{wch:14},{wch:7},{wch:5},
-      {wch:9},{wch:7},{wch:7},{wch:9},{wch:9},{wch:7}];
     const sn=site.replace(/[\\\/\*\?\[\]:]/g,'').substring(0,28)||'現場';
     XLSX.utils.book_append_sheet(wb,ws,sn);
   });
 
-  // 工事写真帳シート
-  const prows=[['日付','現場名','写真番号','メモ','ファイル情報']];
+  const prows=[['日付','現場名','写真枚数','備考']];
   reports.forEach(r=>{
-    (r.photos||[]).forEach((p,i)=>{
-      if(p&&p.data){
-        const info=p.data.startsWith('data:image/')
-          ?'画像データあり（'+Math.round(p.data.length*0.75/1024)+'KB相当）'
-          :'データあり';
-        prows.push([r.date,r.site,'写真'+(i+1),p.label||'',info]);
-      }
-    });
+    if(r.photoCount>0) prows.push([r.date,r.site,r.photoCount,'Google Driveの工事写真アルバムフォルダを参照']);
   });
-  if(prows.length===1) prows.push(['写真はまだ保存されていません','','','']);
   const pws=XLSX.utils.aoa_to_sheet(prows);
-  pws['!cols']=[{wch:12},{wch:28},{wch:10},{wch:30}];
   XLSX.utils.book_append_sheet(wb,pws,'工事写真帳');
-
   return wb;
 }
 
@@ -480,9 +367,8 @@ function exportSite(site){
   const data=JSON.parse(localStorage.getItem('dr_v2')||'[]').filter(r=>r.site===site);
   if(!data.length){toast('データがありません');return;}
   const wb=buildWorkbook(data);
-  const fname=site.replace(/[\\\/\*\?\[\]:]/g,'').substring(0,20)+'_日報.xlsx';
-  XLSX.writeFile(wb,fname);
-  toast('📥 '+site+'のExcelをダウンロードしました');
+  XLSX.writeFile(wb,site.replace(/[\\\/\*\?\[\]:]/g,'').substring(0,20)+'_日報.xlsx');
+  toast('📥 Excelをダウンロードしました');
 }
 
 function exportAll(){
