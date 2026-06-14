@@ -207,16 +207,26 @@ function addPhoto(){
   const id='p'+Date.now();
   photos.push({id,data:null,label:''});
   renderPhotos();
-  setTimeout(()=>{const inp=document.getElementById('pinp-'+id);if(inp)inp.click();},100);
 }
 function renderPhotos(){
   $('pgrid').innerHTML=photos.map((p,i)=>`
     <div class="ps" id="ps-${p.id}">
       ${p.data?`<img src="${p.data}">`:''}
-      ${!p.data?`<span class="pico">📷</span><span class="pl">タップして撮影</span>`:''}
-      <input type="file" accept="image/*" capture="environment" id="pinp-${p.id}" onchange="loadPhoto('${p.id}',this)">
-      <button onclick="removePhoto('${p.id}')" style="position:absolute;top:4px;right:4px;z-index:3;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.5);color:#fff;border:none;cursor:pointer;font-size:13px;padding:0">✕</button>
+      ${!p.data?`<span class="pico">📷</span><span class="pl">下のボタンで追加</span>`:''}
+      ${p.data?`<button onclick="removePhoto('${p.id}')" style="position:absolute;top:4px;right:4px;z-index:3;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.5);color:#fff;border:none;cursor:pointer;font-size:13px;padding:0">✕</button>`:''}
       ${p.data?`<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.45);z-index:3;padding:2px 4px"><input type="text" placeholder="メモ（任意）" value="${esc(p.label)}" oninput="updatePhotoLabel('${p.id}',this.value)" style="width:100%;background:transparent;border:none;color:#fff;font-size:11px;padding:0" onclick="event.stopPropagation()"></div>`:''}
+      ${!p.data?`
+        <div style="display:flex;gap:6px;margin-top:6px;z-index:2">
+          <label style="padding:5px 8px;background:#185FA5;color:#fff;border-radius:6px;font-size:11px;cursor:pointer;white-space:nowrap">
+            📷 撮影
+            <input type="file" accept="image/*" capture="environment" onchange="loadPhoto('${p.id}',this)" style="display:none">
+          </label>
+          <label style="padding:5px 8px;background:#555;color:#fff;border-radius:6px;font-size:11px;cursor:pointer;white-space:nowrap">
+            🖼️ ライブラリ
+            <input type="file" accept="image/*" onchange="loadPhoto('${p.id}',this)" style="display:none">
+          </label>
+        </div>
+      `:''}
     </div>`).join('');
 }
 function loadPhoto(id,inp){
