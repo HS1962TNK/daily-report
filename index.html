@@ -288,6 +288,7 @@ async function saveR(){
   const date=$('f-date').value,site=$('f-site').value.trim();
   if(!date||!site){toast('⚠️ 日付と現場名を入力してください');return;}
   const photoCount=photos.filter(p=>p.data).length;
+  const photoData=photoCount>0?photos.map(p=>({data:p.data,label:p.label})):[];
   const rep={
     id:Date.now(),date,site,
     reporter:$('f-rep').value.trim(),
@@ -307,17 +308,19 @@ async function saveR(){
   stored.unshift(rep);
   localStorage.setItem('dr_v2',JSON.stringify(stored));
   toast('✅ 日報を保存しました！');
-  // GASに送信（写真あり・なし両対応）
-  try{
-    const payload={...rep, photos: photoCount>0 ? photos.map(p=>({data:p.data,label:p.label})) : []};
-    navigator.sendBeacon(GAS_URL, JSON.stringify(payload));
-  }catch(e){
-    try{
-      const payload={...rep, photos: photoCount>0 ? photos.map(p=>({data:p.data,label:p.label})) : []};
-      fetch(GAS_URL,{method:'POST',body:JSON.stringify(payload),keepalive:true}).catch(()=>{});
-    }catch(e2){}
-  }
   resetForm();
+  // ①テキストデータをスプレッドシートに送信（写真なし・軽量）
+  const textPayload={...rep,photos:[]};
+  try{
+    await fetch(GAS_URL,{method:'POST',body:JSON.stringify(textPayload)});
+  }catch(e){}
+  // ②写真がある場合は別途Drive送信
+  if(photoCount>0){
+    try{
+      const photoPayload={date,site,photos:photoData,photoOnly:true};
+      fetch(GAS_URL,{method:'POST',body:JSON.stringify(photoPayload)}).catch(()=>{});
+    }catch(e){}
+  }
 }
 
 function resetForm(){
