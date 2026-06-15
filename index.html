@@ -152,7 +152,7 @@ input[type=range]{width:100%;accent-color:#185FA5}
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 const GAS_URL='https://script.google.com/macros/s/AKfycby9b1XxHyum6h_k50ki3kFLDrauDAEXPXAq5GwzSXcr61A9DpvRlf5q3nLCYSYlO9_j/exec';
-const SAFETY=['ヘルメット','安全帯','安全靴','防塵マスク','保護眼鏡','作業手袋'];
+const SAFETY=['ヘルメット','安全帯','安全靴','防塵マスク','保護眼鏡','作業手袋(ゴム製)'];
 const UNITS=['個','枚','本','m','缶','袋','セット','kg','L'];
 let workers=[],materials=[],safety={},photos=[];
 
@@ -172,12 +172,15 @@ function sw(name,btn){
   if(name==='export') renderExportTab();
 }
 
-function addW(r='',c=''){const id='w'+Date.now();workers.push({id,r,c});renderW();}
+function addW(r='',c='',names=''){const id='w'+Date.now();workers.push({id,r,c,names});renderW();}
 function renderW(){
-  $('wlist').innerHTML=workers.map(w=>`<div class="row-item">
-    <input type="text" placeholder="職種（例：鉄筋工）" value="${esc(w.r)}" oninput="updW('${w.id}','r',this.value)">
-    <input type="number" placeholder="人数" min="1" value="${esc(w.c)}" oninput="updW('${w.id}','c',this.value)" style="width:64px">
-    <button class="del-btn" onclick="delW('${w.id}')">✕</button>
+  $('wlist').innerHTML=workers.map(w=>`<div style="margin-bottom:10px;padding:10px;background:#fafafa;border-radius:8px;border:1px solid #eee">
+    <div class="row-item" style="margin-bottom:6px">
+      <input type="text" placeholder="職種（例：鉄筋工）" value="${esc(w.r)}" oninput="updW('${w.id}','r',this.value)" style="flex:2;min-width:0">
+      <input type="number" placeholder="人数" min="1" value="${esc(w.c)}" oninput="updW('${w.id}','c',this.value)" style="width:64px;flex:none">
+      <button class="del-btn" onclick="delW('${w.id}')">✕</button>
+    </div>
+    <input type="text" placeholder="作業員名（例：山田、田中、佐藤）" value="${esc(w.names)}" oninput="updW('${w.id}','names',this.value)" style="width:100%;font-size:13px;padding:7px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;font-family:inherit">
   </div>`).join('');
 }
 function updW(id,k,v){workers.find(w=>w.id===id)[k]=v}
@@ -297,6 +300,7 @@ function renderHist(){
     const tot=Object.values(r.safety||{}).length;
     const tw=r.workers.reduce((a,w)=>a+(parseInt(w.c)||0),0);
     const pc=r.photoCount||0;
+    const workerNames=r.workers.filter(w=>w.names).map(w=>w.names).join('・');
     return `<div class="hi">
       <div style="display:flex;justify-content:space-between;align-items:start">
         <div><div class="hi-date">${r.date}　${esc(r.site)}</div>
@@ -306,7 +310,8 @@ function renderHist(){
       ${r.work?`<div style="margin-top:8px;font-size:13px;color:#666;line-height:1.5;border-top:1px solid #f0f0f0;padding-top:8px">${esc(r.work.substring(0,80))}${r.work.length>80?'…':''}</div>`:''}
       <div class="pb-wrap"><div class="pb"><div style="width:${r.progress}%"></div></div>
         <span style="font-size:12px;color:#185FA5;font-weight:600">${r.progress}%</span></div>
-      <div style="display:flex;justify-content:flex-end;margin-top:8px">
+      <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:8px">
+        <button onclick="editR(${r.id})" style="font-size:12px;padding:5px 10px;border:1px solid #185FA5;border-radius:7px;background:#EBF4FF;cursor:pointer;color:#185FA5;font-family:inherit">✏️ 修正・再送信</button>
         <button onclick="delR(${r.id})" style="font-size:12px;padding:5px 10px;border:1px solid #e0e0e0;border-radius:7px;background:#fff;cursor:pointer;color:#999;font-family:inherit">🗑️ 削除</button>
       </div>
     </div>`;
@@ -317,6 +322,47 @@ function delR(id){
   if(!confirm('この日報を削除しますか？'))return;
   const d=JSON.parse(localStorage.getItem('dr_v2')||'[]').filter(r=>r.id!==id);
   localStorage.setItem('dr_v2',JSON.stringify(d));renderHist();
+}
+
+function editR(id){
+  const data=JSON.parse(localStorage.getItem('dr_v2')||'[]');
+  const r=data.find(x=>x.id===id);
+  if(!r){toast('日報が見つかりません');return;}
+  // フォームに値をセット
+  $('f-date').value=r.date||'';
+  $('f-site').value=r.site||'';
+  $('f-rep').value=r.reporter||'';
+  $('f-wx').value=r.weather||'';
+  $('f-tmp').value=r.temp||'';
+  $('f-work').value=r.work||'';
+  $('f-note').value=r.note||'';
+  $('f-prog').value=r.progress||50;
+  $('pv').textContent=(r.progress||50)+'%';
+  // 作業員
+  workers=(r.workers||[]).map(w=>({id:'w'+Date.now()+Math.random(),r:w.r||'',c:w.c||'',names:w.names||''}));
+  renderW();
+  // 材料
+  materials=(r.materials||[]).map(m=>({id:'m'+Date.now()+Math.random(),n:m.n||'',q:m.q||'',u:m.u||'個'}));
+  renderM();
+  // 保護具
+  SAFETY.forEach(s=>{
+    safety[s]=r.safety&&r.safety[s]?true:false;
+    const el=$('si-'+s);
+    if(el){safety[s]?el.classList.add('on'):el.classList.remove('on');
+    const cb=el.querySelector('input');if(cb)cb.checked=safety[s];}
+  });
+  // 写真クリア
+  photos=[];renderPhotos();
+  // 古いデータを削除してフォームタブへ
+  const newData=data.filter(x=>x.id!==id);
+  localStorage.setItem('dr_v2',JSON.stringify(newData));
+  // フォームタブに切り替え
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  $('tab-form').classList.add('active');
+  document.querySelectorAll('.nav-btn')[0].classList.add('active');
+  window.scrollTo(0,0);
+  toast('✏️ 修正してから「日報を保存」を押してください');
 }
 
 function renderExportTab(){
