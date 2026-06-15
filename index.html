@@ -94,11 +94,12 @@ input[type=range]{width:100%;accent-color:#185FA5}
     </div>
     <div class="section">
       <div class="sec-title">🌤️ 天気・気温</div>
+      <button onclick="fetchWeather()" style="width:100%;padding:9px;background:#E8F4FD;border:1px solid #B5D4F4;border-radius:8px;cursor:pointer;color:#185FA5;font-size:13px;font-weight:600;font-family:inherit;margin-bottom:10px">📍 現在地の天気を自動取得</button>
       <div class="g2">
-        <div class="fl" style="margin:0"><label>天気</label>
+        <div class="fl" style="margin:0"><label>天気（修正可）</label>
           <select id="f-wx"><option value="">選択</option><option>晴れ</option><option>曇り</option><option>雨</option><option>雪</option></select>
         </div>
-        <div class="fl" style="margin:0"><label>気温（℃）</label><input type="number" id="f-tmp" placeholder="28"></div>
+        <div class="fl" style="margin:0"><label>最高気温（℃）</label><input type="number" id="f-tmp" placeholder="28"></div>
       </div>
     </div>
     <div class="section">
@@ -151,7 +152,34 @@ input[type=range]{width:100%;accent-color:#185FA5}
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
+const WEATHER_API_KEY='adc261f04d66d4fcd362785e0fada97d';
 const GAS_URL='https://script.google.com/macros/s/AKfycby9b1XxHyum6h_k50ki3kFLDrauDAEXPXAq5GwzSXcr61A9DpvRlf5q3nLCYSYlO9_j/exec';
+
+async function fetchWeather(){
+  if(!navigator.geolocation){toast('⚠️ 位置情報が使えません');return;}
+  toast('📍 位置情報を取得中...');
+  navigator.geolocation.getCurrentPosition(async pos=>{
+    try{
+      const lat=pos.coords.latitude;
+      const lon=pos.coords.longitude;
+      const url=`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${WEATHER_API_KEY}&units=metric&lang=ja`;
+      const res=await fetch(url);
+      const data=await res.json();
+      const weatherMap={'晴れ':['Clear'],'曇り':['Clouds'],'雨':['Rain','Drizzle','Thunderstorm'],'雪':['Snow']};
+      const main=data.weather[0].main;
+      let wx='曇り';
+      for(const [jp,en] of Object.entries(weatherMap)){
+        if(en.includes(main)){wx=jp;break;}
+      }
+      const temp=Math.round(data.main.temp_max);
+      $('f-wx').value=wx;
+      $('f-tmp').value=temp;
+      toast(`✅ 天気取得完了：${wx} / 最高${temp}℃`);
+    }catch(e){
+      toast('⚠️ 天気の取得に失敗しました');
+    }
+  },()=>{toast('⚠️ 位置情報の取得を許可してください');});
+}
 const SAFETY=['ヘルメット','安全帯','安全靴','防塵マスク','保護眼鏡','作業手袋(ゴム製)'];
 const UNITS=['個','枚','本','m','缶','袋','セット','kg','L'];
 let workers=[],materials=[],safety={},photos=[];
