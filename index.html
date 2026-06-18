@@ -77,7 +77,10 @@ input[type=range]{width:100%;accent-color:#185FA5}
       <div class="header-title">📋 作業日報</div>
       <div class="header-sub" id="hdate"></div>
     </div>
-    <span style="font-size:24px">🏗️</span>
+    <button onclick="location.href='genba.html'" style="padding:7px 12px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:8px;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:center;gap:2px">
+      <span style="font-size:18px">🏗️</span>
+      <span style="font-size:10px">現場情報</span>
+    </button>
   </div>
   <div class="nav">
     <button class="nav-btn active" onclick="sw('form',this)"><span class="nav-icon">✏️</span>入力</button>
@@ -89,7 +92,15 @@ input[type=range]{width:100%;accent-color:#185FA5}
     <div class="section">
       <div class="sec-title">📍 基本情報</div>
       <div class="fl"><label>日付</label><input type="date" id="f-date"></div>
-      <div class="fl"><label>現場名</label><input type="text" id="f-site" placeholder="例：○○マンション新築工事"></div>
+      <div class="fl">
+        <label>現場名</label>
+        <div style="display:flex;gap:8px">
+          <select id="f-site" style="flex:1" onchange="onSiteSelect(this.value)">
+            <option value="">現場を選択してください</option>
+          </select>
+          <button onclick="location.href='genba.html'" style="padding:8px 10px;background:#1B3A6B;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;white-space:nowrap;font-family:inherit">＋ 現場登録</button>
+        </div>
+      </div>
       <div class="fl"><label>報告者名</label><input type="text" id="f-rep" placeholder="氏名"></div>
     </div>
     <div class="section">
@@ -317,7 +328,7 @@ function resetForm(){
   $('f-site').value='';$('f-rep').value='';$('f-wx').value='';$('f-tmp').value='';
   $('f-work').value='';$('f-note').value='';$('f-prog').value=50;$('pv').textContent='50%';
   workers=[];materials=[];photos=[];
-  renderW();renderM();initSafety();renderPhotos();initDate();
+  renderW();renderM();initSafety();renderPhotos();initDate();loadSiteList();
 }
 
 function renderHist(){
@@ -463,7 +474,29 @@ function exportAll(){
   toast('📥 全現場のExcelをダウンロードしました');
 }
 
-initDate();addW();addM();initSafety();renderPhotos();
+function loadSiteList(){
+  const genbas=JSON.parse(localStorage.getItem('genbas')||'[]');
+  const sel=$('f-site');
+  const current=sel.value;
+  sel.innerHTML='<option value="">現場を選択してください</option>';
+  genbas.forEach(g=>{
+    const opt=document.createElement('option');
+    opt.value=g.name;
+    opt.textContent=g.name+(g.status==='完工'?' (完工)':'');
+    sel.appendChild(opt);
+  });
+  if(current) sel.value=current;
+  // URL引数から現場名を自動セット
+  const params=new URLSearchParams(location.search);
+  const site=params.get('site');
+  if(site) sel.value=site;
+}
+
+function onSiteSelect(val){
+  // 現場選択時に現場情報アプリへのリンクを更新
+}
+
+initDate();loadSiteList();addW();addM();initSafety();renderPhotos();
 </script>
 </body>
 </html>
