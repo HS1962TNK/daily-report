@@ -11,95 +11,73 @@
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;color:#1a1a1a;min-height:100vh}
 
 .header{background:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 1px 4px rgba(0,0,0,.1);position:sticky;top:0;z-index:100}
-.header-title{font-size:17px;font-weight:700;color:#1a1a1a;display:flex;align-items:center;gap:6px}
-.header-title span{font-size:20px}
-.header-sub{font-size:11px;color:#888;margin-top:1px}
-
-.report-nav-btn{
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:2px;padding:6px 10px;border:1.5px solid #d0d5dd;border-radius:8px;
-  background:#fff;cursor:pointer;text-decoration:none;color:#344054;
-  font-size:9px;font-weight:600;line-height:1;min-width:52px;transition:background .15s
-}
-.report-nav-btn:hover{background:#f9fafb}
-.report-nav-btn .btn-icon{font-size:18px;line-height:1}
-.report-nav-btn .btn-label{font-size:10px;white-space:nowrap}
+.header-left .title{font-size:17px;font-weight:700;display:flex;align-items:center;gap:6px}
+.header-left .sub{font-size:11px;color:#888;margin-top:2px}
+.report-nav-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:6px 10px;border:1.5px solid #d0d5dd;border-radius:8px;background:#fff;cursor:pointer;text-decoration:none;color:#344054;min-width:52px}
+.report-nav-btn .ico{font-size:18px;line-height:1}
+.report-nav-btn .lbl{font-size:10px;font-weight:600;white-space:nowrap}
 
 .content{padding:12px;max-width:600px;margin:0 auto}
 
-.card{background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.07)}
-.card-title{font-size:13px;font-weight:700;color:#374151;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.btn-new{width:100%;padding:14px;background:#22c55e;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:12px;display:flex;align-items:center;justify-content:center;gap:6px}
+.btn-refresh{padding:8px 14px;background:#fff;color:#6b7280;border:1.5px solid #e5e7eb;border-radius:8px;font-size:12px;cursor:pointer}
 
-label{font-size:12px;color:#6b7280;margin-bottom:4px;display:block;font-weight:500}
-input[type=text],input[type=date],textarea{
-  width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;
-  font-size:14px;color:#1a1a1a;background:#fff;appearance:none;-webkit-appearance:none;
-  transition:border-color .15s
-}
-input:focus,textarea:focus{outline:none;border-color:#1d6fcf}
-textarea{min-height:60px;resize:vertical;line-height:1.5}
-
-.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
-.field{margin-bottom:10px}
-
-.btn-save{width:100%;padding:14px;background:#1d6fcf;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;transition:.15s}
-.btn-save:hover{background:#1558a8}
-.btn-save:disabled{background:#93c5fd;cursor:not-allowed}
-.btn-cancel{width:100%;padding:12px;background:#fff;color:#6b7280;border:1.5px solid #e5e7eb;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;margin-top:8px}
-
-/* 現場カード */
 .site-item{background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.07)}
 .site-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px}
 .site-name{font-size:15px;font-weight:700;color:#1a1a1a}
 .site-badge{font-size:10px;background:#eff6ff;color:#1d6fcf;padding:3px 8px;border-radius:20px;font-weight:600}
-.site-info{font-size:12px;color:#6b7280;line-height:1.7}
-.site-info span{margin-right:12px}
+.site-info{font-size:12px;color:#6b7280;line-height:1.8}
 .site-actions{display:flex;gap:8px;margin-top:10px}
-.btn-diary{flex:1;padding:8px;background:#1d6fcf;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer}
-.btn-edit-site{padding:8px 14px;background:#fff;color:#374151;border:1.5px solid #e5e7eb;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer}
-.btn-del-site{padding:8px 14px;background:#fff;color:#ef4444;border:1.5px solid #fca5a5;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer}
+.btn-diary{flex:1;padding:9px;background:#1d6fcf;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer}
+.btn-edit-s{padding:9px 14px;background:#fff;color:#374151;border:1.5px solid #e5e7eb;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer}
+.btn-del-s{padding:9px 14px;background:#fff;color:#ef4444;border:1.5px solid #fca5a5;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer}
 
 .empty-state{text-align:center;padding:48px 20px;color:#9ca3af}
-.empty-state .empty-icon{font-size:48px;margin-bottom:12px}
-.empty-state p{font-size:13px}
+.empty-icon{font-size:48px;margin-bottom:12px}
 
-.btn-new{width:100%;padding:14px;background:#22c55e;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:16px;display:flex;align-items:center;justify-content:center;gap:6px}
-.btn-new:hover{background:#16a34a}
-.btn-refresh{padding:8px 14px;background:#fff;color:#6b7280;border:1.5px solid #e5e7eb;border-radius:8px;font-size:12px;cursor:pointer;margin-bottom:12px}
+/* モーダルフォーム */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;overflow-y:auto}
+.overlay.show{display:block}
+.panel{background:#f0f2f5;min-height:100%;padding:12px}
+.panel-header{background:#fff;border-radius:12px;padding:14px 16px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+.panel-title{font-size:16px;font-weight:700}
+.btn-close{padding:6px 14px;background:#fff;color:#6b7280;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px;cursor:pointer}
 
-/* 登録フォーム（モーダル風） */
-.form-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;overflow-y:auto}
-.form-overlay.show{display:block}
-.form-panel{background:#f0f2f5;min-height:100%;padding:12px}
-.form-header{background:#fff;border-radius:12px;padding:14px 16px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
-.form-header-title{font-size:16px;font-weight:700}
-.btn-close-form{padding:6px 14px;background:#fff;color:#6b7280;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px;cursor:pointer}
+.card{background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.07)}
+.card-title{font-size:13px;font-weight:700;color:#374151;margin-bottom:12px}
+.field{margin-bottom:10px}
+label{font-size:12px;color:#6b7280;margin-bottom:4px;display:block;font-weight:500}
+input[type=text],input[type=date],textarea{width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;color:#1a1a1a;background:#fff;-webkit-appearance:none}
+input:focus,textarea:focus{outline:none;border-color:#1d6fcf}
+textarea{min-height:60px;resize:vertical;line-height:1.5}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
 
-.sync-status{font-size:11px;color:#9ca3af;text-align:right;margin-bottom:8px}
+.btn-save{width:100%;padding:14px;background:#1d6fcf;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer}
+.btn-save:disabled{background:#93c5fd;cursor:not-allowed}
+.btn-cancel{width:100%;padding:12px;background:#fff;color:#6b7280;border:1.5px solid #e5e7eb;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;margin-top:8px}
 
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
 .toast.show{opacity:1}
-
 .loading{text-align:center;padding:32px;color:#9ca3af;font-size:13px}
 </style>
 </head>
 <body>
 
 <div class="header">
-  <div>
-    <div class="header-title"><span>🏗️</span> 現場情報</div>
-    <div class="header-sub" id="sync-label">読み込み中…</div>
+  <div class="header-left">
+    <div class="title">🏗️ 現場情報</div>
+    <div class="sub" id="sync-label">読み込み中…</div>
   </div>
   <a href="index.html" class="report-nav-btn">
-    <span class="btn-icon">📋</span>
-    <span class="btn-label">作業日報</span>
+    <span class="ico">📋</span>
+    <span class="lbl">作業日報</span>
   </a>
 </div>
 
 <div class="content">
   <button class="btn-new" onclick="openForm()">＋ 新しい現場を登録</button>
 
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
     <span id="site-count" style="font-size:12px;color:#6b7280"></span>
     <button class="btn-refresh" onclick="loadSites(true)">🔄 更新</button>
   </div>
@@ -107,12 +85,12 @@ textarea{min-height:60px;resize:vertical;line-height:1.5}
   <div id="sites-list"><div class="loading">読み込み中…</div></div>
 </div>
 
-<!-- 登録フォーム -->
-<div class="form-overlay" id="form-overlay">
-  <div class="form-panel">
-    <div class="form-header">
-      <div class="form-header-title" id="form-title">現場を登録</div>
-      <button class="btn-close-form" onclick="closeForm()">✕ 閉じる</button>
+<!-- 登録・編集フォーム -->
+<div class="overlay" id="overlay">
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title" id="form-title">現場を登録</div>
+      <button class="btn-close" onclick="closeForm()">✕ 閉じる</button>
     </div>
 
     <div class="card">
@@ -154,7 +132,7 @@ textarea{min-height:60px;resize:vertical;line-height:1.5}
       <textarea id="g-note" placeholder="特記事項・備考など"></textarea>
     </div>
 
-    <button class="btn-save" id="form-save-btn" onclick="saveSite()">💾 登録する</button>
+    <button class="btn-save" id="save-btn" onclick="saveSite()">💾 登録する</button>
     <button class="btn-cancel" onclick="closeForm()">キャンセル</button>
     <div style="height:20px"></div>
   </div>
@@ -164,45 +142,41 @@ textarea{min-height:60px;resize:vertical;line-height:1.5}
 
 <script>
 const GAS_URL = 'https://script.google.com/macros/s/AKfycby9b1XxHyum6h_k50ki3kFLDrauDAEXPXAq5GwzSXcr61A9DpvRlf5q3nLCYSYlO9_j/exec';
-let editingName = null; // 編集中の現場名（nullなら新規）
 let sites = [];
+let editingName = null;
 
-window.onload = function(){
-  loadSites();
-};
+window.onload = function(){ loadSites(); };
 
-// 現場一覧読込
+// ── 現場一覧をGASから取得 ──
 function loadSites(showMsg){
   if(showMsg) showToast('🔄 更新中…');
-  document.getElementById('sites-list').innerHTML='<div class="loading">読み込み中…</div>';
+  document.getElementById('sites-list').innerHTML = '<div class="loading">読み込み中…</div>';
 
   fetch(GAS_URL + '?action=getSites')
-    .then(r=>r.json())
-    .then(res=>{
+    .then(r => r.json())
+    .then(res => {
       sites = res.sites || [];
-      // ローカルキャッシュにも保存
       localStorage.setItem('genba-sites', JSON.stringify(sites));
       renderSites();
-      const now = new Date().toLocaleString('ja-JP');
-      document.getElementById('sync-label').textContent = `最終更新：${now}`;
+      document.getElementById('sync-label').textContent =
+        '最終更新：' + new Date().toLocaleString('ja-JP');
       if(showMsg) showToast('✅ 更新しました');
     })
-    .catch(()=>{
-      // オフライン時はキャッシュから
-      sites = JSON.parse(localStorage.getItem('genba-sites')||'[]');
+    .catch(() => {
+      sites = JSON.parse(localStorage.getItem('genba-sites') || '[]');
       renderSites();
       document.getElementById('sync-label').textContent = 'オフライン（キャッシュ表示）';
       if(showMsg) showToast('⚠️ オフラインのためキャッシュを表示');
     });
 }
 
-// 一覧表示
+// ── 一覧描画 ──
 function renderSites(){
   const el = document.getElementById('sites-list');
-  document.getElementById('site-count').textContent = `${sites.length}件の現場`;
+  document.getElementById('site-count').textContent = sites.length + '件の現場';
 
   if(!sites.length){
-    el.innerHTML=`
+    el.innerHTML = `
       <div class="empty-state">
         <div class="empty-icon">🏗️</div>
         <p>現場が登録されていません<br>「＋ 新しい現場を登録」から追加してください</p>
@@ -210,23 +184,23 @@ function renderSites(){
     return;
   }
 
-  el.innerHTML = sites.map(s=>`
+  el.innerHTML = sites.map(s => `
     <div class="site-item">
       <div class="site-head">
         <div class="site-name">${esc(s.name)}</div>
         ${s.endDate ? '<div class="site-badge">工期あり</div>' : ''}
       </div>
       <div class="site-info">
-        ${s.address ? `<span>📍 ${esc(s.address)}</span>` : ''}
-        ${s.client ? `<span>🏢 ${esc(s.client)}</span>` : ''}
-        ${s.manager ? `<span>👤 ${esc(s.manager)}</span>` : ''}
-        ${s.startDate||s.endDate ? `<br><span>📅 ${s.startDate||''}〜${s.endDate||''}</span>` : ''}
-        ${s.note ? `<br><span>📝 ${esc(s.note)}</span>` : ''}
+        ${s.address  ? '<span>📍 ' + esc(s.address)  + '</span>' : ''}
+        ${s.client   ? '<span>🏢 ' + esc(s.client)   + '</span>' : ''}
+        ${s.manager  ? '<span>👤 ' + esc(s.manager)  + '</span>' : ''}
+        ${(s.startDate||s.endDate) ? '<br><span>📅 ' + (s.startDate||'') + '〜' + (s.endDate||'') + '</span>' : ''}
+        ${s.note     ? '<br><span>📝 ' + esc(s.note) + '</span>' : ''}
       </div>
       <div class="site-actions">
-        <button class="btn-diary" onclick="goToDiary('${esc(s.name)}')">✏️ この現場の日報を入力する</button>
-        <button class="btn-edit-site" onclick="openEditForm('${esc(s.name)}')">編集</button>
-        <button class="btn-del-site" onclick="deleteSite('${esc(s.name)}')">削除</button>
+        <button class="btn-diary"  onclick="goToDiary('${esc(s.name)}')">✏️ この現場の日報を入力する</button>
+        <button class="btn-edit-s" onclick="openEditForm('${esc(s.name)}')">編集</button>
+        <button class="btn-del-s"  onclick="deleteSite('${esc(s.name)}')">削除</button>
       </div>
     </div>
   `).join('');
@@ -234,132 +208,128 @@ function renderSites(){
 
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-// 日報アプリへ
 function goToDiary(name){
   location.href = 'index.html?site=' + encodeURIComponent(name);
 }
 
-// フォームを開く（新規）
+// ── フォームを開く（新規） ──
 function openForm(){
   editingName = null;
   document.getElementById('form-title').textContent = '現場を登録';
-  document.getElementById('form-save-btn').textContent = '💾 登録する';
+  document.getElementById('save-btn').textContent = '💾 登録する';
   clearForm();
-  document.getElementById('form-overlay').classList.add('show');
+  document.getElementById('overlay').classList.add('show');
   document.getElementById('g-name').focus();
 }
 
-// フォームを開く（編集）
+// ── フォームを開く（編集） ──
 function openEditForm(name){
-  const s = sites.find(x=>x.name===name);
+  const s = sites.find(x => x.name === name);
   if(!s) return;
   editingName = name;
   document.getElementById('form-title').textContent = '現場を編集';
-  document.getElementById('form-save-btn').textContent = '💾 更新する';
-  document.getElementById('g-name').value = s.name;
-  document.getElementById('g-address').value = s.address||'';
-  document.getElementById('g-client').value = s.client||'';
-  document.getElementById('g-start').value = s.startDate||'';
-  document.getElementById('g-end').value = s.endDate||'';
-  document.getElementById('g-manager').value = s.manager||'';
-  document.getElementById('g-note').value = s.note||'';
-  document.getElementById('form-overlay').classList.add('show');
+  document.getElementById('save-btn').textContent = '💾 更新する';
+  document.getElementById('g-name').value    = s.name        || '';
+  document.getElementById('g-address').value = s.address     || '';
+  document.getElementById('g-client').value  = s.client      || '';
+  document.getElementById('g-start').value   = s.startDate   || '';
+  document.getElementById('g-end').value     = s.endDate     || '';
+  document.getElementById('g-manager').value = s.manager     || '';
+  document.getElementById('g-note').value    = s.note        || '';
+  document.getElementById('overlay').classList.add('show');
 }
 
 function closeForm(){
-  document.getElementById('form-overlay').classList.remove('show');
+  document.getElementById('overlay').classList.remove('show');
   clearForm();
 }
 
 function clearForm(){
-  ['g-name','g-address','g-client','g-start','g-end','g-manager','g-note'].forEach(id=>{
-    document.getElementById(id).value='';
-  });
+  ['g-name','g-address','g-client','g-start','g-end','g-manager','g-note']
+    .forEach(id => document.getElementById(id).value = '');
 }
 
-// 登録・更新
+// ── 登録・更新 ──
 async function saveSite(){
   const name = document.getElementById('g-name').value.trim();
   if(!name){ showToast('⚠️ 現場名は必須です'); return; }
 
-  const btn = document.getElementById('form-save-btn');
-  btn.disabled=true; btn.textContent='送信中…';
+  const btn = document.getElementById('save-btn');
+  btn.disabled = true;
+  btn.textContent = '送信中…';
 
-  const params = new URLSearchParams({
-    action: 'addSite',
-    name,
-    address: document.getElementById('g-address').value.trim(),
-    client: document.getElementById('g-client').value.trim(),
-    startDate: document.getElementById('g-start').value,
-    endDate: document.getElementById('g-end').value,
-    manager: document.getElementById('g-manager').value.trim(),
-    note: document.getElementById('g-note').value.trim()
-  });
-
-  // 編集の場合は古いデータを削除してから追加
-  if(editingName && editingName !== name){
-    await fetch(`${GAS_URL}?action=deleteSite&name=${encodeURIComponent(editingName)}`).catch(()=>{});
-  } else if(editingName){
-    // 同じ名前で更新：削除してから再追加
-    await fetch(`${GAS_URL}?action=deleteSite&name=${encodeURIComponent(editingName)}`).catch(()=>{});
+  // 編集時は先に古い行を削除
+  if(editingName){
+    await fetch(GAS_URL + '?action=deleteSite&name=' + encodeURIComponent(editingName))
+      .catch(() => {});
   }
 
-  fetch(`${GAS_URL}?${params.toString()}`)
-    .then(r=>r.json())
-    .then(res=>{
-      if(res.status==='ok'){
+  const p = new URLSearchParams({
+    action:    'addSite',
+    name,
+    address:   document.getElementById('g-address').value.trim(),
+    client:    document.getElementById('g-client').value.trim(),
+    startDate: document.getElementById('g-start').value,
+    endDate:   document.getElementById('g-end').value,
+    manager:   document.getElementById('g-manager').value.trim(),
+    note:      document.getElementById('g-note').value.trim()
+  });
+
+  fetch(GAS_URL + '?' + p.toString())
+    .then(r => r.json())
+    .then(res => {
+      if(res.status === 'ok'){
         showToast(editingName ? '✅ 更新しました' : '✅ 登録しました');
         closeForm();
         loadSites();
       } else {
-        showToast('❌ エラー：'+res.message);
+        showToast('❌ ' + (res.message || 'エラーが発生しました'));
       }
     })
-    .catch(()=>{
+    .catch(() => {
       // オフライン時はローカルに仮保存
-      const cached = JSON.parse(localStorage.getItem('genba-sites')||'[]');
+      const cached = JSON.parse(localStorage.getItem('genba-sites') || '[]');
       const newSite = {
         name,
-        address: document.getElementById('g-address').value.trim(),
-        client: document.getElementById('g-client').value.trim(),
+        address:   document.getElementById('g-address').value.trim(),
+        client:    document.getElementById('g-client').value.trim(),
         startDate: document.getElementById('g-start').value,
-        endDate: document.getElementById('g-end').value,
-        manager: document.getElementById('g-manager').value.trim(),
-        note: document.getElementById('g-note').value.trim(),
+        endDate:   document.getElementById('g-end').value,
+        manager:   document.getElementById('g-manager').value.trim(),
+        note:      document.getElementById('g-note').value.trim(),
         registeredAt: new Date().toLocaleString('ja-JP')
       };
       if(editingName){
-        const idx = cached.findIndex(x=>x.name===editingName);
-        if(idx>=0) cached[idx]=newSite; else cached.unshift(newSite);
+        const idx = cached.findIndex(x => x.name === editingName);
+        if(idx >= 0) cached[idx] = newSite; else cached.unshift(newSite);
       } else {
         cached.unshift(newSite);
       }
       localStorage.setItem('genba-sites', JSON.stringify(cached));
       sites = cached;
       renderSites();
-      showToast('⚠️ オフライン保存（電波回復後に再登録してください）');
+      showToast('⚠️ オフライン保存（電波回復後に🔄更新を押してください）');
       closeForm();
     })
-    .finally(()=>{
-      btn.disabled=false;
+    .finally(() => {
+      btn.disabled = false;
       btn.textContent = editingName ? '💾 更新する' : '💾 登録する';
     });
 }
 
-// 削除
+// ── 削除 ──
 function deleteSite(name){
-  if(!confirm(`「${name}」を削除しますか？\n（日報データは残ります）`)) return;
+  if(!confirm('「' + name + '」を削除しますか？\n（日報データは残ります）')) return;
 
-  fetch(`${GAS_URL}?action=deleteSite&name=${encodeURIComponent(name)}`)
-    .then(r=>r.json())
-    .then(()=>{
+  fetch(GAS_URL + '?action=deleteSite&name=' + encodeURIComponent(name))
+    .then(r => r.json())
+    .then(() => {
       showToast('🗑️ 削除しました');
       loadSites();
     })
-    .catch(()=>{
-      // オフライン時はローカルから削除
-      const cached = JSON.parse(localStorage.getItem('genba-sites')||'[]');
-      const filtered = cached.filter(x=>x.name!==name);
+    .catch(() => {
+      const cached = JSON.parse(localStorage.getItem('genba-sites') || '[]');
+      const filtered = cached.filter(x => x.name !== name);
       localStorage.setItem('genba-sites', JSON.stringify(filtered));
       sites = filtered;
       renderSites();
@@ -367,10 +337,11 @@ function deleteSite(name){
     });
 }
 
-function showToast(msg, dur=2500){
-  const t=document.getElementById('toast');
-  t.textContent=msg; t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'),dur);
+function showToast(msg, dur=2800){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), dur);
 }
 </script>
 </body>
