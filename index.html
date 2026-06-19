@@ -317,11 +317,28 @@ function goToGenba(){
   location.href='genba.html';
 }
 
-// 現場リスト読込
+// 現場リスト読込（GASから取得）
 function loadSiteList(){
-  const sites = JSON.parse(localStorage.getItem('genba-sites')||'[]');
   const sel = document.getElementById('f-site');
   const cur = sel.value;
+  sel.innerHTML = '<option value="">読み込み中…</option>';
+
+  fetch(GAS_URL + '?action=getSites')
+    .then(r=>r.json())
+    .then(res=>{
+      const sites = res.sites || [];
+      // ローカルにもキャッシュ
+      localStorage.setItem('genba-sites', JSON.stringify(sites));
+      fillSiteSelect(sel, sites, cur);
+    })
+    .catch(()=>{
+      // オフライン時はキャッシュから
+      const sites = JSON.parse(localStorage.getItem('genba-sites')||'[]');
+      fillSiteSelect(sel, sites, cur);
+    });
+}
+
+function fillSiteSelect(sel, sites, cur){
   sel.innerHTML = '<option value="">現場を選択してください</option>';
   sites.forEach(s=>{
     const o=document.createElement('option');
@@ -334,6 +351,12 @@ function loadSiteList(){
   const params = new URLSearchParams(location.search);
   const siteParam = params.get('site');
   if(siteParam){
+    // リストにない場合も仮追加
+    if(![...sel.options].some(o=>o.value===siteParam)){
+      const o=document.createElement('option');
+      o.value=siteParam; o.textContent=siteParam;
+      sel.appendChild(o);
+    }
     sel.value=siteParam;
     history.replaceState({},'',location.pathname);
   }
