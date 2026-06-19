@@ -2,401 +2,376 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="現場管理">
+<meta name="apple-mobile-web-app-title" content="現場情報">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>現場情報管理</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sans-serif;background:#f5f5f0;color:#111;-webkit-tap-highlight-color:transparent}
-.app{max-width:480px;margin:0 auto;min-height:100vh}
-.header{background:#1B3A6B;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
-.header-title{font-size:17px;font-weight:600;color:#fff}
-.header-sub{font-size:12px;color:rgba(255,255,255,.7);margin-top:1px}
-.nav{display:flex;background:#fff;border-bottom:1px solid #e8e8e8;position:sticky;top:57px;z-index:99}
-.nav-btn{flex:1;padding:10px 4px 8px;font-size:11px;background:none;border:none;cursor:pointer;color:#888;border-bottom:2.5px solid transparent;font-family:inherit}
-.nav-btn.active{color:#1B3A6B;border-bottom-color:#1B3A6B;font-weight:600}
-.nav-icon{display:block;font-size:19px;margin:0 auto 3px}
-.tab{display:none}
-.tab.active{display:block;padding-bottom:32px}
-.section{background:#fff;border-radius:12px;margin:10px;padding:14px 15px}
-.sec-title{font-size:12px;font-weight:600;color:#888;margin-bottom:10px;letter-spacing:.5px}
-.fl{margin-bottom:10px}
-.fl label{font-size:12px;color:#888;display:block;margin-bottom:4px;font-weight:500}
-input[type=text],input[type=date],select,textarea{width:100%;padding:9px 11px;font-size:15px;border:1px solid #ddd;border-radius:8px;background:#fafafa;color:#111;font-family:inherit;-webkit-appearance:none}
-textarea{resize:vertical;min-height:72px;line-height:1.6}
-.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.btn-row{padding:10px;padding-bottom:24px}
-.btn-save{width:100%;padding:13px;background:#1B3A6B;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;font-family:inherit}
-.btn-save:active{opacity:.85}
-.genba-card{background:#fff;border-radius:12px;margin:10px;padding:14px 15px;border-left:4px solid #1B3A6B}
-.genba-name{font-size:15px;font-weight:700;color:#1B3A6B;margin-bottom:4px}
-.genba-meta{font-size:12px;color:#888;line-height:1.8}
-.genba-meta span{display:inline-block;margin-right:12px}
-.card-actions{display:flex;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid #f0f0f0}
-.btn-detail{flex:1;padding:8px;background:#EBF4FF;border:1px solid #B5D4F4;border-radius:8px;cursor:pointer;color:#1B3A6B;font-size:12px;font-weight:600;font-family:inherit}
-.btn-edit{flex:1;padding:8px;background:#fff;border:1px solid #ddd;border-radius:8px;cursor:pointer;color:#555;font-size:12px;font-family:inherit}
-.btn-del{padding:8px 12px;background:#fff;border:1px solid #eee;border-radius:8px;cursor:pointer;color:#ccc;font-size:12px;font-family:inherit}
-.empty{text-align:center;padding:40px 16px;color:#bbb;font-size:14px}
-.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#2c2c2a;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;color:#1a1a1a;min-height:100vh}
+
+.header{background:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 1px 4px rgba(0,0,0,.1);position:sticky;top:0;z-index:100}
+.header-title{font-size:17px;font-weight:700;color:#1a1a1a;display:flex;align-items:center;gap:6px}
+.header-title span{font-size:20px}
+.header-sub{font-size:11px;color:#888;margin-top:1px}
+
+.report-nav-btn{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:2px;padding:6px 10px;border:1.5px solid #d0d5dd;border-radius:8px;
+  background:#fff;cursor:pointer;text-decoration:none;color:#344054;
+  font-size:9px;font-weight:600;line-height:1;min-width:52px;transition:background .15s
+}
+.report-nav-btn:hover{background:#f9fafb}
+.report-nav-btn .btn-icon{font-size:18px;line-height:1}
+.report-nav-btn .btn-label{font-size:10px;white-space:nowrap}
+
+.content{padding:12px;max-width:600px;margin:0 auto}
+
+.card{background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.07)}
+.card-title{font-size:13px;font-weight:700;color:#374151;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+
+label{font-size:12px;color:#6b7280;margin-bottom:4px;display:block;font-weight:500}
+input[type=text],input[type=date],textarea{
+  width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;
+  font-size:14px;color:#1a1a1a;background:#fff;appearance:none;-webkit-appearance:none;
+  transition:border-color .15s
+}
+input:focus,textarea:focus{outline:none;border-color:#1d6fcf}
+textarea{min-height:60px;resize:vertical;line-height:1.5}
+
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.field{margin-bottom:10px}
+
+.btn-save{width:100%;padding:14px;background:#1d6fcf;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;transition:.15s}
+.btn-save:hover{background:#1558a8}
+.btn-save:disabled{background:#93c5fd;cursor:not-allowed}
+.btn-cancel{width:100%;padding:12px;background:#fff;color:#6b7280;border:1.5px solid #e5e7eb;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;margin-top:8px}
+
+/* 現場カード */
+.site-item{background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.07)}
+.site-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px}
+.site-name{font-size:15px;font-weight:700;color:#1a1a1a}
+.site-badge{font-size:10px;background:#eff6ff;color:#1d6fcf;padding:3px 8px;border-radius:20px;font-weight:600}
+.site-info{font-size:12px;color:#6b7280;line-height:1.7}
+.site-info span{margin-right:12px}
+.site-actions{display:flex;gap:8px;margin-top:10px}
+.btn-diary{flex:1;padding:8px;background:#1d6fcf;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer}
+.btn-edit-site{padding:8px 14px;background:#fff;color:#374151;border:1.5px solid #e5e7eb;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer}
+.btn-del-site{padding:8px 14px;background:#fff;color:#ef4444;border:1.5px solid #fca5a5;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer}
+
+.empty-state{text-align:center;padding:48px 20px;color:#9ca3af}
+.empty-state .empty-icon{font-size:48px;margin-bottom:12px}
+.empty-state p{font-size:13px}
+
+.btn-new{width:100%;padding:14px;background:#22c55e;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:16px;display:flex;align-items:center;justify-content:center;gap:6px}
+.btn-new:hover{background:#16a34a}
+.btn-refresh{padding:8px 14px;background:#fff;color:#6b7280;border:1.5px solid #e5e7eb;border-radius:8px;font-size:12px;cursor:pointer;margin-bottom:12px}
+
+/* 登録フォーム（モーダル風） */
+.form-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;overflow-y:auto}
+.form-overlay.show{display:block}
+.form-panel{background:#f0f2f5;min-height:100%;padding:12px}
+.form-header{background:#fff;border-radius:12px;padding:14px 16px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+.form-header-title{font-size:16px;font-weight:700}
+.btn-close-form{padding:6px 14px;background:#fff;color:#6b7280;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px;cursor:pointer}
+
+.sync-status{font-size:11px;color:#9ca3af;text-align:right;margin-bottom:8px}
+
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
 .toast.show{opacity:1}
-.badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:6px;font-weight:600}
-.b-active{background:#E6F4EC;color:#1a7a3e}
-.b-done{background:#f0f0f0;color:#888}
-.b-plan{background:#FFF3E0;color:#E65100}
-.photo-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.ps{aspect-ratio:1;border:1.5px dashed #ccc;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;background:#fafafa;overflow:hidden;position:relative;cursor:pointer}
-.ps img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
-.ps .pico{font-size:24px;color:#bbb;z-index:1}
-.ps .pl{font-size:11px;color:#aaa;z-index:1}
-.ps input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2}
-.add-btn{width:100%;padding:9px;background:none;border:1.5px dashed #c0d4e8;border-radius:8px;cursor:pointer;color:#1B3A6B;font-size:13px;display:flex;align-items:center;justify-content:center;gap:5px;font-family:inherit;margin-top:8px}
-.detail-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;overflow-y:auto}
-.detail-overlay.show{display:block}
-.detail-box{background:#fff;margin:20px 10px;border-radius:16px;overflow:hidden}
-.detail-header{background:#1B3A6B;padding:16px;display:flex;align-items:center;justify-content:space-between}
-.detail-title{font-size:16px;font-weight:700;color:#fff}
-.detail-close{width:32px;height:32px;background:rgba(255,255,255,.2);border:none;border-radius:50%;cursor:pointer;color:#fff;font-size:18px;display:flex;align-items:center;justify-content:center}
-.detail-body{padding:16px}
-.detail-row{display:flex;gap:0;margin-bottom:8px;border:0.5px solid #e8e8e8;border-radius:8px;overflow:hidden}
-.detail-lbl{width:80px;background:#f5f5f5;padding:8px 10px;font-size:11px;font-weight:600;color:#888;flex-shrink:0;display:flex;align-items:center}
-.detail-val{padding:8px 10px;font-size:13px;color:#111;flex:1}
-.nippo-item{padding:10px 0;border-bottom:1px solid #f0f0f0}
-.nippo-item:last-child{border-bottom:none}
-.nippo-date{font-size:13px;font-weight:600;color:#1B3A6B}
-.nippo-meta{font-size:12px;color:#888;margin-top:2px}
-.status-bar{display:flex;gap:8px;margin:10px;flex-wrap:wrap}
-.stat-card{flex:1;min-width:80px;background:#fff;border-radius:10px;padding:12px;text-align:center}
-.stat-num{font-size:22px;font-weight:700;color:#1B3A6B}
-.stat-lbl{font-size:11px;color:#888;margin-top:2px}
+
+.loading{text-align:center;padding:32px;color:#9ca3af;font-size:13px}
 </style>
 </head>
 <body>
-<div class="app">
-  <div class="header">
-    <div>
-      <div class="header-title">🏗️ 現場情報管理</div>
-      <div class="header-sub" id="hdate"></div>
-    </div>
-    <button onclick="location.href='index.html'" style="padding:7px 12px;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);border-radius:8px;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">📋 日報アプリ</button>
-  </div>
-  <div class="nav">
-    <button class="nav-btn active" onclick="sw('list',this)"><span class="nav-icon">🏗️</span>現場一覧</button>
-    <button class="nav-btn" onclick="sw('form',this)"><span class="nav-icon">➕</span>新規登録</button>
-    <button class="nav-btn" onclick="sw('stats',this)"><span class="nav-icon">📊</span>集計</button>
-  </div>
 
-  <!-- 現場一覧 -->
-  <div id="tab-list" class="tab active">
-    <div style="padding:10px 10px 0;display:flex;gap:8px">
-      <input type="text" id="search" placeholder="🔍 現場名・住所・施主名で検索" oninput="renderList()" style="flex:1;font-size:13px">
-      <select id="filter-status" onchange="renderList()" style="width:80px;font-size:12px;padding:8px 6px">
-        <option value="">全て</option>
-        <option value="施工中">施工中</option>
-        <option value="完工">完工</option>
-        <option value="予定">予定</option>
-      </select>
-    </div>
-    <div id="genba-list"></div>
+<div class="header">
+  <div>
+    <div class="header-title"><span>🏗️</span> 現場情報</div>
+    <div class="header-sub" id="sync-label">読み込み中…</div>
   </div>
-
-  <!-- 新規登録・編集 -->
-  <div id="tab-form" class="tab">
-    <div class="section" style="margin-top:10px">
-      <div class="sec-title" id="form-title">🏗️ 現場新規登録</div>
-      <input type="hidden" id="f-id">
-      <div class="fl"><label>現場名 *</label><input type="text" id="f-name" placeholder="例：○○マンション防水工事"></div>
-      <div class="fl"><label>住所</label><input type="text" id="f-addr" placeholder="例：大阪市北区○○1-2-3"></div>
-      <div class="fl"><label>施主名</label><input type="text" id="f-owner" placeholder="例：山田 太郎 様"></div>
-      <div class="g2">
-        <div class="fl" style="margin:0"><label>着工日</label><input type="date" id="f-start"></div>
-        <div class="fl" style="margin:0"><label>竣工予定日</label><input type="date" id="f-end"></div>
-      </div>
-    </div>
-    <div class="section">
-      <div class="sec-title">👤 担当者</div>
-      <div class="fl"><label>担当者名</label><input type="text" id="f-manager" placeholder="例：田中 一郎"></div>
-      <div class="fl"><label>連絡先</label><input type="text" id="f-tel" placeholder="例：090-XXXX-XXXX"></div>
-    </div>
-    <div class="section">
-      <div class="sec-title">📊 ステータス</div>
-      <div class="fl">
-        <select id="f-status">
-          <option value="予定">予定</option>
-          <option value="施工中" selected>施工中</option>
-          <option value="完工">完工</option>
-        </select>
-      </div>
-      <div class="fl"><label>備考・特記事項</label><textarea id="f-note" placeholder="工事の詳細・注意事項など"></textarea></div>
-    </div>
-    <div class="section">
-      <div class="sec-title">📷 現場写真・図面</div>
-      <div class="photo-grid" id="pgrid"></div>
-      <button class="add-btn" onclick="addPhoto()">＋ 写真・図面を追加</button>
-    </div>
-    <div class="btn-row">
-      <button class="btn-save" onclick="saveGenba()">💾 現場情報を保存</button>
-    </div>
-  </div>
-
-  <!-- 集計 -->
-  <div id="tab-stats" class="tab">
-    <div class="status-bar" id="stat-cards"></div>
-    <div class="section">
-      <div class="sec-title">📋 施工中現場</div>
-      <div id="active-list"></div>
-    </div>
-  </div>
+  <a href="index.html" class="report-nav-btn">
+    <span class="btn-icon">📋</span>
+    <span class="btn-label">作業日報</span>
+  </a>
 </div>
 
-<!-- 現場詳細オーバーレイ -->
-<div class="detail-overlay" id="detail-overlay">
-  <div class="detail-box">
-    <div class="detail-header">
-      <div class="detail-title" id="d-name"></div>
-      <button class="detail-close" onclick="closeDetail()">✕</button>
+<div class="content">
+  <button class="btn-new" onclick="openForm()">＋ 新しい現場を登録</button>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <span id="site-count" style="font-size:12px;color:#6b7280"></span>
+    <button class="btn-refresh" onclick="loadSites(true)">🔄 更新</button>
+  </div>
+
+  <div id="sites-list"><div class="loading">読み込み中…</div></div>
+</div>
+
+<!-- 登録フォーム -->
+<div class="form-overlay" id="form-overlay">
+  <div class="form-panel">
+    <div class="form-header">
+      <div class="form-header-title" id="form-title">現場を登録</div>
+      <button class="btn-close-form" onclick="closeForm()">✕ 閉じる</button>
     </div>
-    <div class="detail-body" id="d-body"></div>
+
+    <div class="card">
+      <div class="card-title">📍 基本情報</div>
+      <div class="field">
+        <label>現場名 <span style="color:#ef4444">*</span></label>
+        <input type="text" id="g-name" placeholder="例：○○マンション新築工事">
+      </div>
+      <div class="field">
+        <label>住所</label>
+        <input type="text" id="g-address" placeholder="例：大阪市中央区○○町1-2-3">
+      </div>
+      <div class="field">
+        <label>施主名</label>
+        <input type="text" id="g-client" placeholder="例：○○株式会社">
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📅 工期・担当</div>
+      <div class="row2">
+        <div>
+          <label>工期 開始</label>
+          <input type="date" id="g-start">
+        </div>
+        <div>
+          <label>工期 終了</label>
+          <input type="date" id="g-end">
+        </div>
+      </div>
+      <div class="field">
+        <label>担当者</label>
+        <input type="text" id="g-manager" placeholder="例：田中太郎">
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📝 備考</div>
+      <textarea id="g-note" placeholder="特記事項・備考など"></textarea>
+    </div>
+
+    <button class="btn-save" id="form-save-btn" onclick="saveSite()">💾 登録する</button>
+    <button class="btn-cancel" onclick="closeForm()">キャンセル</button>
+    <div style="height:20px"></div>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
 
 <script>
-let photos=[];
-let editingId=null;
+const GAS_URL = 'https://script.google.com/macros/s/AKfycby9b1XxHyum6h_k50ki3kFLDrauDAEXPXAq5GwzSXcr61A9DpvRlf5q3nLCYSYlO9_j/exec';
+let editingName = null; // 編集中の現場名（nullなら新規）
+let sites = [];
 
-function $(id){return document.getElementById(id)}
-function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
+window.onload = function(){
+  loadSites();
+};
 
-function initDate(){
-  const d=new Date();
-  $('hdate').textContent=d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日（'+['日','月','火','水','木','金','土'][d.getDay()]+'）';
+// 現場一覧読込
+function loadSites(showMsg){
+  if(showMsg) showToast('🔄 更新中…');
+  document.getElementById('sites-list').innerHTML='<div class="loading">読み込み中…</div>';
+
+  fetch(GAS_URL + '?action=getSites')
+    .then(r=>r.json())
+    .then(res=>{
+      sites = res.sites || [];
+      // ローカルキャッシュにも保存
+      localStorage.setItem('genba-sites', JSON.stringify(sites));
+      renderSites();
+      const now = new Date().toLocaleString('ja-JP');
+      document.getElementById('sync-label').textContent = `最終更新：${now}`;
+      if(showMsg) showToast('✅ 更新しました');
+    })
+    .catch(()=>{
+      // オフライン時はキャッシュから
+      sites = JSON.parse(localStorage.getItem('genba-sites')||'[]');
+      renderSites();
+      document.getElementById('sync-label').textContent = 'オフライン（キャッシュ表示）';
+      if(showMsg) showToast('⚠️ オフラインのためキャッシュを表示');
+    });
 }
 
-function sw(name,btn){
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
-  $('tab-'+name).classList.add('active');btn.classList.add('active');
-  if(name==='list') renderList();
-  if(name==='stats') renderStats();
-  if(name==='form'&&!editingId) resetForm();
-}
+// 一覧表示
+function renderSites(){
+  const el = document.getElementById('sites-list');
+  document.getElementById('site-count').textContent = `${sites.length}件の現場`;
 
-function toast(msg){
-  const t=$('toast');t.textContent=msg;t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'),2800);
-}
-
-function getGenbas(){return JSON.parse(localStorage.getItem('genbas')||'[]');}
-function saveGenbas(data){localStorage.setItem('genbas',JSON.stringify(data));}
-
-function statusBadge(s){
-  const map={'施工中':'b-active','完工':'b-done','予定':'b-plan'};
-  return `<span class="badge ${map[s]||'b-plan'}">${s||'予定'}</span>`;
-}
-
-function renderList(){
-  const genbas=getGenbas();
-  const q=$('search').value.trim().toLowerCase();
-  const fs=$('filter-status').value;
-  const filtered=genbas.filter(g=>{
-    const match=!q||(g.name||'').toLowerCase().includes(q)||(g.addr||'').toLowerCase().includes(q)||(g.owner||'').toLowerCase().includes(q);
-    const statusMatch=!fs||g.status===fs;
-    return match&&statusMatch;
-  });
-  if(!filtered.length){
-    $('genba-list').innerHTML='<div class="empty">🏗️<br>現場情報がありません<br><small>「新規登録」タブから追加してください</small></div>';
+  if(!sites.length){
+    el.innerHTML=`
+      <div class="empty-state">
+        <div class="empty-icon">🏗️</div>
+        <p>現場が登録されていません<br>「＋ 新しい現場を登録」から追加してください</p>
+      </div>`;
     return;
   }
-  $('genba-list').innerHTML=filtered.map(g=>`
-    <div class="genba-card">
-      <div style="display:flex;justify-content:space-between;align-items:start">
-        <div class="genba-name">${esc(g.name)}</div>
-        ${statusBadge(g.status)}
-      </div>
-      <div class="genba-meta">
-        ${g.addr?`📍 ${esc(g.addr)}<br>`:''}
-        ${g.owner?`👤 施主：${esc(g.owner)}　`:''}
-        ${g.manager?`担当：${esc(g.manager)}`:''}
-        ${g.start||g.end?`<br>📅 ${g.start||''}〜${g.end||''}`:''}
-      </div>
-      <div class="card-actions">
-        <button class="btn-detail" onclick="showDetail('${g.id}')">📋 詳細・日報</button>
-        <button class="btn-edit" onclick="editGenba('${g.id}')">✏️ 編集</button>
-        <button class="btn-del" onclick="delGenba('${g.id}')">🗑️</button>
-      </div>
-    </div>`).join('');
-}
 
-function showDetail(id){
-  const g=getGenbas().find(x=>x.id===id);
-  if(!g) return;
-  $('d-name').textContent=g.name||'';
-  
-  // 日報データから該当現場を検索
-  const nippos=JSON.parse(localStorage.getItem('dr_v2')||'[]').filter(r=>r.site===g.name);
-  
-  $('d-body').innerHTML=`
-    <div class="detail-row"><div class="detail-lbl">住所</div><div class="detail-val">${esc(g.addr)||'—'}</div></div>
-    <div class="detail-row"><div class="detail-lbl">施主名</div><div class="detail-val">${esc(g.owner)||'—'}</div></div>
-    <div class="detail-row"><div class="detail-lbl">工期</div><div class="detail-val">${g.start||''}〜${g.end||''}</div></div>
-    <div class="detail-row"><div class="detail-lbl">担当者</div><div class="detail-val">${esc(g.manager)||'—'}${g.tel?' / '+esc(g.tel):''}</div></div>
-    <div class="detail-row"><div class="detail-lbl">ステータス</div><div class="detail-val">${statusBadge(g.status)}</div></div>
-    ${g.note?`<div class="detail-row"><div class="detail-lbl">備考</div><div class="detail-val">${esc(g.note)}</div></div>`:''}
-    ${g.photos&&g.photos.length>0?`
-      <div style="font-size:12px;font-weight:600;color:#888;margin:12px 0 6px">📷 現場写真・図面</div>
-      <div class="photo-grid">${g.photos.map(p=>p?`<div class="ps"><img src="${p}"></div>`:'').join('')}</div>
-    `:''}
-    <div style="font-size:12px;font-weight:600;color:#888;margin:14px 0 8px">📋 日報履歴（${nippos.length}件）</div>
-    ${nippos.length?nippos.slice(0,10).map(r=>`
-      <div class="nippo-item">
-        <div class="nippo-date">${r.date}</div>
-        <div class="nippo-meta">
-          🌤️ ${r.weather||'—'} ${r.temp?r.temp+'℃':''}　
-          👷 ${r.workers.reduce((a,w)=>a+(parseInt(w.c)||0),0)}名　
-          📈 ${r.progress}%
-        </div>
-        ${r.work?`<div style="font-size:12px;color:#555;margin-top:3px;line-height:1.5">${esc(r.work.substring(0,60))}${r.work.length>60?'…':''}</div>`:''}
-      </div>`).join(''):'<div style="color:#bbb;font-size:13px;text-align:center;padding:16px">日報がまだありません</div>'}
-    ${nippos.length>10?`<div style="text-align:center;font-size:12px;color:#888;padding:8px">他${nippos.length-10}件</div>`:''}
-    <div style="padding-top:12px">
-      <button onclick="openDailyReport('${esc(g.name)}')" style="width:100%;padding:11px;background:#1B3A6B;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">
-        ✏️ この現場の日報を入力する
-      </button>
+  el.innerHTML = sites.map(s=>`
+    <div class="site-item">
+      <div class="site-head">
+        <div class="site-name">${esc(s.name)}</div>
+        ${s.endDate ? '<div class="site-badge">工期あり</div>' : ''}
+      </div>
+      <div class="site-info">
+        ${s.address ? `<span>📍 ${esc(s.address)}</span>` : ''}
+        ${s.client ? `<span>🏢 ${esc(s.client)}</span>` : ''}
+        ${s.manager ? `<span>👤 ${esc(s.manager)}</span>` : ''}
+        ${s.startDate||s.endDate ? `<br><span>📅 ${s.startDate||''}〜${s.endDate||''}</span>` : ''}
+        ${s.note ? `<br><span>📝 ${esc(s.note)}</span>` : ''}
+      </div>
+      <div class="site-actions">
+        <button class="btn-diary" onclick="goToDiary('${esc(s.name)}')">✏️ この現場の日報を入力する</button>
+        <button class="btn-edit-site" onclick="openEditForm('${esc(s.name)}')">編集</button>
+        <button class="btn-del-site" onclick="deleteSite('${esc(s.name)}')">削除</button>
+      </div>
     </div>
-  `;
-  $('detail-overlay').classList.add('show');
+  `).join('');
 }
 
-function openDailyReport(name){
-  // 日報アプリが同じGitHub Pagesに index.html として存在する想定
-  const url=location.origin+location.pathname.replace('genba.html','index.html')+'?site='+encodeURIComponent(name);
-  window.location.href=url;
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// 日報アプリへ
+function goToDiary(name){
+  location.href = 'index.html?site=' + encodeURIComponent(name);
 }
 
-function closeDetail(){$('detail-overlay').classList.remove('show');}
+// フォームを開く（新規）
+function openForm(){
+  editingName = null;
+  document.getElementById('form-title').textContent = '現場を登録';
+  document.getElementById('form-save-btn').textContent = '💾 登録する';
+  clearForm();
+  document.getElementById('form-overlay').classList.add('show');
+  document.getElementById('g-name').focus();
+}
 
-function addPhoto(){
-  const id='p'+Date.now();
-  photos.push({id,data:null});
-  renderPhotos();
+// フォームを開く（編集）
+function openEditForm(name){
+  const s = sites.find(x=>x.name===name);
+  if(!s) return;
+  editingName = name;
+  document.getElementById('form-title').textContent = '現場を編集';
+  document.getElementById('form-save-btn').textContent = '💾 更新する';
+  document.getElementById('g-name').value = s.name;
+  document.getElementById('g-address').value = s.address||'';
+  document.getElementById('g-client').value = s.client||'';
+  document.getElementById('g-start').value = s.startDate||'';
+  document.getElementById('g-end').value = s.endDate||'';
+  document.getElementById('g-manager').value = s.manager||'';
+  document.getElementById('g-note').value = s.note||'';
+  document.getElementById('form-overlay').classList.add('show');
 }
-function renderPhotos(){
-  $('pgrid').innerHTML=photos.map(p=>`
-    <div class="ps">
-      ${p.data?`<img src="${p.data}">`:''}
-      ${!p.data?`<span class="pico">📷</span><span class="pl">タップして追加</span>`:''}
-      <input type="file" accept="image/*" onchange="loadPhoto('${p.id}',this)">
-      ${p.data?`<button onclick="removePhoto('${p.id}')" style="position:absolute;top:4px;right:4px;z-index:3;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.5);color:#fff;border:none;cursor:pointer;font-size:13px;padding:0">✕</button>`:''}
-    </div>`).join('');
-}
-function loadPhoto(id,inp){
-  const f=inp.files[0];if(!f)return;
-  const r=new FileReader();
-  r.onload=e=>{const p=photos.find(x=>x.id===id);if(p)p.data=e.target.result;renderPhotos();};
-  r.readAsDataURL(f);
-}
-function removePhoto(id){photos=photos.filter(p=>p.id!==id);renderPhotos();}
 
-function saveGenba(){
-  const name=$('f-name').value.trim();
-  if(!name){toast('⚠️ 現場名を入力してください');return;}
-  const genbas=getGenbas();
-  const id=editingId||'g'+Date.now();
-  const genba={
-    id,name,
-    addr:$('f-addr').value.trim(),
-    owner:$('f-owner').value.trim(),
-    start:$('f-start').value,
-    end:$('f-end').value,
-    manager:$('f-manager').value.trim(),
-    tel:$('f-tel').value.trim(),
-    status:$('f-status').value,
-    note:$('f-note').value.trim(),
-    photos:photos.map(p=>p.data),
-    updatedAt:new Date().toISOString()
-  };
-  if(editingId){
-    const idx=genbas.findIndex(g=>g.id===editingId);
-    if(idx>=0) genbas[idx]=genba;
-  } else {
-    genbas.unshift(genba);
+function closeForm(){
+  document.getElementById('form-overlay').classList.remove('show');
+  clearForm();
+}
+
+function clearForm(){
+  ['g-name','g-address','g-client','g-start','g-end','g-manager','g-note'].forEach(id=>{
+    document.getElementById(id).value='';
+  });
+}
+
+// 登録・更新
+async function saveSite(){
+  const name = document.getElementById('g-name').value.trim();
+  if(!name){ showToast('⚠️ 現場名は必須です'); return; }
+
+  const btn = document.getElementById('form-save-btn');
+  btn.disabled=true; btn.textContent='送信中…';
+
+  const params = new URLSearchParams({
+    action: 'addSite',
+    name,
+    address: document.getElementById('g-address').value.trim(),
+    client: document.getElementById('g-client').value.trim(),
+    startDate: document.getElementById('g-start').value,
+    endDate: document.getElementById('g-end').value,
+    manager: document.getElementById('g-manager').value.trim(),
+    note: document.getElementById('g-note').value.trim()
+  });
+
+  // 編集の場合は古いデータを削除してから追加
+  if(editingName && editingName !== name){
+    await fetch(`${GAS_URL}?action=deleteSite&name=${encodeURIComponent(editingName)}`).catch(()=>{});
+  } else if(editingName){
+    // 同じ名前で更新：削除してから再追加
+    await fetch(`${GAS_URL}?action=deleteSite&name=${encodeURIComponent(editingName)}`).catch(()=>{});
   }
-  saveGenbas(genbas);
-  toast(editingId?'✅ 現場情報を更新しました！':'✅ 現場情報を登録しました！');
-  resetForm();
-  sw('list',document.querySelectorAll('.nav-btn')[0]);
+
+  fetch(`${GAS_URL}?${params.toString()}`)
+    .then(r=>r.json())
+    .then(res=>{
+      if(res.status==='ok'){
+        showToast(editingName ? '✅ 更新しました' : '✅ 登録しました');
+        closeForm();
+        loadSites();
+      } else {
+        showToast('❌ エラー：'+res.message);
+      }
+    })
+    .catch(()=>{
+      // オフライン時はローカルに仮保存
+      const cached = JSON.parse(localStorage.getItem('genba-sites')||'[]');
+      const newSite = {
+        name,
+        address: document.getElementById('g-address').value.trim(),
+        client: document.getElementById('g-client').value.trim(),
+        startDate: document.getElementById('g-start').value,
+        endDate: document.getElementById('g-end').value,
+        manager: document.getElementById('g-manager').value.trim(),
+        note: document.getElementById('g-note').value.trim(),
+        registeredAt: new Date().toLocaleString('ja-JP')
+      };
+      if(editingName){
+        const idx = cached.findIndex(x=>x.name===editingName);
+        if(idx>=0) cached[idx]=newSite; else cached.unshift(newSite);
+      } else {
+        cached.unshift(newSite);
+      }
+      localStorage.setItem('genba-sites', JSON.stringify(cached));
+      sites = cached;
+      renderSites();
+      showToast('⚠️ オフライン保存（電波回復後に再登録してください）');
+      closeForm();
+    })
+    .finally(()=>{
+      btn.disabled=false;
+      btn.textContent = editingName ? '💾 更新する' : '💾 登録する';
+    });
 }
 
-function editGenba(id){
-  const g=getGenbas().find(x=>x.id===id);
-  if(!g) return;
-  editingId=id;
-  $('form-title').textContent='✏️ 現場情報を編集';
-  $('f-id').value=id;
-  $('f-name').value=g.name||'';
-  $('f-addr').value=g.addr||'';
-  $('f-owner').value=g.owner||'';
-  $('f-start').value=g.start||'';
-  $('f-end').value=g.end||'';
-  $('f-manager').value=g.manager||'';
-  $('f-tel').value=g.tel||'';
-  $('f-status').value=g.status||'施工中';
-  $('f-note').value=g.note||'';
-  photos=(g.photos||[]).map((d,i)=>({id:'p'+i,data:d}));
-  renderPhotos();
-  sw('form',document.querySelectorAll('.nav-btn')[1]);
+// 削除
+function deleteSite(name){
+  if(!confirm(`「${name}」を削除しますか？\n（日報データは残ります）`)) return;
+
+  fetch(`${GAS_URL}?action=deleteSite&name=${encodeURIComponent(name)}`)
+    .then(r=>r.json())
+    .then(()=>{
+      showToast('🗑️ 削除しました');
+      loadSites();
+    })
+    .catch(()=>{
+      // オフライン時はローカルから削除
+      const cached = JSON.parse(localStorage.getItem('genba-sites')||'[]');
+      const filtered = cached.filter(x=>x.name!==name);
+      localStorage.setItem('genba-sites', JSON.stringify(filtered));
+      sites = filtered;
+      renderSites();
+      showToast('🗑️ 削除しました（オフライン）');
+    });
 }
 
-function delGenba(id){
-  if(!confirm('この現場情報を削除しますか？'))return;
-  saveGenbas(getGenbas().filter(g=>g.id!==id));
-  renderList();
-  toast('削除しました');
+function showToast(msg, dur=2500){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),dur);
 }
-
-function resetForm(){
-  editingId=null;
-  $('form-title').textContent='🏗️ 現場新規登録';
-  ['f-name','f-addr','f-owner','f-start','f-end','f-manager','f-tel','f-note'].forEach(id=>$(id).value='');
-  $('f-status').value='施工中';
-  photos=[];renderPhotos();
-}
-
-function renderStats(){
-  const genbas=getGenbas();
-  const active=genbas.filter(g=>g.status==='施工中').length;
-  const done=genbas.filter(g=>g.status==='完工').length;
-  const plan=genbas.filter(g=>g.status==='予定').length;
-  $('stat-cards').innerHTML=`
-    <div class="stat-card"><div class="stat-num" style="color:#1a7a3e">${active}</div><div class="stat-lbl">施工中</div></div>
-    <div class="stat-card"><div class="stat-num" style="color:#1B3A6B">${plan}</div><div class="stat-lbl">予定</div></div>
-    <div class="stat-card"><div class="stat-num" style="color:#888">${done}</div><div class="stat-lbl">完工</div></div>
-    <div class="stat-card"><div class="stat-num">${genbas.length}</div><div class="stat-lbl">合計</div></div>
-  `;
-  const activeGenbas=genbas.filter(g=>g.status==='施工中');
-  $('active-list').innerHTML=activeGenbas.length?activeGenbas.map(g=>`
-    <div style="padding:10px 0;border-bottom:1px solid #f0f0f0">
-      <div style="font-size:14px;font-weight:600;color:#1B3A6B">${esc(g.name)}</div>
-      <div style="font-size:12px;color:#888;margin-top:2px">
-        ${g.end?`竣工予定：${g.end}　`:''}${g.manager?`担当：${esc(g.manager)}`:''}
-      </div>
-    </div>`).join(''):'<div style="color:#bbb;font-size:13px;text-align:center;padding:16px">施工中の現場はありません</div>';
-}
-
-// 日報アプリからのURL引数対応（?site=現場名）
-function checkUrlParams(){
-  const params=new URLSearchParams(location.search);
-  const site=params.get('site');
-  if(site){
-    // 現場名でフィルターして詳細を開く
-    const g=getGenbas().find(x=>x.name===site);
-    if(g) setTimeout(()=>showDetail(g.id),300);
-  }
-}
-
-initDate();renderList();checkUrlParams();
 </script>
 </body>
 </html>
