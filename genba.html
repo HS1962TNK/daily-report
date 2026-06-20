@@ -363,7 +363,7 @@ function renderSites(){
       </div>` : ''}
       <div class="site-actions">
         <button class="btn-diary"  onclick="goToDiary('${esc(s.name)}')">✏️ この現場の日報を入力する</button>
-        ${hasFiles ? `<button class="btn-files" onclick="openFiles('${esc(s.name)}')">📎 ファイル</button>` : ''}
+        ${s.folderUrl ? `<button onclick="window.open('${s.folderUrl}','_blank')" style="padding:9px 12px;background:#fff;color:#16a34a;border:1.5px solid #86efac;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">📁 工事写真を見る</button>` : ''}
         <button class="btn-edit-s" onclick="openEditForm('${esc(s.name)}')">編集</button>
         <button class="btn-del-s"  onclick="deleteSite('${esc(s.name)}')">削除</button>
       </div>
