@@ -29,15 +29,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .page{background:#fff;width:210mm;min-height:297mm;margin:0 auto 16px;padding:14mm 12mm;box-shadow:0 2px 12px rgba(0,0,0,.15);position:relative;display:flex;flex-direction:column}
 
 /* 表紙 */
-.cover{justify-content:center;align-items:center;text-align:center}
-.cover-inner{border:3px double #1a1a1a;padding:30mm 20mm;width:100%}
-.cover-label{font-size:14px;color:#666;letter-spacing:2px;margin-bottom:8mm}
-.cover-title{font-size:32px;font-weight:700;letter-spacing:8px;margin-bottom:20mm;padding-bottom:8mm;border-bottom:2px solid #1a1a1a}
-.cover-meta{text-align:left;max-width:130mm;margin:0 auto}
-.cover-meta .cm-row{display:flex;border-bottom:1px solid #999;padding:7mm 0;font-size:15px}
-.cover-meta .cm-label{width:40mm;font-weight:700;flex-shrink:0}
-.cover-meta .cm-val{flex:1}
-.cover-foot{margin-top:24mm;font-size:14px}
+.cover{padding:0}
+.cover-inner{border:2px solid #1a1a1a;flex:1;display:flex;flex-direction:column;padding:14mm 16mm;margin:8mm}
+.cover-title{font-size:30px;font-weight:700;letter-spacing:5px;text-align:center;padding-top:20mm;padding-bottom:6mm;border-bottom:2px solid #1a1a1a}
+.cover-spacer{flex:1}
+.cover-meta{margin-bottom:24mm}
+.cover-meta .cm-row{display:flex;border-bottom:1px solid #999;padding:6mm 0;font-size:15px}
+.cover-meta .cm-label{width:30mm;font-weight:700;flex-shrink:0;letter-spacing:1px;white-space:nowrap}
+.cover-meta .cm-val{flex:1;padding-left:4mm}
 
 /* 写真ページ */
 .photo-rows{display:flex;flex-direction:column;gap:8mm;flex:1;justify-content:space-evenly}
@@ -154,15 +153,13 @@ function buildCover(){
   return `
     <div class="page cover" id="cover-page">
       <div class="cover-inner">
-        <div class="cover-label">工 事 写 真 台 帳</div>
-        <div class="cover-title hv-koji"></div>
+        <div class="cover-title">工事写真台帳</div>
+        <div class="cover-spacer"></div>
         <div class="cover-meta">
-          <div class="cm-row"><div class="cm-label">工　事　名</div><div class="cm-val hv-koji"></div></div>
-          <div class="cm-row"><div class="cm-label">現　場　名</div><div class="cm-val hv-genba"></div></div>
-          <div class="cm-row"><div class="cm-label">所　在　地</div><div class="cm-val hv-addr"></div></div>
-          <div class="cm-row"><div class="cm-label">施 工 業 者</div><div class="cm-val hv-gyosha"></div></div>
+          <div class="cm-row"><div class="cm-label">工 事 名</div><div class="cm-val hv-koji"></div></div>
+          <div class="cm-row"><div class="cm-label">所 在 地</div><div class="cm-val hv-addr"></div></div>
+          <div class="cm-row"><div class="cm-label">施工業者</div><div class="cm-val hv-gyosha"></div></div>
         </div>
-        <div class="cover-foot hv-gyosha"></div>
       </div>
     </div>`;
 }
