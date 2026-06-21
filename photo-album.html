@@ -42,6 +42,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .photo-rows{display:flex;flex-direction:column;gap:8mm;flex:1;justify-content:space-evenly}
 .photo-row{display:grid;grid-template-columns:90mm 1fr;border:1px solid #1a1a1a;height:60mm}
 .photo-cell{border-right:1px solid #1a1a1a;position:relative;background:#f5f5f5;display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer}
+.photo-cell.drag-over{background:#EBF4FF;outline:2px dashed #1B3A6B;outline-offset:-4px}
 .photo-cell img{width:100%;height:100%;object-fit:contain}
 .photo-cell .ph-placeholder{text-align:center;color:#bbb;font-size:12px;padding:10px}
 .photo-cell .ph-placeholder .ph-icon{font-size:32px;margin-bottom:6px}
@@ -78,6 +79,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 <div class="toolbar">
   <h1>📷 工事写真台帳</h1>
   <div class="toolbar-actions">
+    <button class="tb-btn ghost" onclick="location.href='genba.html'">🏗️ 現場情報</button>
+    <button class="tb-btn ghost" onclick="location.href='index.html'">📋 日報</button>
     <button class="tb-btn ghost" onclick="addPage()">＋ 写真ページ追加</button>
     <button class="tb-btn green" onclick="saveData()">💾 保存</button>
     <button class="tb-btn orange" onclick="exportExcel()">📊 Excel出力</button>
@@ -136,6 +139,13 @@ function fillSiteSelect(sites){
     sel.appendChild(opt);
   });
   window._sites = sites;
+  // URL引数 ?site=現場名 があれば自動選択
+  const params = new URLSearchParams(location.search);
+  const siteName = params.get('site');
+  if(siteName && !$('h-koji').value){
+    const idx = sites.findIndex(s=>s.name===siteName);
+    if(idx>=0){ sel.value=idx; applySite(idx); }
+  }
 }
 function applySite(idx){
   if(idx==='') return;
@@ -172,10 +182,13 @@ function buildPhotoPage(pageIdx){
     const num = pageIdx*PHOTOS_PER_PAGE + i + 1;
     rows += `
       <div class="photo-row">
-        <div class="photo-cell" id="cell-${key}">
+        <div class="photo-cell" id="cell-${key}"
+          ondragover="onCellDragOver(event,'${key}')"
+          ondragleave="onCellDragLeave('${key}')"
+          ondrop="onCellDrop(event,'${key}')">
           ${photoData[key]
             ? `<img src="${photoData[key]}"><button class="photo-del" onclick="delPhoto('${key}')">✕</button>`
-            : `<div class="ph-placeholder"><div class="ph-icon">📷</div>クリックして写真を選択</div>`}
+            : `<div class="ph-placeholder"><div class="ph-icon">📷</div>クリック または<br>ドラッグ＆ドロップ</div>`}
           <input type="file" accept="image/*" onchange="loadPhoto('${key}',this)">
         </div>
         <div class="info-cell">
@@ -219,16 +232,35 @@ function delPage(idx){
 
 function loadPhoto(key,inp){
   const f=inp.files[0];if(!f)return;
+  setPhoto(key,f);
+}
+function setPhoto(key,file){
+  if(!file||!file.type.startsWith('image/')){alert('⚠️ 画像ファイルを選択してください');return;}
   const r=new FileReader();
   r.onload=e=>{
     photoData[key]=e.target.result;
     $('cell-'+key).innerHTML=`<img src="${e.target.result}"><button class="photo-del" onclick="delPhoto('${key}')">✕</button><input type="file" accept="image/*" onchange="loadPhoto('${key}',this)">`;
   };
-  r.readAsDataURL(f);
+  r.readAsDataURL(file);
 }
 function delPhoto(key){
   delete photoData[key];
-  $('cell-'+key).innerHTML=`<div class="ph-placeholder"><div class="ph-icon">📷</div>クリックして写真を選択</div><input type="file" accept="image/*" onchange="loadPhoto('${key}',this)">`;
+  $('cell-'+key).innerHTML=`<div class="ph-placeholder"><div class="ph-icon">📷</div>クリック または<br>ドラッグ＆ドロップ</div><input type="file" accept="image/*" onchange="loadPhoto('${key}',this)">`;
+}
+
+// ドラッグ＆ドロップ
+function onCellDragOver(e,key){
+  e.preventDefault();
+  $('cell-'+key).classList.add('drag-over');
+}
+function onCellDragLeave(key){
+  $('cell-'+key).classList.remove('drag-over');
+}
+function onCellDrop(e,key){
+  e.preventDefault();
+  $('cell-'+key).classList.remove('drag-over');
+  const f=e.dataTransfer.files[0];
+  if(f) setPhoto(key,f);
 }
 
 function syncHeader(){
