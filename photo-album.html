@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>工事写真台帳</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sans-serif;background:#e8e8e6;color:#1a1a1a}
+
+/* ツールバー（印刷時非表示） */
+.toolbar{background:#1B3A6B;color:#fff;padding:12px 16px;position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.toolbar h1{font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px}
+.toolbar-actions{display:flex;gap:8px;flex-wrap:wrap}
+.tb-btn{padding:8px 14px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:5px}
+.tb-btn.primary{background:#fff;color:#1B3A6B}
+.tb-btn.green{background:#22c55e;color:#fff}
+.tb-btn.ghost{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3)}
+
+/* ヘッダー入力エリア（印刷時非表示） */
+.header-form{background:#fff;margin:12px auto;max-width:210mm;padding:16px;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.header-form .hf-title{font-size:13px;font-weight:700;color:#374151;margin-bottom:12px}
+.hf-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.hf-field label{font-size:11px;color:#6b7280;display:block;margin-bottom:3px;font-weight:600}
+.hf-field input{width:100%;padding:8px 10px;border:1.5px solid #e5e7eb;border-radius:7px;font-size:13px;font-family:inherit}
+.hf-field input:focus{outline:none;border-color:#1B3A6B}
+
+/* A4ページ */
+.pages{padding:12px 12px 40px}
+.page{background:#fff;width:210mm;min-height:297mm;margin:0 auto 16px;padding:14mm 12mm;box-shadow:0 2px 12px rgba(0,0,0,.15);position:relative}
+
+/* 台紙ヘッダー */
+.sheet-header{border:2px solid #1a1a1a;margin-bottom:6mm}
+.sheet-title{text-align:center;font-size:18px;font-weight:700;padding:7px;border-bottom:1.5px solid #1a1a1a;letter-spacing:4px}
+.sheet-meta{display:grid;grid-template-columns:1fr 1fr;font-size:12px}
+.sheet-meta>div{padding:6px 10px;display:flex;gap:6px}
+.sheet-meta>div:first-child{border-right:1.5px solid #1a1a1a}
+.sheet-meta .m-label{font-weight:700;white-space:nowrap}
+.page-num{position:absolute;bottom:8mm;right:12mm;font-size:11px;color:#666}
+
+/* 写真ブロック（縦4枚） */
+.photo-rows{display:flex;flex-direction:column;gap:5mm}
+.photo-row{display:grid;grid-template-columns:90mm 1fr;border:1px solid #1a1a1a;min-height:58mm}
+.photo-cell{border-right:1px solid #1a1a1a;position:relative;background:#f5f5f5;display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer}
+.photo-cell img{width:100%;height:100%;object-fit:contain}
+.photo-cell .ph-placeholder{text-align:center;color:#bbb;font-size:12px;padding:10px}
+.photo-cell .ph-placeholder .ph-icon{font-size:32px;margin-bottom:6px}
+.photo-cell input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
+.photo-del{position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:none;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;z-index:5}
+
+/* 情報セル */
+.info-cell{display:flex;flex-direction:column}
+.info-row{display:grid;grid-template-columns:24mm 1fr;border-bottom:1px solid #ccc;min-height:9mm}
+.info-row:last-of-type{border-bottom:none}
+.info-label{background:#f0f0f0;border-right:1px solid #ccc;padding:4px 6px;font-size:11px;font-weight:700;display:flex;align-items:center}
+.info-val{padding:2px}
+.info-val input,.info-val textarea{width:100%;height:100%;border:none;padding:4px 6px;font-size:12px;font-family:inherit;resize:none;background:transparent}
+.info-val input:focus,.info-val textarea:focus{outline:none;background:#fffbe6}
+.info-comment{flex:1;display:flex}
+.info-comment textarea{width:100%;border:none;padding:5px 7px;font-size:12px;font-family:inherit;resize:none;line-height:1.6}
+.info-comment textarea:focus{outline:none;background:#fffbe6}
+
+/* 印刷 */
+@media print{
+  body{background:#fff}
+  .toolbar,.header-form,.no-print{display:none!important}
+  .pages{padding:0}
+  .page{box-shadow:none;margin:0;width:auto;min-height:auto;page-break-after:always}
+  .page:last-child{page-break-after:auto}
+  .photo-del{display:none!important}
+  .photo-cell .ph-placeholder{display:none}
+  .info-val input,.info-val textarea,.info-comment textarea{background:transparent!important}
+  @page{size:A4 portrait;margin:0}
+}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <h1>📷 工事写真台帳</h1>
+  <div class="toolbar-actions">
+    <button class="tb-btn ghost" onclick="addPage()">＋ ページ追加</button>
+    <button class="tb-btn green" onclick="saveData()">💾 保存</button>
+    <button class="tb-btn primary" onclick="window.print()">🖨️ 印刷・PDF出力</button>
+  </div>
+</div>
+
+<!-- 共通ヘッダー入力 -->
+<div class="header-form no-print">
+  <div class="hf-title">📋 台帳の基本情報（全ページ共通）</div>
+  <div class="hf-grid">
+    <div class="hf-field"><label>工事名</label><input type="text" id="h-koji" placeholder="○○マンション防水工事" oninput="syncHeader()"></div>
+    <div class="hf-field"><label>現場名・場所</label><input type="text" id="h-genba" placeholder="大阪市○○区" oninput="syncHeader()"></div>
+    <div class="hf-field"><label>施工業者</label><input type="text" id="h-gyosha" placeholder="○○建設株式会社" oninput="syncHeader()"></div>
+  </div>
+</div>
+
+<div class="pages" id="pages"></div>
+
+<script>
+const PHOTOS_PER_PAGE = 4;
+let pageCount = 0;
+let header = { koji:'', genba:'', gyosha:'' };
+
+function $(id){return document.getElementById(id)}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
+
+// 写真データの保管（ページ・スロットごと）
+let photoData = {}; // key: "p0-0" => dataURL
+
+function buildPage(pageIdx){
+  let rows = '';
+  for(let i=0;i<PHOTOS_PER_PAGE;i++){
+    const key = `p${pageIdx}-${i}`;
+    const num = pageIdx*PHOTOS_PER_PAGE + i + 1;
+    rows += `
+      <div class="photo-row">
+        <div class="photo-cell" id="cell-${key}">
+          ${photoData[key]
+            ? `<img src="${photoData[key]}"><button class="photo-del" onclick="delPhoto('${key}')">✕</button>`
+            : `<div class="ph-placeholder"><div class="ph-icon">📷</div>クリックして写真を選択</div>`}
+          <input type="file" accept="image/*" onchange="loadPhoto('${key}',this)">
+        </div>
+        <div class="info-cell">
+          <div class="info-row">
+            <div class="info-label">写真番号</div>
+            <div class="info-val"><input type="text" value="No.${num}" data-k="${key}-no"></div>
+          </div>
+          <div class="info-row">
+            <div class="info-label">工種</div>
+            <div class="info-val"><input type="text" placeholder="例：防水工事" data-k="${key}-kosyu"></div>
+          </div>
+          <div class="info-row">
+            <div class="info-label">撮影日</div>
+            <div class="info-val"><input type="text" placeholder="例：2026-06-21" data-k="${key}-date"></div>
+          </div>
+          <div class="info-row">
+            <div class="info-label">撮影場所</div>
+            <div class="info-val"><input type="text" placeholder="例：屋上" data-k="${key}-place"></div>
+          </div>
+          <div class="info-comment">
+            <textarea placeholder="コメント・施工内容を記入" data-k="${key}-comment"></textarea>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  return `
+    <div class="page" id="page-${pageIdx}">
+      <div class="sheet-header">
+        <div class="sheet-title">工 事 写 真 台 帳</div>
+        <div class="sheet-meta">
+          <div><span class="m-label">工事名：</span><span class="hv-koji"></span></div>
+          <div><span class="m-label">施工業者：</span><span class="hv-gyosha"></span></div>
+          <div style="grid-column:span 2;border-top:1.5px solid #1a1a1a"><span class="m-label">現場名・場所：</span><span class="hv-genba"></span></div>
+        </div>
+      </div>
+      <div class="photo-rows">${rows}</div>
+      <div class="page-num">- ${pageIdx+1} -</div>
+    </div>`;
+}
+
+function addPage(){
+  const div = document.createElement('div');
+  div.innerHTML = buildPage(pageCount);
+  $('pages').appendChild(div.firstElementChild);
+  pageCount++;
+  syncHeader();
+}
+
+function loadPhoto(key, inp){
+  const f = inp.files[0];
+  if(!f) return;
+  const r = new FileReader();
+  r.onload = e => {
+    photoData[key] = e.target.result;
+    const cell = $('cell-'+key);
+    cell.innerHTML = `<img src="${e.target.result}"><button class="photo-del" onclick="delPhoto('${key}')">✕</button><input type="file" accept="image/*" onchange="loadPhoto('${key}',this)">`;
+  };
+  r.readAsDataURL(f);
+}
+
+function delPhoto(key){
+  delete photoData[key];
+  const cell = $('cell-'+key);
+  cell.innerHTML = `<div class="ph-placeholder"><div class="ph-icon">📷</div>クリックして写真を選択</div><input type="file" accept="image/*" onchange="loadPhoto('${key}',this)">`;
+}
+
+function syncHeader(){
+  header.koji = $('h-koji').value;
+  header.genba = $('h-genba').value;
+  header.gyosha = $('h-gyosha').value;
+  document.querySelectorAll('.hv-koji').forEach(el=>el.textContent=header.koji);
+  document.querySelectorAll('.hv-genba').forEach(el=>el.textContent=header.genba);
+  document.querySelectorAll('.hv-gyosha').forEach(el=>el.textContent=header.gyosha);
+}
+
+function saveData(){
+  const fields = {};
+  document.querySelectorAll('[data-k]').forEach(el=>{ fields[el.dataset.k]=el.value; });
+  const data = { pageCount, header, photoData, fields };
+  try{
+    localStorage.setItem('photo-album', JSON.stringify(data));
+    alert('✅ 保存しました');
+  }catch(e){
+    alert('⚠️ 写真が多すぎて保存できません。印刷・PDF出力をお使いください。');
+  }
+}
+
+function loadData(){
+  const saved = localStorage.getItem('photo-album');
+  if(!saved){ addPage(); return; }
+  try{
+    const data = JSON.parse(saved);
+    header = data.header || {koji:'',genba:'',gyosha:''};
+    photoData = data.photoData || {};
+    $('h-koji').value = header.koji||'';
+    $('h-genba').value = header.genba||'';
+    $('h-gyosha').value = header.gyosha||'';
+    const pc = data.pageCount||1;
+    for(let i=0;i<pc;i++) addPage();
+    // フィールド復元
+    if(data.fields){
+      Object.entries(data.fields).forEach(([k,v])=>{
+        const el = document.querySelector(`[data-k="${k}"]`);
+        if(el) el.value = v;
+      });
+    }
+    syncHeader();
+  }catch(e){
+    addPage();
+  }
+}
+
+loadData();
+</script>
+</body>
+</html>
