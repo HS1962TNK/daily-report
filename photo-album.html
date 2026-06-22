@@ -40,7 +40,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 
 /* 写真ページ */
 .photo-rows{display:flex;flex-direction:column;gap:8mm;flex:1;justify-content:space-evenly}
-.photo-row{display:grid;grid-template-columns:90mm 1fr;border:1px solid #1a1a1a;height:60mm}
+.photo-row{display:grid;grid-template-columns:120mm 1fr;border:1px solid #1a1a1a;height:80mm}
 .photo-cell{border-right:1px solid #1a1a1a;position:relative;background:#f5f5f5;display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer}
 .photo-cell.drag-over{background:#EBF4FF;outline:2px dashed #1B3A6B;outline-offset:-4px}
 .photo-cell img{width:100%;height:100%;object-fit:contain}
@@ -50,7 +50,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .photo-del{position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:none;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;z-index:5}
 
 .info-cell{display:flex;flex-direction:column}
-.info-row{display:grid;grid-template-columns:24mm 1fr;border-bottom:1px solid #ccc;min-height:9mm}
+.info-cell .info-row:last-child{flex:1;align-items:stretch}
+.info-cell .info-row:last-child .info-label{align-items:flex-start;padding-top:6px}
+.info-row{display:grid;grid-template-columns:22mm 1fr;border-bottom:1px solid #ccc;min-height:9mm}
 .info-label{background:#f0f0f0;border-right:1px solid #ccc;padding:4px 6px;font-size:11px;font-weight:700;display:flex;align-items:center}
 .info-val{padding:2px}
 .info-val input{width:100%;height:100%;border:none;padding:4px 6px;font-size:12px;font-family:inherit;background:transparent}
@@ -108,7 +110,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 const GAS_URL = 'https://script.google.com/macros/s/AKfycby9b1XxHyum6h_k50ki3kFLDrauDAEXPXAq5GwzSXcr61A9DpvRlf5q3nLCYSYlO9_j/exec';
-const PHOTOS_PER_PAGE = 4;
+const PHOTOS_PER_PAGE = 3;
 let pageCount = 0;
 let header = { koji:'', genba:'', addr:'', gyosha:'' };
 let photoData = {};
@@ -179,7 +181,6 @@ function buildPhotoPage(pageIdx){
   let rows='';
   for(let i=0;i<PHOTOS_PER_PAGE;i++){
     const key = `p${pageIdx}-${i}`;
-    const num = pageIdx*PHOTOS_PER_PAGE + i + 1;
     rows += `
       <div class="photo-row">
         <div class="photo-cell" id="cell-${key}"
@@ -192,11 +193,9 @@ function buildPhotoPage(pageIdx){
           <input type="file" accept="image/*" onchange="loadPhoto('${key}',this)">
         </div>
         <div class="info-cell">
-          <div class="info-row"><div class="info-label">写真番号</div><div class="info-val"><input type="text" value="No.${num}" data-k="${key}-no"></div></div>
-          <div class="info-row"><div class="info-label">工種</div><div class="info-val"><input type="text" placeholder="例：防水工事" data-k="${key}-kosyu"></div></div>
-          <div class="info-row"><div class="info-label">撮影日</div><div class="info-val"><input type="text" placeholder="例：2026-06-21" data-k="${key}-date"></div></div>
-          <div class="info-row"><div class="info-label">撮影場所</div><div class="info-val"><input type="text" placeholder="例：屋上" data-k="${key}-place"></div></div>
-          <div class="info-comment"><textarea placeholder="コメント・施工内容を記入" data-k="${key}-comment"></textarea></div>
+          <div class="info-row"><div class="info-label">工種</div><div class="info-val"><input type="text" data-k="${key}-kosyu"></div></div>
+          <div class="info-row"><div class="info-label">撮影場所</div><div class="info-val"><input type="text" data-k="${key}-place"></div></div>
+          <div class="info-row" style="border-bottom:none"><div class="info-label">施工内容</div><div class="info-comment"><textarea data-k="${key}-comment"></textarea></div></div>
         </div>
       </div>`;
   }
@@ -314,24 +313,26 @@ function exportExcel(){
   const wb=XLSX.utils.book_new();
   const rows=[];
   rows.push(['工事写真台帳']);
-  rows.push(['工事名',header.koji,'現場名',header.genba]);
-  rows.push(['所在地',header.addr,'施工業者',header.gyosha]);
+  rows.push(['工事名',header.koji,'所在地',header.addr]);
+  rows.push(['施工業者',header.gyosha]);
   rows.push([]);
-  rows.push(['写真番号','工種','撮影日','撮影場所','コメント']);
+  rows.push(['No.','工種','撮影場所','施工内容']);
   // ページ・スロット順に収集
+  let seq=0;
   document.querySelectorAll('[data-photopage]').forEach(page=>{
     const pi=page.dataset.photopage;
     for(let i=0;i<PHOTOS_PER_PAGE;i++){
       const key=`p${pi}-${i}`;
       const getV=k=>{const el=document.querySelector(`[data-k="${key}-${k}"]`);return el?el.value:'';};
-      const no=getV('no'),ko=getV('kosyu'),dt=getV('date'),pl=getV('place'),cm=getV('comment');
-      if(no||ko||dt||pl||cm||photoData[key]){
-        rows.push([no,ko,dt,pl,cm]);
+      const ko=getV('kosyu'),pl=getV('place'),cm=getV('comment');
+      if(ko||pl||cm||photoData[key]){
+        seq++;
+        rows.push(['No.'+seq,ko,pl,cm]);
       }
     }
   });
   const ws=XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols']=[{wch:10},{wch:16},{wch:14},{wch:16},{wch:40}];
+  ws['!cols']=[{wch:8},{wch:18},{wch:18},{wch:50}];
   XLSX.utils.book_append_sheet(wb,ws,'写真台帳');
   const fname=(header.koji||'工事写真台帳').replace(/[\\\/\*\?\[\]:]/g,'')+'.xlsx';
   XLSX.writeFile(wb,fname);
