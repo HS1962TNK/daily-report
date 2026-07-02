@@ -2,732 +2,514 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="作業日報">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>工事作業日報</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;color:#1a1a1a;min-height:100vh}
-
-/* ヘッダー */
-.header{background:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 1px 4px rgba(0,0,0,.1);position:sticky;top:0;z-index:100}
-.header-title{font-size:17px;font-weight:700;color:#1a1a1a;display:flex;align-items:center;gap:6px}
-.header-title span{font-size:20px}
-.header-sub{font-size:11px;color:#888;margin-top:1px}
-
-/* 現場情報ボタン（ヘッダー右上）*/
-.site-nav-btn{
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:2px;padding:6px 10px;border:1.5px solid #d0d5dd;border-radius:8px;
-  background:#fff;cursor:pointer;text-decoration:none;color:#344054;
-  font-size:9px;font-weight:600;line-height:1;min-width:52px;
-  transition:background .15s
-}
-.site-nav-btn:hover{background:#f9fafb}
-.site-nav-btn .btn-icon{font-size:18px;line-height:1}
-.site-nav-btn .btn-label{font-size:10px;white-space:nowrap}
-
-/* タブナビ */
-.tab-nav{background:#fff;display:flex;border-bottom:1px solid #e5e7eb;position:sticky;top:57px;z-index:99}
-.tab-btn{flex:1;padding:12px 4px 10px;font-size:11px;color:#888;border:none;background:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;font-weight:500;border-bottom:2.5px solid transparent;transition:.15s}
-.tab-btn .t-icon{font-size:18px}
-.tab-btn.active{color:#1d6fcf;border-bottom-color:#1d6fcf;font-weight:700}
-
-/* コンテンツエリア */
-.tab-content{display:none;padding:12px;max-width:600px;margin:0 auto}
-.tab-content.active{display:block}
-
-/* カード */
-.card{background:#fff;border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.07)}
-.card-title{font-size:13px;font-weight:700;color:#374151;margin-bottom:12px;display:flex;align-items:center;gap:6px}
-
-/* フォーム要素 */
-label{font-size:12px;color:#6b7280;margin-bottom:4px;display:block;font-weight:500}
-input[type=text],input[type=number],input[type=date],textarea,select{
-  width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;
-  font-size:14px;color:#1a1a1a;background:#fff;appearance:none;-webkit-appearance:none;
-  transition:border-color .15s
-}
-input:focus,textarea:focus,select:focus{outline:none;border-color:#1d6fcf}
-textarea{min-height:80px;resize:vertical;line-height:1.5}
-
-/* 行グリッド */
-.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.row3{display:grid;grid-template-columns:1fr 80px auto;gap:8px;align-items:end}
-
-/* 進捗スライダー */
-.progress-wrap{margin-top:8px}
-.progress-label{display:flex;justify-content:space-between;font-size:12px;color:#6b7280;margin-bottom:6px}
-.progress-val{font-weight:700;color:#1d6fcf;font-size:14px}
-input[type=range]{width:100%;height:6px;accent-color:#1d6fcf}
-
-/* ボタン類 */
-.btn-add{width:100%;padding:10px;border:1.5px dashed #d1d5db;border-radius:8px;background:none;color:#6b7280;font-size:13px;cursor:pointer;margin-top:8px;transition:.15s}
-.btn-add:hover{border-color:#1d6fcf;color:#1d6fcf;background:#f0f6ff}
-.btn-del{width:32px;height:36px;border:1.5px solid #fca5a5;border-radius:8px;background:#fff;color:#ef4444;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.btn-save{width:100%;padding:15px;background:#1d6fcf;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;margin-top:8px;transition:.15s}
-.btn-save:hover{background:#1558a8}
-.btn-save:disabled{background:#93c5fd;cursor:not-allowed}
-.btn-primary{padding:8px 14px;background:#1d6fcf;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer}
-.btn-outline{padding:8px 14px;background:#fff;color:#1d6fcf;border:1.5px solid #1d6fcf;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer}
-
-/* 保護具チェック */
-.safety-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.safety-item{border:1.5px solid #e5e7eb;border-radius:8px;padding:10px 6px;text-align:center;cursor:pointer;font-size:11px;font-weight:600;color:#6b7280;transition:.15s;user-select:none}
-.safety-item.checked{border-color:#22c55e;background:#f0fdf4;color:#16a34a}
-
-/* 天気ボタン */
-.weather-btn{width:100%;padding:10px;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:8px;color:#1d6fcf;font-size:13px;font-weight:600;cursor:pointer;margin-bottom:10px}
-
-/* 写真スロット */
-.photos-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
-.photo-slot{border:1.5px dashed #d1d5db;border-radius:10px;padding:8px;background:#fafafa}
-.photo-preview{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;display:block}
-.photo-placeholder{width:100%;aspect-ratio:4/3;background:#f3f4f6;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;color:#9ca3af;font-size:11px}
-.photo-actions{display:flex;gap:4px;margin-top:6px}
-.photo-actions button{flex:1;padding:5px 4px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;font-size:10px;cursor:pointer;color:#374151}
-.photo-del{border-color:#fca5a5!important;color:#ef4444!important;flex:0 0 28px!important}
-.photo-memo{margin-top:5px;width:100%;padding:5px 8px;border:1px solid #e5e7eb;border-radius:6px;font-size:11px;color:#374151}
-
-/* 現場名ドロップダウン行 */
-.site-row{display:flex;gap:8px;align-items:center}
-.site-row select{flex:1}
-.site-reg-btn{flex-shrink:0;padding:10px 12px;background:#1d6fcf;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
-
-/* 履歴 */
-.history-item{background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.07)}
-.history-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
-.history-date{font-size:13px;font-weight:700;color:#1a1a1a}
-.history-site{font-size:12px;color:#1d6fcf;font-weight:600}
-.history-progress{font-size:11px;color:#fff;background:#1d6fcf;padding:2px 8px;border-radius:20px;font-weight:600}
-.history-body{font-size:12px;color:#6b7280;line-height:1.5;margin-bottom:8px}
-.history-actions{display:flex;gap:6px}
-.btn-edit{padding:6px 12px;background:#fff;border:1.5px solid #1d6fcf;border-radius:7px;color:#1d6fcf;font-size:12px;font-weight:600;cursor:pointer}
-.btn-del-history{padding:6px 12px;background:#fff;border:1.5px solid #fca5a5;border-radius:7px;color:#ef4444;font-size:12px;font-weight:600;cursor:pointer}
-
-/* Excel出力 */
-.excel-card{background:#fff;border-radius:12px;padding:16px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.07)}
-.btn-download{width:100%;padding:12px;background:#217346;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;margin-top:8px}
-.btn-download-all{width:100%;padding:12px;background:#1d6fcf;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;margin-top:8px}
-
-/* トースト */
-.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
+body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sans-serif;background:#f5f5f0;color:#111;-webkit-tap-highlight-color:transparent}
+.app{max-width:480px;margin:0 auto;min-height:100vh}
+.header{background:#fff;border-bottom:1px solid #e8e8e8;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.header-title{font-size:17px;font-weight:600}
+.header-sub{font-size:12px;color:#888;margin-top:1px}
+.nav{display:flex;background:#fff;border-bottom:1px solid #e8e8e8;position:sticky;top:57px;z-index:99}
+.nav-btn{flex:1;padding:10px 4px 8px;font-size:11px;background:none;border:none;cursor:pointer;color:#888;border-bottom:2.5px solid transparent;font-family:inherit}
+.nav-btn.active{color:#185FA5;border-bottom-color:#185FA5;font-weight:600}
+.nav-icon{display:block;font-size:19px;margin:0 auto 3px}
+.section{background:#fff;border-radius:12px;margin:10px;padding:14px 15px}
+.sec-title{font-size:12px;font-weight:600;color:#888;margin-bottom:10px;letter-spacing:.5px}
+.fl{margin-bottom:10px}
+.fl label{font-size:12px;color:#888;display:block;margin-bottom:4px;font-weight:500}
+input[type=text],input[type=number],input[type=date],select,textarea{width:100%;padding:9px 11px;font-size:15px;border:1px solid #ddd;border-radius:8px;background:#fafafa;color:#111;font-family:inherit;-webkit-appearance:none}
+textarea{resize:vertical;min-height:72px;line-height:1.6}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row-item{display:flex;gap:6px;align-items:center;margin-bottom:8px}
+.row-item input[type=text]{flex:2;min-width:0}
+.row-item input[type=number]{flex:1;min-width:0}
+.row-item select{flex:1;min-width:0}
+.del-btn{width:34px;height:34px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;cursor:pointer;color:#aaa;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px}
+.add-btn{width:100%;padding:9px;background:none;border:1.5px dashed #c0d4e8;border-radius:8px;cursor:pointer;color:#185FA5;font-size:13px;display:flex;align-items:center;justify-content:center;gap:5px;font-family:inherit}
+.prog-lbl{display:flex;justify-content:space-between;font-size:12px;color:#888;margin-bottom:5px}
+.prog-lbl b{color:#185FA5;font-size:14px}
+input[type=range]{width:100%;accent-color:#185FA5}
+.safety-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.si{display:flex;align-items:center;gap:8px;padding:10px;border:1px solid #e8e8e8;border-radius:8px;cursor:pointer;-webkit-user-select:none}
+.si.on{background:#EBF4FF;border-color:#185FA5}
+.si input{accent-color:#185FA5;width:16px;height:16px;flex-shrink:0}
+.si span{font-size:13px}
+.photo-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ps{aspect-ratio:1;border:1.5px dashed #ccc;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;background:#fafafa;overflow:hidden;position:relative;cursor:pointer}
+.ps img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
+.ps .pico{font-size:26px;color:#bbb;z-index:1}
+.ps .pl{font-size:11px;color:#aaa;z-index:1;font-weight:500}
+.ps input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:2}
+.btn-row{padding:10px;padding-bottom:24px}
+.btn-save{width:100%;padding:13px;background:#185FA5;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;font-family:inherit}
+.btn-save:active{background:#0e4a82}
+.tab{display:none}
+.tab.active{display:block;padding-bottom:24px}
+.hi{background:#fff;border-radius:12px;margin:10px;padding:13px 15px}
+.hi-date{font-size:14px;font-weight:600}
+.hi-meta{font-size:12px;color:#888;margin-top:3px}
+.badge{display:inline-block;font-size:11px;padding:3px 8px;border-radius:6px;font-weight:600}
+.b-ok{background:#E6F4EC;color:#1a7a3e}
+.b-ng{background:#FEE;color:#c0392b}
+.pb-wrap{display:flex;align-items:center;gap:8px;margin-top:8px}
+.pb{flex:1;height:5px;background:#eee;border-radius:3px}
+.pb div{height:100%;background:#185FA5;border-radius:3px}
+.empty{text-align:center;padding:40px 16px;color:#bbb;font-size:14px}
+.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#2c2c2a;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
 .toast.show{opacity:1}
-
-/* ワークアイテム行 */
-.worker-row{display:grid;grid-template-columns:1fr 72px auto;gap:6px;margin-bottom:6px;align-items:start}
-.worker-names{margin-top:4px;width:100%;padding:7px 10px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px;color:#1a1a1a}
-
-/* 材料行 */
-.material-row{display:grid;grid-template-columns:1fr 72px 80px auto;gap:6px;margin-bottom:6px;align-items:end}
-
-/* 空状態 */
-.empty-state{text-align:center;padding:40px 20px;color:#9ca3af}
-.empty-state .empty-icon{font-size:40px;margin-bottom:8px}
-.empty-state p{font-size:13px}
-
-/* レスポンシブ */
-@media(max-width:380px){
-  .safety-grid{grid-template-columns:repeat(2,1fr)}
-  .photos-grid{grid-template-columns:1fr}
-}
+.xl-section{background:#fff;border-radius:12px;margin:10px;padding:14px 15px}
+.xl-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f0f0f0}
+.xl-row:last-child{border-bottom:none}
+.xl-name{font-size:14px;font-weight:600}
+.xl-cnt{font-size:12px;color:#888;margin-top:2px}
+.dl-btn{padding:7px 13px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600}
+.xl-all{width:calc(100% - 20px);margin:0 10px;padding:12px;background:#fff;border:1.5px solid #185FA5;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;color:#185FA5;display:flex;align-items:center;justify-content:center;gap:7px;font-family:inherit}
 </style>
 </head>
 <body>
-
-<!-- ヘッダー -->
-<div class="header">
-  <div>
-    <div class="header-title"><span>📋</span> 作業日報</div>
-    <div class="header-sub" id="today-date"></div>
-  </div>
-  <a href="genba.html" class="site-nav-btn">
-    <span class="btn-icon">🏗️</span>
-    <span class="btn-label">現場情報</span>
-  </a>
-</div>
-
-<!-- タブナビ -->
-<div class="tab-nav">
-  <button class="tab-btn active" onclick="switchTab('input')">
-    <span class="t-icon">✏️</span>入力
-  </button>
-  <button class="tab-btn" onclick="switchTab('history')">
-    <span class="t-icon">📂</span>履歴
-  </button>
-  <button class="tab-btn" onclick="switchTab('excel')">
-    <span class="t-icon">📊</span>Excel出力
-  </button>
-</div>
-
-<!-- 入力タブ -->
-<div id="tab-input" class="tab-content active">
-
-  <!-- 基本情報 -->
-  <div class="card">
-    <div class="card-title">📍 基本情報</div>
-    <div style="margin-bottom:10px">
-      <label>日付</label>
-      <input type="date" id="f-date">
-    </div>
-    <div style="margin-bottom:10px">
-      <label>現場名</label>
-      <div class="site-row">
-        <select id="f-site" style="color:#1a1a1a">
-          <option value="">現場を選択してください</option>
-        </select>
-        <button class="site-reg-btn" onclick="goToGenba()">＋ 現場登録</button>
-      </div>
-    </div>
+<div class="app">
+  <div class="header">
     <div>
-      <label>報告者名</label>
-      <input type="text" id="f-reporter" placeholder="氏名">
+      <div class="header-title">📋 作業日報</div>
+      <div class="header-sub" id="hdate"></div>
     </div>
+    <button onclick="location.href='genba.html'" style="padding:7px 12px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:8px;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:center;gap:2px">
+      <span style="font-size:18px">🏗️</span>
+      <span style="font-size:10px">現場情報</span>
+    </button>
+  </div>
+  <div class="nav">
+    <button class="nav-btn active" onclick="sw('form',this)"><span class="nav-icon">✏️</span>入力</button>
+    <button class="nav-btn" onclick="sw('history',this)"><span class="nav-icon">📂</span>履歴</button>
+    <button class="nav-btn" onclick="sw('export',this)"><span class="nav-icon">📊</span>Excel出力</button>
   </div>
 
-  <!-- 天気 -->
-  <div class="card">
-    <div class="card-title">🌤️ 天気・気温</div>
-    <button class="weather-btn" onclick="getWeather()">📍 現在地の天気を自動取得</button>
-    <div class="row2">
-      <div>
-        <label>天気（修正可）</label>
-        <select id="f-weather">
-          <option value="">選択</option>
-          <option>晴れ</option><option>曇り</option><option>雨</option><option>雪</option>
-        </select>
+  <div id="tab-form" class="tab active">
+    <div class="section">
+      <div class="sec-title">📍 基本情報</div>
+      <div class="fl"><label>日付</label><input type="date" id="f-date"></div>
+      <div class="fl">
+        <label>現場名</label>
+        <div style="display:flex;gap:8px">
+          <select id="f-site" style="flex:1" onchange="onSiteSelect(this.value)">
+            <option value="">現場を選択してください</option>
+          </select>
+          <button onclick="location.href='genba.html'" style="padding:8px 10px;background:#1B3A6B;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;white-space:nowrap;font-family:inherit">＋ 現場登録</button>
+        </div>
       </div>
-      <div>
-        <label>最高気温（℃）</label>
-        <input type="number" id="f-temp" placeholder="28">
+      <div class="fl"><label>報告者名</label><input type="text" id="f-rep" placeholder="氏名"></div>
+    </div>
+    <div class="section">
+      <div class="sec-title">🌤️ 天気・気温</div>
+      <button onclick="fetchWeather()" style="width:100%;padding:9px;background:#E8F4FD;border:1px solid #B5D4F4;border-radius:8px;cursor:pointer;color:#185FA5;font-size:13px;font-weight:600;font-family:inherit;margin-bottom:10px">📍 現在地の天気を自動取得</button>
+      <div class="g2">
+        <div class="fl" style="margin:0"><label>天気（修正可）</label>
+          <select id="f-wx"><option value="">選択</option><option>晴れ</option><option>曇り</option><option>雨</option><option>雪</option></select>
+        </div>
+        <div class="fl" style="margin:0"><label>最高気温（℃）</label><input type="number" id="f-tmp" placeholder="28"></div>
       </div>
     </div>
-  </div>
-
-  <!-- 作業員 -->
-  <div class="card">
-    <div class="card-title">👷 作業員・人数</div>
-    <div id="workers-list"></div>
-    <button class="btn-add" onclick="addWorker()">＋ 職種・人員を追加</button>
-  </div>
-
-  <!-- 作業内容 -->
-  <div class="card">
-    <div class="card-title">📝 作業内容・進捗</div>
-    <div style="margin-bottom:10px">
-      <label>本日の作業内容</label>
-      <textarea id="f-work" placeholder="本日の作業内容を入力してください"></textarea>
+    <div class="section">
+      <div class="sec-title">👷 作業員・人数</div>
+      <div id="wlist"></div>
+      <button class="add-btn" onclick="addW()">＋ 職種・人員を追加</button>
     </div>
-    <div>
-      <label>特記事項・問題点</label>
-      <textarea id="f-note" placeholder="特記事項・問題点があれば入力してください" style="min-height:60px"></textarea>
-    </div>
-    <div class="progress-wrap">
-      <div class="progress-label">
-        <span>全体進捗</span>
-        <span class="progress-val" id="progress-val">50%</span>
+    <div class="section">
+      <div class="sec-title">📝 作業内容・進捗</div>
+      <div class="fl"><label>本日の作業内容</label><textarea id="f-work" placeholder="実施した作業を詳しく記入"></textarea></div>
+      <div class="fl"><label>特記事項・問題点</label><textarea id="f-note" placeholder="トラブル・変更事項など" style="min-height:56px"></textarea></div>
+      <div class="fl">
+        <div class="prog-lbl"><span>全体進捗</span><b id="pv">50%</b></div>
+        <input type="range" min="0" max="100" step="5" value="50" id="f-prog" oninput="document.getElementById('pv').textContent=this.value+'%'">
       </div>
-      <input type="range" id="f-progress" min="0" max="100" value="50"
-        oninput="document.getElementById('progress-val').textContent=this.value+'%'">
+    </div>
+    <div class="section">
+      <div class="sec-title">📦 使用材料・数量</div>
+      <div id="mlist"></div>
+      <button class="add-btn" onclick="addM()">＋ 材料を追加</button>
+    </div>
+    <div class="section">
+      <div class="sec-title">🦺 保護具の着用確認</div>
+      <div class="safety-grid" id="sgrid"></div>
+    </div>
+    <div class="section">
+      <div class="sec-title">📷 工事写真</div>
+      <div class="photo-grid" id="pgrid"></div>
+      <button class="add-btn" onclick="addPhoto()" style="margin-top:8px">＋ 写真を追加</button>
+    </div>
+    <div class="btn-row">
+      <button class="btn-save" onclick="saveR()">💾 日報を保存</button>
     </div>
   </div>
 
-  <!-- 材料 -->
-  <div class="card">
-    <div class="card-title">📦 使用材料・数量</div>
-    <div id="materials-list"></div>
-    <button class="btn-add" onclick="addMaterial()">＋ 材料を追加</button>
-  </div>
+  <div id="tab-history" class="tab"><div id="hlist"></div></div>
 
-  <!-- 保護具 -->
-  <div class="card">
-    <div class="card-title">🦺 保護具の着用確認</div>
-    <div class="safety-grid" id="safety-grid">
-      <div class="safety-item" data-key="ヘルメット" onclick="toggleSafety(this)">⛑️<br>ヘルメット</div>
-      <div class="safety-item" data-key="安全帯" onclick="toggleSafety(this)">🔗<br>安全帯</div>
-      <div class="safety-item" data-key="安全靴" onclick="toggleSafety(this)">👟<br>安全靴</div>
-      <div class="safety-item" data-key="防塵マスク" onclick="toggleSafety(this)">😷<br>防塵マスク</div>
-      <div class="safety-item" data-key="保護眼鏡" onclick="toggleSafety(this)">🥽<br>保護眼鏡</div>
-      <div class="safety-item" data-key="作業手袋(ゴム製)" onclick="toggleSafety(this)">🧤<br>作業手袋<br>(ゴム製)</div>
+  <div id="tab-export" class="tab">
+    <div class="section" style="margin-top:10px;font-size:13px;color:#666;line-height:1.7">
+      現場ごとにシートを分けて出力します。写真はGoogle Driveの「工事写真アルバム」フォルダで確認できます。
     </div>
-  </div>
-
-  <!-- 写真 -->
-  <div class="card">
-    <div class="card-title">📷 工事写真</div>
-    <div class="photos-grid" id="photos-grid"></div>
-    <button class="btn-add" onclick="addPhotoSlot()" style="margin-top:10px">＋ 写真を追加</button>
-  </div>
-
-  <button class="btn-save" id="save-btn" onclick="saveReport()">💾 日報を保存</button>
-  <div style="height:20px"></div>
-</div>
-
-<!-- 履歴タブ -->
-<div id="tab-history" class="tab-content">
-  <div id="history-list"></div>
-</div>
-
-<!-- Excel出力タブ -->
-<div id="tab-excel" class="tab-content">
-  <div class="excel-card">
-    <p style="font-size:13px;color:#6b7280;margin-bottom:10px">現場ごとにシートを分けて出力します。写真はGoogle Driveの「工事写真アルバム」フォルダで確認できます。</p>
-    <div id="excel-site-list"></div>
-    <button class="btn-download-all" onclick="downloadAllExcel()">📥 全現場まとめてダウンロード</button>
+    <div class="xl-section">
+      <div class="sec-title">🏗️ 現場別ダウンロード</div>
+      <div id="site-list"></div>
+    </div>
+    <button class="xl-all" onclick="exportAll()">📥 全現場まとめてダウンロード</button>
   </div>
 </div>
-
 <div class="toast" id="toast"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
-const GAS_URL = 'https://script.google.com/macros/s/AKfycby9b1XxHyum6h_k50ki3kFLDrauDAEXPXAq5GwzSXcr61A9DpvRlf5q3nLCYSYlO9_j/exec';
-const WEATHER_KEY = 'adc261f04d66d4fcd362785e0fada97d';
-let editingId = null;
-let photoSlots = [];
-let workerCount = 0;
-let materialCount = 0;
+const WEATHER_API_KEY='adc261f04d66d4fcd362785e0fada97d';
+const GAS_URL='https://script.google.com/macros/s/AKfycby9b1XxHyum6h_k50ki3kFLDrauDAEXPXAq5GwzSXcr61A9DpvRlf5q3nLCYSYlO9_j/exec';
 
-// 初期化
-window.onload = function(){
-  const now = new Date();
-  document.getElementById('today-date').textContent =
-    now.toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric',weekday:'short'});
-  const y=now.getFullYear(), m=String(now.getMonth()+1).padStart(2,'0'), d=String(now.getDate()).padStart(2,'0');
-  document.getElementById('f-date').value = `${y}-${m}-${d}`;
-  loadSiteList();
-  addWorker();
-  addMaterial();
-  addPhotoSlot();
-};
-
-// タブ切り替え
-function switchTab(tab){
-  document.querySelectorAll('.tab-btn').forEach((b,i)=>{
-    b.classList.toggle('active',['input','history','excel'][i]===tab);
-  });
-  document.querySelectorAll('.tab-content').forEach(c=>{c.classList.remove('active')});
-  document.getElementById('tab-'+tab).classList.add('active');
-  if(tab==='history') renderHistory();
-  if(tab==='excel') renderExcel();
-}
-
-// 現場情報アプリへ
-function goToGenba(){
-  location.href='genba.html';
-}
-
-// 現場リスト読込（GASから取得）
-function loadSiteList(){
-  const sel = document.getElementById('f-site');
-  const cur = sel.value;
-  sel.innerHTML = '<option value="">読み込み中…</option>';
-
-  fetch(GAS_URL + '?action=getSites')
-    .then(r=>r.json())
-    .then(res=>{
-      const sites = res.sites || [];
-      // ローカルにもキャッシュ
-      localStorage.setItem('genba-sites', JSON.stringify(sites));
-      fillSiteSelect(sel, sites, cur);
-    })
-    .catch(()=>{
-      // オフライン時はキャッシュから
-      const sites = JSON.parse(localStorage.getItem('genba-sites')||'[]');
-      fillSiteSelect(sel, sites, cur);
-    });
-}
-
-function fillSiteSelect(sel, sites, cur){
-  sel.innerHTML = '<option value="">現場を選択してください</option>';
-  sites.forEach(s=>{
-    const o=document.createElement('option');
-    o.value=s.name; o.textContent=s.name;
-    sel.appendChild(o);
-  });
-  if(cur) sel.value=cur;
-
-  // URLパラメータで現場名を自動入力
-  const params = new URLSearchParams(location.search);
-  const siteParam = params.get('site');
-  if(siteParam){
-    // リストにない場合も仮追加
-    if(![...sel.options].some(o=>o.value===siteParam)){
-      const o=document.createElement('option');
-      o.value=siteParam; o.textContent=siteParam;
-      sel.appendChild(o);
+async function fetchWeather(){
+  if(!navigator.geolocation){toast('⚠️ 位置情報が使えません');return;}
+  toast('📍 位置情報を取得中...');
+  navigator.geolocation.getCurrentPosition(async pos=>{
+    try{
+      const lat=pos.coords.latitude;
+      const lon=pos.coords.longitude;
+      const url=`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${WEATHER_API_KEY}&units=metric&lang=ja`;
+      const res=await fetch(url);
+      const data=await res.json();
+      const weatherMap={'晴れ':['Clear'],'曇り':['Clouds'],'雨':['Rain','Drizzle','Thunderstorm'],'雪':['Snow']};
+      const main=data.weather[0].main;
+      let wx='曇り';
+      for(const [jp,en] of Object.entries(weatherMap)){
+        if(en.includes(main)){wx=jp;break;}
+      }
+      const temp=Math.round(data.main.temp_max);
+      $('f-wx').value=wx;
+      $('f-tmp').value=temp;
+      toast(`✅ 天気取得完了：${wx} / 最高${temp}℃`);
+    }catch(e){
+      toast('⚠️ 天気の取得に失敗しました');
     }
-    sel.value=siteParam;
-    history.replaceState({},'',location.pathname);
+  },()=>{toast('⚠️ 位置情報の取得を許可してください');});
+}
+const SAFETY=['ヘルメット','安全帯','安全靴','防塵マスク','保護眼鏡','作業手袋(ゴム製)'];
+const UNITS=['個','枚','本','m','缶','袋','セット','kg','L'];
+let workers=[],materials=[],safety={},photos=[];
+
+function $(id){return document.getElementById(id)}
+
+function initDate(){
+  const d=new Date();
+  $('f-date').value=d.toISOString().split('T')[0];
+  $('hdate').textContent=d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日（'+['日','月','火','水','木','金','土'][d.getDay()]+'）';
+}
+
+function sw(name,btn){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  $('tab-'+name).classList.add('active');btn.classList.add('active');
+  if(name==='history') renderHist();
+  if(name==='export') renderExportTab();
+}
+
+function addW(r='',c='',names=''){const id='w'+Date.now();workers.push({id,r,c,names});renderW();}
+function renderW(){
+  $('wlist').innerHTML=workers.map(w=>`<div style="margin-bottom:10px;padding:10px;background:#fafafa;border-radius:8px;border:1px solid #eee">
+    <div class="row-item" style="margin-bottom:6px">
+      <input type="text" placeholder="職種（例：鉄筋工）" value="${esc(w.r)}" oninput="updW('${w.id}','r',this.value)" style="flex:2;min-width:0">
+      <input type="number" placeholder="人数" min="1" value="${esc(w.c)}" oninput="updW('${w.id}','c',this.value)" style="width:64px;flex:none">
+      <button class="del-btn" onclick="delW('${w.id}')">✕</button>
+    </div>
+    <input type="text" placeholder="作業員名（例：山田、田中、佐藤）" value="${esc(w.names)}" oninput="updW('${w.id}','names',this.value)" style="width:100%;font-size:13px;padding:7px 10px;border:1px solid #ddd;border-radius:6px;background:#fff;font-family:inherit">
+  </div>`).join('');
+}
+function updW(id,k,v){workers.find(w=>w.id===id)[k]=v}
+function delW(id){workers=workers.filter(w=>w.id!==id);renderW()}
+
+function addM(n='',q='',u='個'){const id='m'+Date.now();materials.push({id,n,q,u});renderM();}
+function renderM(){
+  $('mlist').innerHTML=materials.map(m=>`<div class="row-item">
+    <input type="text" placeholder="材料名" value="${esc(m.n)}" oninput="updM('${m.id}','n',this.value)">
+    <input type="number" placeholder="数量" min="0" value="${esc(m.q)}" oninput="updM('${m.id}','q',this.value)">
+    <select oninput="updM('${m.id}','u',this.value)">${UNITS.map(u=>`<option${u===m.u?' selected':''}>${u}</option>`).join('')}</select>
+    <button class="del-btn" onclick="delM('${m.id}')">✕</button>
+  </div>`).join('');
+}
+function updM(id,k,v){materials.find(m=>m.id===id)[k]=v}
+function delM(id){materials=materials.filter(m=>m.id!==id);renderM()}
+
+function initSafety(){
+  $('sgrid').innerHTML=SAFETY.map(s=>{
+    safety[s]=false;
+    return `<label class="si" id="si-${s}"><input type="checkbox" onchange="togS('${s}',this.checked)"><span>${s}</span></label>`;
+  }).join('');
+}
+function togS(n,v){safety[n]=v;const el=$('si-'+n);v?el.classList.add('on'):el.classList.remove('on')}
+
+function addPhoto(){
+  const id='p'+Date.now();
+  photos.push({id,data:null,label:''});
+  renderPhotos();
+}
+function renderPhotos(){
+  $('pgrid').innerHTML=photos.map((p,i)=>`
+    <div class="ps" id="ps-${p.id}">
+      ${p.data?`<img src="${p.data}">`:''}
+      ${!p.data?`<span class="pico">📷</span><span class="pl">下のボタンで追加</span>`:''}
+      ${p.data?`<button onclick="removePhoto('${p.id}')" style="position:absolute;top:4px;right:4px;z-index:3;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.5);color:#fff;border:none;cursor:pointer;font-size:13px;padding:0">✕</button>`:''}
+      ${p.data?`<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.45);z-index:3;padding:2px 4px"><input type="text" placeholder="メモ（任意）" value="${esc(p.label)}" oninput="updatePhotoLabel('${p.id}',this.value)" style="width:100%;background:transparent;border:none;color:#fff;font-size:11px;padding:0" onclick="event.stopPropagation()"></div>`:''}
+      ${!p.data?`
+        <div style="display:flex;gap:6px;margin-top:6px;z-index:2">
+          <label style="padding:5px 8px;background:#185FA5;color:#fff;border-radius:6px;font-size:11px;cursor:pointer;white-space:nowrap">
+            📷 撮影
+            <input type="file" accept="image/*" capture="environment" onchange="loadPhoto('${p.id}',this)" style="display:none">
+          </label>
+          <label style="padding:5px 8px;background:#555;color:#fff;border-radius:6px;font-size:11px;cursor:pointer;white-space:nowrap">
+            🖼️ ライブラリ
+            <input type="file" accept="image/*" multiple onchange="loadPhoto('${p.id}',this)" style="display:none">
+          </label>
+        </div>
+      `:''}
+    </div>`).join('');
+}
+function loadPhoto(id,inp){
+  const files=Array.from(inp.files).filter(f=>f.type.startsWith('image/'));
+  if(!files.length)return;
+  // 1枚目は選択したスロットへ
+  readPhotoInto(id,files[0]);
+  // 2枚目以降は新しいスロットを自動追加して配置
+  for(let i=1;i<files.length;i++){
+    const newId='p'+Date.now()+'_'+i;
+    photos.push({id:newId,data:null,label:''});
+    readPhotoInto(newId,files[i]);
   }
+  if(files.length>1) toast('✅ '+files.length+'枚の写真を追加しました');
+  inp.value='';
+}
+function readPhotoInto(id,file){
+  const r=new FileReader();
+  r.onload=e=>{const p=photos.find(x=>x.id===id);if(p){p.data=e.target.result;}renderPhotos();};
+  r.readAsDataURL(file);
+}
+function removePhoto(id){photos=photos.filter(p=>p.id!==id);renderPhotos();}
+function updatePhotoLabel(id,val){const p=photos.find(x=>x.id===id);if(p)p.label=val;}
+
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
+
+function toast(msg){
+  const t=$('toast');t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2800);
 }
 
-// 作業員追加
-function addWorker(){
-  workerCount++;
-  const id = 'w'+workerCount;
-  const div = document.createElement('div');
-  div.id = id;
-  div.style.marginBottom='10px';
-  div.innerHTML = `
-    <div class="worker-row">
-      <input type="text" class="w-role" placeholder="職種（例：鉄筋工）">
-      <input type="number" class="w-cnt" placeholder="人数" min="0">
-      <button class="btn-del" onclick="document.getElementById('${id}').remove()">✕</button>
-    </div>
-    <input type="text" class="worker-names" placeholder="作業員名（例：山田、田中、佐藤）">
-  `;
-  document.getElementById('workers-list').appendChild(div);
-}
-
-// 材料追加
-function addMaterial(){
-  materialCount++;
-  const id = 'm'+materialCount;
-  const div = document.createElement('div');
-  div.id = id;
-  div.className = 'material-row';
-  div.innerHTML = `
-    <input type="text" class="m-name" placeholder="材料名">
-    <input type="number" class="m-qty" placeholder="数量" min="0" step="any">
-    <select class="m-unit">
-      <option value="">単位</option>
-      <option>個</option><option>枚</option><option>本</option>
-      <option>m</option><option>缶</option><option>袋</option>
-      <option>セット</option><option>kg</option><option>L</option>
-    </select>
-    <button class="btn-del" onclick="document.getElementById('${id}').remove()">✕</button>
-  `;
-  document.getElementById('materials-list').appendChild(div);
-}
-
-// 保護具トグル
-function toggleSafety(el){ el.classList.toggle('checked'); }
-
-// 写真スロット追加
-function addPhotoSlot(){
-  const idx = photoSlots.length;
-  photoSlots.push({data:null,label:'',memo:''});
-  const grid = document.getElementById('photos-grid');
-  const div = document.createElement('div');
-  div.className = 'photo-slot';
-  div.id = 'ps'+idx;
-  div.innerHTML = `
-    <div id="pimg${idx}">
-      <div class="photo-placeholder"><span style="font-size:28px">📷</span><span>タップして撮影</span></div>
-    </div>
-    <div class="photo-actions">
-      <button onclick="triggerCam(${idx})">📷 撮影</button>
-      <button onclick="triggerLib(${idx})">🖼️ ライブラリ</button>
-      <button class="photo-del" onclick="removePhoto(${idx})">✕</button>
-    </div>
-    <input type="text" class="photo-memo" id="pmemo${idx}" placeholder="メモ（場所・内容など）"
-      oninput="photoSlots[${idx}].memo=this.value">
-    <input type="file" id="pcam${idx}" accept="image/*" capture="environment" style="display:none" onchange="loadPhoto(${idx},this)">
-    <input type="file" id="plib${idx}" accept="image/*" style="display:none" onchange="loadPhoto(${idx},this)">
-  `;
-  grid.appendChild(div);
-}
-
-function triggerCam(i){ document.getElementById('pcam'+i).click(); }
-function triggerLib(i){ document.getElementById('plib'+i).click(); }
-
-function loadPhoto(i, input){
-  if(!input.files[0]) return;
-  const reader = new FileReader();
-  reader.onload = e=>{
-    photoSlots[i].data = e.target.result;
-    const container = document.getElementById('pimg'+i);
-    container.innerHTML = `<img class="photo-preview" src="${e.target.result}">`;
+function saveR(){
+  const date=$('f-date').value,site=$('f-site').value.trim();
+  if(!date||!site){toast('⚠️ 日付と現場名を入力してください');return;}
+  const photoCount=photos.filter(p=>p.data).length;
+  const rep={
+    id:Date.now(),date,site,
+    reporter:$('f-rep').value.trim(),
+    weather:$('f-wx').value,
+    temp:$('f-tmp').value,
+    workers:JSON.parse(JSON.stringify(workers)),
+    work:$('f-work').value.trim(),
+    note:$('f-note').value.trim(),
+    progress:$('f-prog').value,
+    materials:JSON.parse(JSON.stringify(materials)),
+    safety:JSON.parse(JSON.stringify(safety)),
+    photoCount:photoCount,
+    savedAt:new Date().toISOString()
   };
-  reader.readAsDataURL(input.files[0]);
-}
-
-function removePhoto(i){
-  photoSlots[i] = {data:null,label:'',memo:''};
-  const container = document.getElementById('pimg'+i);
-  container.innerHTML = `<div class="photo-placeholder"><span style="font-size:28px">📷</span><span>タップして撮影</span></div>`;
-  document.getElementById('pcam'+i).value='';
-  document.getElementById('plib'+i).value='';
-}
-
-// 天気取得
-function getWeather(){
-  if(!navigator.geolocation){ showToast('位置情報が使えません'); return; }
-  showToast('📍 位置情報を取得中…');
-  navigator.geolocation.getCurrentPosition(pos=>{
-    const {latitude:lat, longitude:lon} = pos.coords;
-    fetch(`https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${WEATHER_KEY}&units=metric&lang=ja`)
-      .then(r=>r.json()).then(d=>{
-        if(d.cod!=='200'){ showToast('天気の取得に失敗しました'); return; }
-        const today = new Date().toISOString().substring(0,10);
-        const todayList = d.list.filter(i=>i.dt_txt.startsWith(today));
-        const maxT = todayList.length ? Math.max(...todayList.map(i=>i.main.temp_max)) : d.list[0].main.temp_max;
-        const w = d.list[0].weather[0].description;
-        let wSel = '';
-        if(w.includes('晴')||w.includes('clear')) wSel='晴れ';
-        else if(w.includes('雨')||w.includes('rain')) wSel='雨';
-        else if(w.includes('雪')||w.includes('snow')) wSel='雪';
-        else wSel='曇り';
-        document.getElementById('f-weather').value = wSel;
-        document.getElementById('f-temp').value = Math.round(maxT);
-        showToast(`✅ ${wSel} ${Math.round(maxT)}℃`);
-      }).catch(()=>showToast('天気の取得に失敗しました'));
-  },()=>showToast('位置情報の取得を許可してください'));
-}
-
-// 保存
-async function saveReport(){
-  const date = document.getElementById('f-date').value;
-  const site = document.getElementById('f-site').value.trim();
-  if(!date||!site){ showToast('⚠️ 日付と現場名は必須です'); return; }
-
-  document.getElementById('save-btn').disabled=true;
-  document.getElementById('save-btn').textContent='保存中…';
-
-  // 作業員収集
-  const workers = [];
-  document.querySelectorAll('#workers-list > div').forEach(div=>{
-    const r = div.querySelector('.w-role')?.value.trim()||'';
-    const c = div.querySelector('.w-cnt')?.value||'';
-    const names = div.querySelector('.worker-names')?.value.trim()||'';
-    if(r||c) workers.push({r,c,names});
-  });
-
-  // 材料収集
-  const materials = [];
-  document.querySelectorAll('#materials-list > div').forEach(div=>{
-    const n=div.querySelector('.m-name')?.value.trim()||'';
-    const q=div.querySelector('.m-qty')?.value||'';
-    const u=div.querySelector('.m-unit')?.value||'';
-    if(n) materials.push({n,q,u});
-  });
-
-  // 保護具
-  const safety = {};
-  document.querySelectorAll('#safety-grid .safety-item').forEach(el=>{
-    safety[el.dataset.key] = el.classList.contains('checked');
-  });
-
-  // 写真（ローカル保存用）
-  const photos = photoSlots.map(p=>({data:p.data||null,label:p.label,memo:p.memo}));
-  const photoCount = photos.filter(p=>p.data).length;
-
-  const report = {
-    id: editingId || Date.now().toString(),
-    date, site,
-    reporter: document.getElementById('f-reporter').value.trim(),
-    weather: document.getElementById('f-weather').value,
-    temp: document.getElementById('f-temp').value,
-    workers, materials, safety, photos,
-    work: document.getElementById('f-work').value.trim(),
-    note: document.getElementById('f-note').value.trim(),
-    progress: document.getElementById('f-progress').value,
-    photoCount,
-    savedAt: new Date().toLocaleString('ja-JP')
-  };
-
   // ローカル保存
-  const all = JSON.parse(localStorage.getItem('daily-reports')||'[]');
-  const idx = all.findIndex(r=>r.id===report.id);
-  if(idx>=0) all[idx]=report; else all.unshift(report);
-  // 写真なしバージョンを別途保存（容量節約）
-  const allNoPhoto = all.map(r=>({...r,photos:r.photos.map(p=>({...p,data:null}))}));
-  try{ localStorage.setItem('daily-reports', JSON.stringify(allNoPhoto)); }
-  catch(e){ console.warn('ローカル保存失敗',e); }
+  const stored=JSON.parse(localStorage.getItem('dr_v2')||'[]');
+  stored.unshift(rep);
+  localStorage.setItem('dr_v2',JSON.stringify(stored));
+  toast('✅ 日報を保存しました！');
 
-  // GASへ送信（写真含む）
-  const gasData = {...report};
-  sendToGAS(gasData);
+  // ①テキストデータをGASに送信（写真なし）
+  const textPayload={...rep,photos:[]};
+  fetch(GAS_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(textPayload)}).catch(()=>{});
 
-  // フォームリセット
-  document.getElementById('save-btn').disabled=false;
-  document.getElementById('save-btn').textContent='💾 日報を保存';
-  showToast('✅ 日報を保存しました！');
-  editingId = null;
+  // ②写真がある場合はDriveに送信
+  if(photoCount>0){
+    const photoPayload={date,site,photos:photos.map(p=>({data:p.data,label:p.label})),photoOnly:true};
+    fetch(GAS_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(photoPayload)}).catch(()=>{});
+  }
+
   resetForm();
 }
 
-function sendToGAS(data){
-  const payload = {...data};
-  fetch(GAS_URL, {
-    method:'POST',
-    body: JSON.stringify(payload)
-  }).then(r=>r.json()).then(res=>{
-    if(res.status==='ok') showToast('📊 スプレッドシートに送信しました');
-  }).catch(()=>{
-    // バックグラウンド送信失敗はサイレントに
-  });
-}
-
-// フォームリセット
 function resetForm(){
-  document.getElementById('f-site').value='';
-  document.getElementById('f-reporter').value='';
-  document.getElementById('f-weather').value='';
-  document.getElementById('f-temp').value='';
-  document.getElementById('f-work').value='';
-  document.getElementById('f-note').value='';
-  document.getElementById('f-progress').value=50;
-  document.getElementById('progress-val').textContent='50%';
-  document.querySelectorAll('#safety-grid .safety-item').forEach(el=>el.classList.remove('checked'));
-  document.getElementById('workers-list').innerHTML='';
-  document.getElementById('materials-list').innerHTML='';
-  document.getElementById('photos-grid').innerHTML='';
-  photoSlots=[];workerCount=0;materialCount=0;
-  addWorker();addMaterial();addPhotoSlot();
-  const now=new Date();
-  const y=now.getFullYear(),m=String(now.getMonth()+1).padStart(2,'0'),d=String(now.getDate()).padStart(2,'0');
-  document.getElementById('f-date').value=`${y}-${m}-${d}`;
+  $('f-site').value='';$('f-rep').value='';$('f-wx').value='';$('f-tmp').value='';
+  $('f-work').value='';$('f-note').value='';$('f-prog').value=50;$('pv').textContent='50%';
+  workers=[];materials=[];photos=[];
+  renderW();renderM();initSafety();renderPhotos();initDate();loadSiteList();
 }
 
-// 履歴表示
-function renderHistory(){
-  const all = JSON.parse(localStorage.getItem('daily-reports')||'[]');
-  const el = document.getElementById('history-list');
-  if(!all.length){
-    el.innerHTML='<div class="empty-state"><div class="empty-icon">📋</div><p>保存された日報はありません</p></div>';
-    return;
-  }
-  el.innerHTML = all.map(r=>`
-    <div class="history-item">
-      <div class="history-head">
-        <div>
-          <div class="history-date">${r.date}</div>
-          <div class="history-site">${r.site}</div>
-        </div>
-        <div class="history-progress">${r.progress}%</div>
+function renderHist(){
+  const data=JSON.parse(localStorage.getItem('dr_v2')||'[]');
+  if(!data.length){$('hlist').innerHTML='<div class="empty">📭<br>保存された日報はありません</div>';return;}
+  $('hlist').innerHTML=data.map(r=>{
+    const ok=Object.values(r.safety||{}).filter(Boolean).length;
+    const tot=Object.values(r.safety||{}).length;
+    const tw=r.workers.reduce((a,w)=>a+(parseInt(w.c)||0),0);
+    const pc=r.photoCount||0;
+    const workerNames=r.workers.filter(w=>w.names).map(w=>w.names).join('・');
+    return `<div class="hi">
+      <div style="display:flex;justify-content:space-between;align-items:start">
+        <div><div class="hi-date">${r.date}　${esc(r.site)}</div>
+        <div class="hi-meta">🌤️ ${r.weather||'—'} ${r.temp?r.temp+'℃':''}　👷 ${tw}名　📷 ${pc}枚</div></div>
+        <span class="badge ${ok===tot?'b-ok':'b-ng'}">${ok===tot?'✓ 安全OK':'⚠️ 要確認'}</span>
       </div>
-      <div class="history-body">
-        ${r.reporter?'報告者：'+r.reporter+'　':''}
-        ${r.weather?r.weather+(r.temp?r.temp+'℃':'')+'　':''}
-        写真：${r.photoCount||0}枚<br>
-        ${r.work?r.work.substring(0,60)+(r.work.length>60?'…':''):'（作業内容なし）'}
+      ${r.work?`<div style="margin-top:8px;font-size:13px;color:#666;line-height:1.5;border-top:1px solid #f0f0f0;padding-top:8px">${esc(r.work.substring(0,80))}${r.work.length>80?'…':''}</div>`:''}
+      <div class="pb-wrap"><div class="pb"><div style="width:${r.progress}%"></div></div>
+        <span style="font-size:12px;color:#185FA5;font-weight:600">${r.progress}%</span></div>
+      <div style="display:flex;justify-content:flex-end;gap:6px;margin-top:8px">
+        <button onclick="editR(${r.id})" style="font-size:12px;padding:5px 10px;border:1px solid #185FA5;border-radius:7px;background:#EBF4FF;cursor:pointer;color:#185FA5;font-family:inherit">✏️ 修正・再送信</button>
+        <button onclick="delR(${r.id})" style="font-size:12px;padding:5px 10px;border:1px solid #e0e0e0;border-radius:7px;background:#fff;cursor:pointer;color:#999;font-family:inherit">🗑️ 削除</button>
       </div>
-      <div class="history-actions">
-        <button class="btn-edit" onclick="editReport('${r.id}')">✏️ 修正・再送信</button>
-        <button class="btn-del-history" onclick="deleteReport('${r.id}')">🗑️ 削除</button>
-      </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
-// 修正
-function editReport(id){
-  const all = JSON.parse(localStorage.getItem('daily-reports')||'[]');
-  const r = all.find(x=>x.id===id);
-  if(!r) return;
-  switchTab('input');
-  editingId = id;
-  loadSiteList();
-  document.getElementById('f-date').value=r.date;
-  document.getElementById('f-site').value=r.site;
-  document.getElementById('f-reporter').value=r.reporter||'';
-  document.getElementById('f-weather').value=r.weather||'';
-  document.getElementById('f-temp').value=r.temp||'';
-  document.getElementById('f-work').value=r.work||'';
-  document.getElementById('f-note').value=r.note||'';
-  document.getElementById('f-progress').value=r.progress||50;
-  document.getElementById('progress-val').textContent=(r.progress||50)+'%';
-  // 保護具
-  document.querySelectorAll('#safety-grid .safety-item').forEach(el=>{
-    el.classList.toggle('checked', !!r.safety?.[el.dataset.key]);
-  });
+function delR(id){
+  if(!confirm('この日報を削除しますか？'))return;
+  const d=JSON.parse(localStorage.getItem('dr_v2')||'[]').filter(r=>r.id!==id);
+  localStorage.setItem('dr_v2',JSON.stringify(d));renderHist();
+}
+
+function editR(id){
+  const data=JSON.parse(localStorage.getItem('dr_v2')||'[]');
+  const r=data.find(x=>x.id===id);
+  if(!r){toast('日報が見つかりません');return;}
+  // フォームに値をセット
+  $('f-date').value=r.date||'';
+  $('f-site').value=r.site||'';
+  $('f-rep').value=r.reporter||'';
+  $('f-wx').value=r.weather||'';
+  $('f-tmp').value=r.temp||'';
+  $('f-work').value=r.work||'';
+  $('f-note').value=r.note||'';
+  $('f-prog').value=r.progress||50;
+  $('pv').textContent=(r.progress||50)+'%';
   // 作業員
-  document.getElementById('workers-list').innerHTML='';
-  workerCount=0;
-  (r.workers||[]).forEach(w=>{
-    addWorker();
-    const last=document.getElementById('workers-list').lastElementChild;
-    if(last){
-      last.querySelector('.w-role').value=w.r||'';
-      last.querySelector('.w-cnt').value=w.c||'';
-      last.querySelector('.worker-names').value=w.names||'';
-    }
-  });
-  if(!r.workers?.length) addWorker();
+  workers=(r.workers||[]).map(w=>({id:'w'+Date.now()+Math.random(),r:w.r||'',c:w.c||'',names:w.names||''}));
+  renderW();
   // 材料
-  document.getElementById('materials-list').innerHTML='';
-  materialCount=0;
-  (r.materials||[]).forEach(m=>{
-    addMaterial();
-    const last=document.getElementById('materials-list').lastElementChild;
-    if(last){
-      last.querySelector('.m-name').value=m.n||'';
-      last.querySelector('.m-qty').value=m.q||'';
-      last.querySelector('.m-unit').value=m.u||'';
-    }
+  materials=(r.materials||[]).map(m=>({id:'m'+Date.now()+Math.random(),n:m.n||'',q:m.q||'',u:m.u||'個'}));
+  renderM();
+  // 保護具
+  SAFETY.forEach(s=>{
+    safety[s]=r.safety&&r.safety[s]?true:false;
+    const el=$('si-'+s);
+    if(el){safety[s]?el.classList.add('on'):el.classList.remove('on');
+    const cb=el.querySelector('input');if(cb)cb.checked=safety[s];}
   });
-  if(!r.materials?.length) addMaterial();
-  // 写真スロットリセット
-  document.getElementById('photos-grid').innerHTML='';
-  photoSlots=[];
-  addPhotoSlot();
+  // 写真クリア
+  photos=[];renderPhotos();
+  // 古いデータを削除してフォームタブへ
+  const newData=data.filter(x=>x.id!==id);
+  localStorage.setItem('dr_v2',JSON.stringify(newData));
+  // フォームタブに切り替え
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  $('tab-form').classList.add('active');
+  document.querySelectorAll('.nav-btn')[0].classList.add('active');
   window.scrollTo(0,0);
-  showToast('✏️ 修正モード');
+  toast('✏️ 修正してから「日報を保存」を押してください');
 }
 
-// 削除
-function deleteReport(id){
-  if(!confirm('この日報を削除しますか？')) return;
-  const all = JSON.parse(localStorage.getItem('daily-reports')||'[]');
-  localStorage.setItem('daily-reports', JSON.stringify(all.filter(r=>r.id!==id)));
-  renderHistory();
-  showToast('🗑️ 削除しました');
+function renderExportTab(){
+  const data=JSON.parse(localStorage.getItem('dr_v2')||'[]');
+  if(!data.length){$('site-list').innerHTML='<div class="empty" style="padding:20px 0">📭<br>保存された日報がありません</div>';return;}
+  const sites={};
+  data.forEach(r=>{if(!sites[r.site])sites[r.site]=[];sites[r.site].push(r);});
+  $('site-list').innerHTML=Object.entries(sites).map(([site,reps])=>`
+    <div class="xl-row">
+      <div><div class="xl-name">${esc(site)}</div><div class="xl-cnt">${reps.length}件の日報</div></div>
+      <button class="dl-btn" onclick="exportSite(${JSON.stringify(site)})">📥 DL</button>
+    </div>`).join('');
 }
 
-// Excel出力
-function renderExcel(){
-  const all = JSON.parse(localStorage.getItem('daily-reports')||'[]');
-  const sites = [...new Set(all.map(r=>r.site))];
-  const el = document.getElementById('excel-site-list');
-  if(!sites.length){ el.innerHTML='<p style="color:#9ca3af;font-size:13px">保存された日報がありません</p>'; return; }
-  el.innerHTML = sites.map(s=>`
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f3f4f6">
-      <span style="font-size:13px;font-weight:600">🏗️ ${s}</span>
-      <button class="btn-primary" onclick="downloadExcel('${s}')">📥 ダウンロード</button>
-    </div>
-  `).join('');
-}
+function buildWorkbook(reports){
+  const wb=XLSX.utils.book_new();
+  const sites={};
+  reports.forEach(r=>{if(!sites[r.site])sites[r.site]=[];sites[r.site].push(r);});
 
-function downloadExcel(site){
-  const all = JSON.parse(localStorage.getItem('daily-reports')||'[]');
-  const reports = site ? all.filter(r=>r.site===site) : all;
-  generateExcel(reports, site||'全現場');
-}
-function downloadAllExcel(){ downloadExcel(null); }
-
-function generateExcel(reports, label){
-  // SheetJSなしのCSV出力
-  const header = ['日付','現場名','報告者','天気','気温','進捗(%)','作業内容','特記事項','写真枚数','作業員一覧','使用材料一覧','ヘルメット','安全帯','安全靴','防塵マスク','保護眼鏡','作業手袋(ゴム製)','保存日時'];
-  const rows = reports.map(r=>{
-    const wt = (r.workers||[]).filter(w=>w.r||w.c).map(w=>`${w.r||''} ${w.c?w.c+'名':''}${w.names?'('+w.names+')':''}`).join(' / ');
-    const mt = (r.materials||[]).filter(m=>m.n).map(m=>`${m.n} ${m.q||''}${m.u||''}`).join(' / ');
-    const s = r.safety||{};
-    return [
-      r.date,r.site,r.reporter||'',r.weather||'',r.temp||'',r.progress||'',
-      r.work||'',r.note||'',r.photoCount||0,
-      wt,mt,
-      s['ヘルメット']?'○':'×',s['安全帯']?'○':'×',s['安全靴']?'○':'×',
-      s['防塵マスク']?'○':'×',s['保護眼鏡']?'○':'×',s['作業手袋(ゴム製)']?'○':'×',
-      r.savedAt||''
-    ].map(v=>'"'+String(v).replace(/"/g,'""')+'"');
+  const listRows=[['日付','現場名','報告者','天気','気温(℃)','作業員合計(名)','進捗(%)','作業内容','特記事項','写真枚数']];
+  reports.forEach(r=>{
+    const tw=r.workers.reduce((a,w)=>a+(parseInt(w.c)||0),0);
+    listRows.push([r.date,r.site,r.reporter||'',r.weather||'',r.temp?Number(r.temp):'',tw,Number(r.progress),r.work||'',r.note||'',r.photoCount||0]);
   });
-  const csv = '\uFEFF'+[header.map(h=>'"'+h+'"'),...rows].map(r=>r.join(',')).join('\n');
-  const blob = new Blob([csv],{type:'text/csv;charset=utf-8'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download=`日報_${label}_${new Date().toISOString().substring(0,10)}.csv`;
-  a.click();
-  showToast('📥 ダウンロードしました');
+  const lws=XLSX.utils.aoa_to_sheet(listRows);
+  lws['!cols']=[{wch:12},{wch:28},{wch:10},{wch:6},{wch:8},{wch:14},{wch:8},{wch:40},{wch:28},{wch:8}];
+  XLSX.utils.book_append_sheet(wb,lws,'一覧');
+
+  Object.entries(sites).forEach(([site,reps])=>{
+    const hdr=['日付','報告者','天気','気温(℃)','作業員合計','進捗(%)','作業内容','特記事項',
+      '職種1','人数1','職種2','人数2','職種3','人数3',
+      '材料1','数量1','単位1','材料2','数量2','単位2',
+      'ヘルメット','安全帯','安全靴','防塵マスク','保護眼鏡','作業手袋'];
+    const rows=[[`■ 現場名：${site}`],[''],hdr];
+    reps.forEach(r=>{
+      const tw=r.workers.reduce((a,w)=>a+(parseInt(w.c)||0),0);
+      const row=[r.date,r.reporter||'',r.weather||'',r.temp?Number(r.temp):'',tw,Number(r.progress),r.work||'',r.note||''];
+      for(let i=0;i<3;i++){const w=r.workers[i]||{};row.push(w.r||'',w.c?Number(w.c):'');}
+      for(let i=0;i<2;i++){const m=r.materials[i]||{};row.push(m.n||'',m.q?Number(m.q):'',m.u||'');}
+      SAFETY.forEach(s=>row.push(r.safety&&r.safety[s]?'○':'×'));
+      rows.push(row);
+    });
+    const ws=XLSX.utils.aoa_to_sheet(rows);
+    const sn=site.replace(/[\\\/\*\?\[\]:]/g,'').substring(0,28)||'現場';
+    XLSX.utils.book_append_sheet(wb,ws,sn);
+  });
+
+  const prows=[['日付','現場名','写真枚数','備考']];
+  reports.forEach(r=>{
+    if(r.photoCount>0) prows.push([r.date,r.site,r.photoCount,'Google Driveの工事写真アルバムフォルダを参照']);
+  });
+  const pws=XLSX.utils.aoa_to_sheet(prows);
+  XLSX.utils.book_append_sheet(wb,pws,'工事写真帳');
+  return wb;
 }
 
-// トースト
-function showToast(msg, dur=2500){
-  const t=document.getElementById('toast');
-  t.textContent=msg; t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'),dur);
+function exportSite(site){
+  const data=JSON.parse(localStorage.getItem('dr_v2')||'[]').filter(r=>r.site===site);
+  if(!data.length){toast('データがありません');return;}
+  const wb=buildWorkbook(data);
+  XLSX.writeFile(wb,site.replace(/[\\\/\*\?\[\]:]/g,'').substring(0,20)+'_日報.xlsx');
+  toast('📥 Excelをダウンロードしました');
 }
+
+function exportAll(){
+  const data=JSON.parse(localStorage.getItem('dr_v2')||'[]');
+  if(!data.length){toast('⚠️ 保存された日報がありません');return;}
+  const wb=buildWorkbook(data);
+  XLSX.writeFile(wb,'工事日報_全現場.xlsx');
+  toast('📥 全現場のExcelをダウンロードしました');
+}
+
+function loadSiteList(){
+  const genbas=JSON.parse(localStorage.getItem('genbas')||'[]');
+  const sel=$('f-site');
+  const current=sel.value;
+  sel.innerHTML='<option value="">現場を選択してください</option>';
+  genbas.forEach(g=>{
+    const opt=document.createElement('option');
+    opt.value=g.name;
+    opt.textContent=g.name+(g.status==='完工'?' (完工)':'');
+    sel.appendChild(opt);
+  });
+  if(current) sel.value=current;
+  // URL引数から現場名を自動セット
+  const params=new URLSearchParams(location.search);
+  const site=params.get('site');
+  if(site) sel.value=site;
+}
+
+function onSiteSelect(val){
+  // 現場選択時に現場情報アプリへのリンクを更新
+}
+
+initDate();loadSiteList();addW();addM();initSafety();renderPhotos();
 </script>
 </body>
 </html>
