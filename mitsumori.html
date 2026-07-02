@@ -140,6 +140,17 @@ input:focus,select:focus,.cell:focus{background:#fbf7e8;box-shadow:inset 0 0 0 1
 .field-note{font-size:11.5px;color:#888;padding:2px 4px 6px;line-height:1.6;}
 .test-btn{border:1px solid #2563a8;color:#2563a8;background:#fff;border-radius:7px;padding:8px 14px;
   font-size:13px;cursor:pointer;margin-top:4px;}
+.modal-note{padding:10px 16px 14px;font-size:11px;color:#888;line-height:1.6;border-top:1px solid #eee;}
+.empty{padding:34px 12px;text-align:center;color:#888;font-size:13px;}
+.load-row{display:flex;align-items:center;gap:10px;padding:11px 8px;border-bottom:1px solid #eee;}
+.load-info{flex:1;cursor:pointer;min-width:0;}
+.load-no{font-size:13px;font-weight:600;color:#222;margin-bottom:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.load-sub{font-size:11.5px;color:#777;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.load-row:active{background:#f5f7fa;}
+.load-badge{flex:0 0 auto;font-size:10.5px;color:#1d7a4d;border:1px solid #1d7a4d;
+  border-radius:20px;padding:2px 8px;}
+.load-badge.dimbadge{color:#aaa;border-color:#ddd;}
 
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1f2430;color:#fff;
   padding:11px 22px;border-radius:30px;font-size:13.5px;z-index:60;font-family:-apple-system,sans-serif;
@@ -317,8 +328,9 @@ function blankQuote(seq){return{
 /* ---- 状態 ---- */
 let SEQ=nextSeq();
 let Q=blankQuote(SEQ);
-let modal=null; // "settings" | null
+let modal=null; // "settings" | "list" | null
 let syncing=false;
+let listState={loading:false,error:"",rows:null}; // 一覧の取得状態
 
 /* ---- 計算 ---- */
 function bdTotal(sheet){return sheet.rows.reduce((s,r)=>s+(Number(r.qty)||0)*(Number(r.price)||0),0);}
@@ -350,22 +362,50 @@ function toast(msg){
 
 /* ---- スプレッドシート送信 ---- */
 function buildRow(c){return{
+  ID:Q.id,
   保存日時:new Date().toISOString(), 見積NO:Q.quoteNo, 作成日:isoToJp(Q.createdDate),
   宛先:Q.client, 工事名称:Q.projectName, 工事場所:Q.location, 担当者:Q.staff,
   明細小計:c.itemsSubtotal, 法定福利費:c.laborCost, 諸経費:c.overhead, 合計税抜:c.grandTotal,
+  // 復元用：見積の全データをJSON文字列で保存
+  data:JSON.stringify(Q),
 };}
-async function syncToSheet(){
+// mode: "new"（別番号の新規として追記）/ "update"（同IDを上書き、なければ追記）
+async function syncToSheet(mode){
   const url=LS.gasUrl();
   if(!url){ toast("先に［設定］でスプレッドシートURLを登録してください"); openModal("settings"); return false; }
+  // 新規保存：新しい見積番号とIDを振り直す
+  if(mode==="new"){
+    Q.id=uid();
+    Q.quoteNo=yymmdd()+"-"+String(SEQ).padStart(3,"0");
+  }
   const c=calc();
+  const payload=Object.assign({mode:mode||"update"}, buildRow(c));
   try{
     await fetch(url,{method:"POST",mode:"no-cors",
       headers:{"Content-Type":"text/plain;charset=utf-8"},
-      body:JSON.stringify(buildRow(c))});
-    bumpSeq(SEQ);
-    toast("スプレッドシートへ保存しました");
+      body:JSON.stringify(payload)});
+    if(mode==="new") bumpSeq(SEQ);
+    toast(mode==="new"?"新規見積として保存しました":"上書き保存しました");
     return true;
   }catch(e){ toast("送信に失敗しました（URLをご確認ください）"); return false; }
+}
+
+/* ---- スプレッドシートから一覧取得（JSONP：CORS回避）---- */
+function fetchListJSONP(){
+  return new Promise((resolve,reject)=>{
+    const url=LS.gasUrl();
+    if(!url){ reject(new Error("URL未設定")); return; }
+    const cb="qmcb_"+Math.random().toString(36).slice(2,9);
+    const timer=setTimeout(()=>{ cleanup(); reject(new Error("timeout")); },12000);
+    function cleanup(){ clearTimeout(timer); delete window[cb];
+      if(s&&s.parentNode)s.parentNode.removeChild(s); }
+    window[cb]=(data)=>{ cleanup(); resolve(data); };
+    const sep=url.indexOf("?")>=0?"&":"?";
+    const s=document.createElement("script");
+    s.src=url+sep+"action=list&callback="+cb+"&_="+Date.now();
+    s.onerror=()=>{ cleanup(); reject(new Error("script error")); };
+    document.body.appendChild(s);
+  });
 }
 
 /* ---- PDFダウンロード（html2canvas+jsPDF）---- */
@@ -413,7 +453,9 @@ function render(){
       tbBtn("plus","新規","",()=>{ SEQ=nextSeq(); Q=blankQuote(SEQ); render(); toast("新規作成しました"); }),
       tbBtn("copy","複製","",()=>{ Q={...Q,id:uid(),quoteNo:yymmdd()+"-"+String(SEQ).padStart(3,"0"),createdDate:todayISO()}; render(); toast("複製しました"); }),
       tbBtn("settings","設定","",()=>openModal("settings")),
-      tbBtn("upload","シート保存","btn-ok",async()=>{ if(syncing)return; syncing=true; await syncToSheet(); syncing=false; render(); }),
+      tbBtn("folder","一覧","",()=>openList()),
+      tbBtn("upload","新規保存","btn-ok",async()=>{ if(syncing)return; syncing=true; await syncToSheet("new"); syncing=false; render(); }),
+      tbBtn("save","上書き保存","",async()=>{ if(syncing)return; syncing=true; await syncToSheet("update"); syncing=false; render(); }),
       tbBtn("pdf","PDF保存","btn-primary",downloadPDF),
       tbBtn("print","印刷","btn-dark",()=>window.print())
     )
@@ -429,6 +471,7 @@ function render(){
       h("span",{html:ICONS.layers}),"内訳書シートを追加")));
 
   if(modal==="settings")app.appendChild(settingsModal());
+  if(modal==="list")app.appendChild(listModal());
 }
 
 function tbBtn(icon,label,cls,onClick){
@@ -640,6 +683,58 @@ function totRow(label,val,grand,id){
 /* ---- モーダル ---- */
 function openModal(m){modal=m;render();}
 function closeModal(){modal=null;render();}
+
+/* ---- 一覧：開く／取得／復元 ---- */
+function openList(){
+  if(!LS.gasUrl()){ toast("先に［設定］でスプレッドシートURLを登録してください"); openModal("settings"); return; }
+  modal="list"; listState={loading:true,error:"",rows:null}; render();
+  fetchListJSONP().then(data=>{
+    // data.rows = [{保存日時,見積NO,宛先,工事名称,合計税抜,data(JSON文字列)}...]
+    const rows=(data&&data.rows)?data.rows:[];
+    listState={loading:false,error:"",rows}; if(modal==="list")render();
+  }).catch(e=>{
+    listState={loading:false,error:"取得に失敗しました（Apps Scriptの更新・URLをご確認ください）",rows:null};
+    if(modal==="list")render();
+  });
+}
+function restoreQuote(rec){
+  try{
+    const obj=JSON.parse(rec.data);
+    if(!obj||!obj.items||!obj.breakdowns){ toast("この行には復元用データがありません"); return; }
+    Q=obj; modal=null; render(); toast("見積を復元しました");
+  }catch(e){ toast("復元に失敗しました（データ形式が不正です）"); }
+}
+function listModal(){
+  let body;
+  if(listState.loading){
+    body=h("div",{class:"empty"},"読み込み中…");
+  }else if(listState.error){
+    body=h("div",{class:"empty"},listState.error);
+  }else if(!listState.rows||listState.rows.length===0){
+    body=h("div",{class:"empty"},"保存された見積はまだありません。");
+  }else{
+    // 新しい順（保存日時の降順）
+    const rows=[...listState.rows].sort((a,b)=>String(b.保存日時||"").localeCompare(String(a.保存日時||"")));
+    body=h("div",{},...rows.map(rec=>{
+      const hasData=!!rec.data;
+      return h("div",{class:"load-row"},
+        h("div",{class:"load-info",onClick:()=>{ if(hasData)restoreQuote(rec); else toast("この行は旧形式で復元できません"); }},
+          h("div",{class:"load-no"},"No."+(rec.見積NO||"")+" ・ "+(rec.工事名称||"（無題）")),
+          h("div",{class:"load-sub"},(rec.宛先||"宛先未設定")+" ／ "+
+            (rec.合計税抜!=null?Number(rec.合計税抜).toLocaleString("ja-JP"):"0")+" 円 ／ "+(rec.作成日||""))),
+        hasData?h("span",{class:"load-badge"},"復元可"):h("span",{class:"load-badge dimbadge"},"—"));
+    }));
+  }
+  return h("div",{class:"modal-bg no-print",onClick:e=>{if(e.target.classList.contains("modal-bg"))closeModal();}},
+    h("div",{class:"modal"},
+      h("div",{class:"modal-head"},h("span",{},"保存した見積の一覧"),
+        h("div",{style:"display:flex;gap:6px;align-items:center;"},
+          h("button",{class:"test-btn",onClick:()=>openList()},"再読込"),
+          h("button",{class:"icon-btn",onClick:closeModal},h("span",{html:ICONS.x})))),
+      h("div",{class:"modal-body"},body),
+      h("div",{class:"modal-note"},"項目をタップすると、その見積を復元して再表示・PDF化できます。データは全ユーザーで共有されます。")));
+}
+
 function settingsModal(){
   return h("div",{class:"modal-bg no-print",onClick:e=>{if(e.target.classList.contains("modal-bg"))closeModal();}},
     h("div",{class:"modal"},
@@ -658,7 +753,7 @@ function settingsModal(){
             headers:{"Content-Type":"text/plain;charset=utf-8"},
             body:JSON.stringify({保存日時:new Date().toISOString(),見積NO:"TEST",作成日:todayStr(),宛先:"接続テスト"})});}catch(e){}
         }},"テスト送信"),
-        h("div",{class:"field-note"},"保存時に見積データ（見積NO・宛先・工事名・各金額）を1行ずつシートへ蓄積します。連携用のApps Scriptコードは別途お渡しします。"),
+        h("div",{class:"field-note"},"保存時に見積の全データをシートへ蓄積し、［一覧］から呼び出して復元・再表示・PDF化できます。連携用のApps Scriptコードは別途お渡しします。"),
 
         h("div",{class:"sec-title"},h("span",{html:ICONS.settings}),"計算設定"),
         h("label",{class:"field"},h("span",{},"諸経費率（%）"),
