@@ -488,14 +488,27 @@ function exportAll(){
 }
 
 function loadSiteList(){
-  const genbas=JSON.parse(localStorage.getItem('genbas')||'[]');
+  // キャッシュから即表示
+  fillSiteOptions(JSON.parse(localStorage.getItem('genba-sites')||'[]'));
+  // GASから最新を取得して更新
+  fetch(GAS_URL+'?action=getSites')
+    .then(r=>r.json())
+    .then(res=>{
+      if(res.sites){
+        localStorage.setItem('genba-sites',JSON.stringify(res.sites));
+        fillSiteOptions(res.sites);
+      }
+    }).catch(()=>{});
+}
+
+function fillSiteOptions(sites){
   const sel=$('f-site');
   const current=sel.value;
   sel.innerHTML='<option value="">現場を選択してください</option>';
-  genbas.forEach(g=>{
+  sites.forEach(g=>{
     const opt=document.createElement('option');
     opt.value=g.name;
-    opt.textContent=g.name+(g.status==='完工'?' (完工)':'');
+    opt.textContent=g.name;
     sel.appendChild(opt);
   });
   if(current) sel.value=current;
