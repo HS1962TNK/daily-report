@@ -381,7 +381,7 @@ function toast(msg){
 function buildRow(c){return{
   ID:Q.id,
   保存日時:new Date().toISOString(), 見積NO:Q.quoteNo, 作成日:isoToJp(Q.createdDate),
-  宛先:Q.client, 工事名称:Q.projectName, 工事場所:Q.location, 担当者:Q.staff,
+  宛先:Q.client, 工事名称:Q.projectName, 工事場所:Q.location, 担当者:Q.staff, 担当部署:Q.department,
   明細小計:c.itemsSubtotal, 法定福利費:c.laborCost, 諸経費:c.overhead, 合計税抜:c.grandTotal,
   // 復元用：見積の全データをJSON文字列で保存
   data:JSON.stringify(Q),
@@ -733,11 +733,11 @@ function listModal(){
   }else{
     // 新しい順（保存日時の降順）
     let rows=[...listState.rows].sort((a,b)=>String(b.保存日時||"").localeCompare(String(a.保存日時||"")));
-    // 絞り込み（客先・工事名・見積NO・工事場所・担当者を対象）
+    // 絞り込み（客先・工事名・見積NO・工事場所・担当者・担当部署を対象）
     const q=listQuery.trim().toLowerCase();
     if(q){
       rows=rows.filter(r=>{
-        const hay=[r.見積NO,r.宛先,r.工事名称,r.工事場所,r.担当者]
+        const hay=[r.見積NO,r.宛先,r.工事名称,r.工事場所,r.担当者,r.担当部署]
           .map(x=>String(x==null?"":x).toLowerCase()).join(" ");
         return q.split(/\s+/).every(w=>hay.indexOf(w)>=0);
       });
