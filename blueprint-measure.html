@@ -1,0 +1,1154 @@
+<style>
+  :root{
+    --bp-bg:#0d2438;
+    --bp-panel:#123350;
+    --bp-panel-2:#0f2c47;
+    --bp-line:#5f9bc0;
+    --bp-line-soft:rgba(111,168,201,0.16);
+    --bp-ink:#eaf4fb;
+    --bp-ink-dim:#9fc1d6;
+    --bp-accent:#ffb627;
+    --bp-accent-ink:#241a04;
+    --bp-teal:#7dd8c6;
+    --bp-danger:#ff7a7a;
+    --radius:7px;
+    --font-display:'Space Grotesk',sans-serif;
+    --font-body:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif;
+    --font-mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,monospace;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  .bp-app{
+    font-family:var(--font-body);
+    color:var(--bp-ink);
+    background:var(--bp-bg);
+    height:100%;
+    min-height:640px;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+    border-radius:10px;
+    border:1px solid rgba(111,168,201,0.25);
+  }
+
+  /* ---------- Toolbar ---------- */
+  .bp-toolbar{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:14px;
+    padding:10px 14px;
+    background:var(--bp-panel);
+    border-bottom:1px solid rgba(111,168,201,0.22);
+  }
+  .bp-brand{display:flex;align-items:center;gap:9px;margin-right:4px;}
+  .bp-brand .icon{font-size:19px;line-height:1;filter:drop-shadow(0 0 6px rgba(255,182,39,.35));}
+  .bp-brand h1{
+    font-family:var(--font-display);
+    font-size:15.5px;
+    font-weight:700;
+    letter-spacing:.2px;
+    margin:0;
+  }
+  .bp-brand .tag{
+    font-family:var(--font-mono);
+    font-size:9px;
+    letter-spacing:1.5px;
+    color:var(--bp-ink-dim);
+    display:block;
+    margin-top:1px;
+  }
+  .bp-divider{width:1px;align-self:stretch;background:rgba(111,168,201,0.22);margin:2px 0;}
+
+  .bp-group{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .bp-filename{font-size:12px;color:var(--bp-ink-dim);font-family:var(--font-mono);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+  .btn{
+    font-family:var(--font-body);
+    font-size:12.5px;
+    padding:7px 12px;
+    border-radius:var(--radius);
+    border:1px solid rgba(234,244,251,0.2);
+    background:transparent;
+    color:var(--bp-ink);
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    transition:background .12s ease,border-color .12s ease,opacity .12s ease;
+    white-space:nowrap;
+  }
+  .btn:hover:not(:disabled){background:rgba(234,244,251,0.09);}
+  .btn:focus-visible{outline:2px solid var(--bp-accent);outline-offset:2px;}
+  .btn.primary{background:var(--bp-accent);color:var(--bp-accent-ink);border-color:var(--bp-accent);font-weight:600;}
+  .btn.primary:hover:not(:disabled){background:#ffc355;}
+  .btn.danger{background:var(--bp-danger);color:#2b0a0a;border-color:var(--bp-danger);font-weight:600;}
+  .btn.small{padding:4px 9px;font-size:11.5px;}
+  .btn:disabled{opacity:.32;cursor:not-allowed;}
+
+  .mode-group{display:inline-flex;border:1px solid rgba(234,244,251,0.2);border-radius:var(--radius);overflow:hidden;}
+  .mode-group .btn{border:none;border-radius:0;border-right:1px solid rgba(234,244,251,0.14);}
+  .mode-group .btn:last-child{border-right:none;}
+  .mode-group .btn.active{background:var(--bp-accent);color:var(--bp-accent-ink);font-weight:600;}
+
+  select.bp-select{
+    font-family:var(--font-mono);
+    font-size:12px;
+    background:var(--bp-panel-2);
+    color:var(--bp-ink);
+    border:1px solid rgba(234,244,251,0.2);
+    border-radius:var(--radius);
+    padding:6px 8px;
+  }
+  .bp-unitlabel{font-size:11px;color:var(--bp-ink-dim);margin-right:2px;}
+
+  .bp-zoom{display:flex;align-items:center;gap:4px;}
+  .bp-zoom .zoom-label{font-family:var(--font-mono);font-size:12px;color:var(--bp-ink-dim);min-width:40px;text-align:center;}
+
+  .pdf-nav{display:flex;align-items:center;gap:4px;font-family:var(--font-mono);font-size:12px;color:var(--bp-ink-dim);}
+
+  .spacer{flex:1;}
+
+  /* ---------- Workspace ---------- */
+  .bp-workspace{flex:1;display:flex;min-height:0;}
+  .canvas-wrap{
+    position:relative;
+    flex:1;
+    overflow:hidden;
+    background-color:var(--bp-bg);
+    background-image:
+      repeating-linear-gradient(0deg, var(--bp-line-soft) 0px, var(--bp-line-soft) 1px, transparent 1px, transparent 26px),
+      repeating-linear-gradient(90deg, var(--bp-line-soft) 0px, var(--bp-line-soft) 1px, transparent 1px, transparent 26px);
+    cursor:crosshair;
+  }
+  #mainCanvas{position:absolute;top:0;left:0;touch-action:none;}
+
+  .empty-state{
+    position:absolute;inset:0;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:14px;text-align:center;padding:20px;
+  }
+  .empty-state .icon{font-size:40px;opacity:.85;}
+  .empty-state h2{font-family:var(--font-display);font-size:18px;margin:0;font-weight:600;}
+  .empty-state p{font-size:13px;color:var(--bp-ink-dim);margin:0;max-width:320px;line-height:1.6;}
+
+  .hint-bar{
+    position:absolute;left:12px;bottom:12px;
+    display:flex;align-items:center;gap:10px;
+    background:rgba(13,36,56,0.88);
+    border:1px solid rgba(111,168,201,0.3);
+    border-radius:var(--radius);
+    padding:8px 12px;
+    max-width:calc(100% - 200px);
+    backdrop-filter:blur(2px);
+  }
+  #hintText{font-size:12.5px;color:var(--bp-ink);}
+  .hint-actions{display:flex;gap:6px;}
+
+  .scale-bar{
+    position:absolute;right:12px;bottom:12px;
+    background:rgba(13,36,56,0.88);
+    border:1px solid rgba(111,168,201,0.3);
+    border-radius:var(--radius);
+    padding:4px 10px 2px;
+  }
+  .scale-svg{display:block;}
+
+  /* ---------- Sidebar ---------- */
+  .bp-sidebar{
+    width:290px;flex-shrink:0;
+    background:var(--bp-panel);
+    border-left:1px solid rgba(111,168,201,0.22);
+    display:flex;flex-direction:column;
+    min-height:0;
+  }
+  .sidebar-section{padding:12px 14px;}
+  .sidebar-section + .sidebar-section{border-top:1px solid rgba(111,168,201,0.16);}
+  .sidebar-title{
+    font-family:var(--font-mono);
+    font-size:10.5px;letter-spacing:1.2px;color:var(--bp-ink-dim);
+    text-transform:uppercase;margin:0 0 8px;
+  }
+  .badge{
+    display:inline-block;font-size:11px;padding:3px 8px;border-radius:999px;font-weight:600;
+    font-family:var(--font-mono);
+  }
+  .badge-off{background:rgba(255,122,122,0.16);color:#ffb3b3;border:1px solid rgba(255,122,122,0.4);}
+  .badge-on{background:rgba(125,216,198,0.16);color:var(--bp-teal);border:1px solid rgba(125,216,198,0.45);}
+  .scale-detail{display:block;margin-top:6px;font-family:var(--font-mono);font-size:12px;color:var(--bp-ink);}
+
+  .m-list{flex:1;overflow-y:auto;padding:6px 10px;}
+  .list-empty{font-size:12px;color:var(--bp-ink-dim);padding:16px 6px;text-align:center;line-height:1.6;}
+  .m-row{
+    display:flex;align-items:center;gap:9px;
+    padding:8px 8px;border-radius:var(--radius);
+    cursor:pointer;margin-bottom:3px;
+    border:1px solid transparent;
+    transition:background .12s;
+  }
+  .m-row:hover{background:rgba(234,244,251,0.07);border-color:rgba(111,168,201,0.25);}
+  .m-icon{
+    width:26px;height:26px;border-radius:6px;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--bp-panel-2);font-size:13px;color:var(--bp-teal);
+    font-family:var(--font-mono);font-weight:600;
+  }
+  .m-body{flex:1;min-width:0;}
+  .m-value{font-family:var(--font-mono);font-size:13px;font-weight:600;color:var(--bp-ink);}
+  .m-sub{font-family:var(--font-mono);font-size:10.5px;color:var(--bp-ink-dim);margin-top:1px;}
+  .m-del{
+    width:22px;height:22px;border-radius:5px;border:1px solid rgba(234,244,251,0.18);
+    background:transparent;color:var(--bp-ink-dim);cursor:pointer;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1;
+  }
+  .m-del:hover{background:rgba(255,122,122,0.18);color:#ffb3b3;border-color:rgba(255,122,122,0.4);}
+
+  .summary-row{display:flex;justify-content:space-between;font-size:11.5px;color:var(--bp-ink-dim);padding:2px 0;}
+  .summary-row span:last-child{font-family:var(--font-mono);color:var(--bp-ink);}
+
+  .sidebar-actions{display:flex;gap:8px;}
+  .sidebar-actions .btn{flex:1;justify-content:center;}
+
+  .shortcuts{font-size:10.5px;color:var(--bp-ink-dim);line-height:1.9;font-family:var(--font-mono);}
+
+  /* ---------- Modal ---------- */
+  .modal-overlay{
+    position:absolute;inset:0;background:rgba(6,17,28,0.72);
+    display:flex;align-items:center;justify-content:center;z-index:20;
+  }
+  .modal{
+    background:var(--bp-panel);border:1px solid rgba(111,168,201,0.35);
+    border-radius:10px;padding:20px 22px;width:300px;
+    box-shadow:0 12px 40px rgba(0,0,0,0.45);
+  }
+  .modal h3{font-family:var(--font-display);font-size:15px;margin:0 0 6px;}
+  .modal-sub{font-size:12px;color:var(--bp-ink-dim);line-height:1.6;margin:0 0 14px;}
+  .modal-field{display:flex;gap:8px;margin-bottom:16px;}
+  .modal-field input[type=number]{
+    flex:1;min-width:0;font-family:var(--font-mono);font-size:15px;
+    background:var(--bp-panel-2);border:1px solid rgba(234,244,251,0.25);
+    border-radius:var(--radius);padding:8px 10px;color:var(--bp-ink);
+  }
+  .modal-field input[type=number]:focus{outline:2px solid var(--bp-accent);outline-offset:1px;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:8px;}
+
+  /* ---------- Responsive ---------- */
+  @media (max-width:760px){
+    .bp-workspace{flex-direction:column;}
+    .bp-sidebar{width:100%;border-left:none;border-top:1px solid rgba(111,168,201,0.22);max-height:38%;}
+    .canvas-wrap{min-height:220px;}
+    .hint-bar{max-width:calc(100% - 24px);}
+    .shortcuts{display:none;}
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .btn,.m-row{transition:none;}
+  }
+</style>
+
+<div class="bp-app">
+  <header class="bp-toolbar">
+    <div class="bp-brand">
+      <span class="icon">📐</span>
+      <div>
+        <h1>図面計測</h1>
+        <span class="tag">SCALE · LENGTH · AREA</span>
+      </div>
+    </div>
+    <div class="bp-divider"></div>
+
+    <div class="bp-group">
+      <label class="btn primary" for="fileInput">図面を開く
+        <input type="file" id="fileInput" accept="image/*,.pdf,application/pdf" hidden>
+      </label>
+      <span class="bp-filename" id="filenameEl"></span>
+      <div class="pdf-nav" id="pdfNav" hidden>
+        <button class="btn small" id="pdfPrev">‹</button>
+        <span id="pdfPageLabel">1 / 1</span>
+        <button class="btn small" id="pdfNext">›</button>
+      </div>
+    </div>
+
+    <div class="bp-divider"></div>
+
+    <div class="mode-group">
+      <button class="btn" id="btnScale" disabled>縮尺設定</button>
+      <button class="btn" id="btnLength" disabled>距離</button>
+      <button class="btn" id="btnArea" disabled>面積</button>
+      <button class="btn" id="btnPan" disabled>パン</button>
+    </div>
+
+    <div class="bp-divider"></div>
+
+    <div class="bp-zoom">
+      <button class="btn small" id="zoomOutBtn" disabled>－</button>
+      <span class="zoom-label" id="zoomLabel">—</span>
+      <button class="btn small" id="zoomInBtn" disabled>＋</button>
+      <button class="btn small" id="zoomResetBtn" disabled>全体表示</button>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="bp-group">
+      <span class="bp-unitlabel">長さ</span>
+      <select class="bp-select" id="lengthUnitSel">
+        <option value="mm">mm</option>
+        <option value="cm">cm</option>
+        <option value="m">m</option>
+      </select>
+      <span class="bp-unitlabel">面積</span>
+      <select class="bp-select" id="areaUnitSel">
+        <option value="m2">m²</option>
+        <option value="tsubo">坪</option>
+        <option value="cm2">cm²</option>
+      </select>
+    </div>
+  </header>
+
+  <main class="bp-workspace">
+    <div class="canvas-wrap" id="canvasWrap">
+      <canvas id="mainCanvas"></canvas>
+
+      <div class="empty-state" id="emptyState">
+        <div class="icon">🖼️</div>
+        <h2>図面をアップロードしてください</h2>
+        <p>写真・スキャン画像(JPEG/PNG)またはPDFの図面を読み込むと、基準線から縮尺を割り出して、長さと面積をクリックだけで測定できます。</p>
+        <button class="btn primary" id="uploadBtnEmpty">図面を開く</button>
+      </div>
+
+      <div class="hint-bar" id="hintBar" hidden>
+        <span id="hintText" aria-live="polite"></span>
+        <div class="hint-actions">
+          <button class="btn small" id="hintUndo" hidden>1点戻す</button>
+          <button class="btn small primary" id="hintFinish" hidden>確定</button>
+        </div>
+      </div>
+
+      <div class="scale-bar" id="scaleBarEl" hidden></div>
+    </div>
+
+    <aside class="bp-sidebar">
+      <div class="sidebar-section">
+        <p class="sidebar-title">縮尺</p>
+        <div id="scaleStatusEl"><span class="badge badge-off">縮尺 未設定</span></div>
+      </div>
+      <div class="sidebar-section" style="flex:1;display:flex;flex-direction:column;min-height:0;padding-bottom:6px;">
+        <p class="sidebar-title">計測結果</p>
+        <div class="m-list" id="listEl"></div>
+        <div id="summaryEl" style="margin-top:4px;"></div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-actions">
+          <button class="btn small" id="exportCsvBtn">CSV書き出し</button>
+          <button class="btn small danger" id="clearAllBtn">全てクリア</button>
+        </div>
+        <p class="shortcuts" style="margin-top:10px;">
+          Esc キャンセル ／ Enter 確定<br>
+          Backspace 1点戻す<br>
+          ホイール 拡大縮小 ／ Space+ドラッグ 移動
+        </p>
+      </div>
+    </aside>
+  </main>
+
+  <div class="modal-overlay" id="modalOverlay" hidden>
+    <div class="modal" id="modalBox"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------- DOM refs ---------------- */
+  const canvas = document.getElementById('mainCanvas');
+  const ctx = canvas.getContext('2d');
+  const canvasWrap = document.getElementById('canvasWrap');
+  const emptyState = document.getElementById('emptyState');
+  const fileInput = document.getElementById('fileInput');
+  const uploadBtnEmpty = document.getElementById('uploadBtnEmpty');
+  const filenameEl = document.getElementById('filenameEl');
+  const pdfNavEl = document.getElementById('pdfNav');
+  const pdfPrev = document.getElementById('pdfPrev');
+  const pdfNext = document.getElementById('pdfNext');
+  const pdfPageLabel = document.getElementById('pdfPageLabel');
+
+  const btnScale = document.getElementById('btnScale');
+  const btnLength = document.getElementById('btnLength');
+  const btnArea = document.getElementById('btnArea');
+  const btnPan = document.getElementById('btnPan');
+  const modeButtons = {scale:btnScale, length:btnLength, area:btnArea, pan:btnPan};
+
+  const zoomInBtn = document.getElementById('zoomInBtn');
+  const zoomOutBtn = document.getElementById('zoomOutBtn');
+  const zoomResetBtn = document.getElementById('zoomResetBtn');
+  const zoomLabel = document.getElementById('zoomLabel');
+
+  const lengthUnitSel = document.getElementById('lengthUnitSel');
+  const areaUnitSel = document.getElementById('areaUnitSel');
+
+  const hintBar = document.getElementById('hintBar');
+  const hintText = document.getElementById('hintText');
+  const hintUndo = document.getElementById('hintUndo');
+  const hintFinish = document.getElementById('hintFinish');
+  const scaleBarEl = document.getElementById('scaleBarEl');
+
+  const scaleStatusEl = document.getElementById('scaleStatusEl');
+  const listEl = document.getElementById('listEl');
+  const summaryEl = document.getElementById('summaryEl');
+  const exportCsvBtn = document.getElementById('exportCsvBtn');
+  const clearAllBtn = document.getElementById('clearAllBtn');
+
+  const modalOverlay = document.getElementById('modalOverlay');
+  const modalBox = document.getElementById('modalBox');
+
+  const rootStyle = getComputedStyle(document.documentElement);
+  const COLORS = {
+    ink: rootStyle.getPropertyValue('--bp-ink').trim() || '#eaf4fb',
+    inkDim: rootStyle.getPropertyValue('--bp-ink-dim').trim() || '#9fc1d6',
+    accent: rootStyle.getPropertyValue('--bp-accent').trim() || '#ffb627',
+    teal: rootStyle.getPropertyValue('--bp-teal').trim() || '#7dd8c6',
+    line: rootStyle.getPropertyValue('--bp-line').trim() || '#5f9bc0',
+  };
+
+  /* ---------------- State ---------------- */
+  let sourceImage = null;       // HTMLImageElement or offscreen canvas
+  let imgWidth = 0, imgHeight = 0;
+  let pdfInfo = null;           // {doc, pageNum, numPages}
+  let view = {scale:1, offsetX:0, offsetY:0};
+  let baseScale = 1;
+  let mode = null;              // 'scale' | 'length' | 'area' | 'pan'
+  let pendingPoints = [];
+  let calibration = null;       // {metersPerPixel, line:[p1,p2], label}
+  let measurements = [];        // {id,type,points,meters|sqMeters+perimMeters}
+  let hoveredId = null;
+  let lengthUnit = 'mm';
+  let areaUnit = 'm2';
+
+  let isDragging = false, didDrag = false, pointerDownPos = null, dragOrigOffset = null;
+  let spaceHeld = false;
+  let lastMouseScreen = null;
+
+  /* ---------------- Utils ---------------- */
+  function uid(){ return Math.random().toString(36).slice(2,10); }
+
+  function imageToScreen(p){ return {x:p.x*view.scale+view.offsetX, y:p.y*view.scale+view.offsetY}; }
+  function screenToImage(p){ return {x:(p.x-view.offsetX)/view.scale, y:(p.y-view.offsetY)/view.scale}; }
+
+  function formatLength(meters){
+    if(lengthUnit==='mm') return (meters*1000).toLocaleString('ja-JP',{maximumFractionDigits:0})+' mm';
+    if(lengthUnit==='cm') return (meters*100).toLocaleString('ja-JP',{maximumFractionDigits:1})+' cm';
+    return meters.toLocaleString('ja-JP',{maximumFractionDigits:2})+' m';
+  }
+  function formatArea(sqMeters){
+    if(areaUnit==='cm2') return (sqMeters*10000).toLocaleString('ja-JP',{maximumFractionDigits:0})+' cm²';
+    if(areaUnit==='tsubo') return (sqMeters/3.305785).toLocaleString('ja-JP',{maximumFractionDigits:2})+' 坪';
+    return sqMeters.toLocaleString('ja-JP',{maximumFractionDigits:2})+' m²';
+  }
+  function formatMetersShort(m){
+    if(m<1) return Math.round(m*100)+' cm';
+    if(m>=1000) return (m/1000)+' km';
+    return m+' m';
+  }
+
+  function polygonAreaMetersSq(pts){
+    let s=0;
+    for(let i=0;i<pts.length;i++){
+      const a=pts[i], b=pts[(i+1)%pts.length];
+      s += a.x*b.y - b.x*a.y;
+    }
+    const pxArea = Math.abs(s)/2;
+    return pxArea * calibration.metersPerPixel * calibration.metersPerPixel;
+  }
+  function polygonPerimeterMeters(pts){
+    let s=0;
+    for(let i=0;i<pts.length;i++){
+      const a=pts[i], b=pts[(i+1)%pts.length];
+      s += Math.hypot(b.x-a.x,b.y-a.y);
+    }
+    return s * calibration.metersPerPixel;
+  }
+
+  /* ---------------- Canvas sizing ---------------- */
+  function resizeCanvas(){
+    const rect = canvasWrap.getBoundingClientRect();
+    const dpr = window.devicePixelRatio||1;
+    canvas.width = Math.max(1,Math.round(rect.width*dpr));
+    canvas.height = Math.max(1,Math.round(rect.height*dpr));
+    canvas.style.width = rect.width+'px';
+    canvas.style.height = rect.height+'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    draw();
+  }
+  new ResizeObserver(resizeCanvas).observe(canvasWrap);
+
+  /* ---------------- Drawing ---------------- */
+  function roundRectPath(x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+
+  function drawLabel(x,y,text,opts){
+    opts = opts||{};
+    const sub = opts.sub;
+    ctx.font = "600 12px 'IBM Plex Mono', monospace";
+    const w1 = ctx.measureText(text).width;
+    let w2 = 0;
+    if(sub){ ctx.font = "400 10px 'IBM Plex Mono', monospace"; w2 = ctx.measureText(sub).width; }
+    const w = Math.max(w1,w2) + 16;
+    const h = sub ? 34 : 20;
+    ctx.fillStyle = 'rgba(13,36,56,0.92)';
+    roundRectPath(x-w/2, y-h/2, w, h, 5);
+    ctx.fill();
+    ctx.strokeStyle = opts.border || COLORS.line;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    if(sub){
+      ctx.font = "600 12px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = COLORS.ink;
+      ctx.fillText(text, x, y-7);
+      ctx.font = "400 10px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = COLORS.inkDim;
+      ctx.fillText(sub, x, y+9);
+    } else {
+      ctx.font = "600 12px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = COLORS.ink;
+      ctx.fillText(text, x, y+1);
+    }
+  }
+
+  function drawMeasurement(m, idx){
+    const isHover = m.id===hoveredId;
+    const color = isHover ? COLORS.accent : COLORS.teal;
+    const pts = m.points.map(imageToScreen);
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = isHover ? 3 : 2;
+    if(m.type==='length'){
+      ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y); ctx.lineTo(pts[1].x,pts[1].y); ctx.stroke();
+      pts.forEach(p=>{ ctx.beginPath(); ctx.arc(p.x,p.y,3.5,0,Math.PI*2); ctx.fill(); });
+      const mid = {x:(pts[0].x+pts[1].x)/2, y:(pts[0].y+pts[1].y)/2};
+      drawLabel(mid.x, mid.y-16, '#'+idx+'  '+formatLength(m.meters), {border:color});
+    } else {
+      ctx.beginPath();
+      pts.forEach((p,i)=> i===0 ? ctx.moveTo(p.x,p.y) : ctx.lineTo(p.x,p.y));
+      ctx.closePath();
+      ctx.globalAlpha = 0.14; ctx.fill(); ctx.globalAlpha = 1; ctx.stroke();
+      pts.forEach(p=>{ ctx.beginPath(); ctx.arc(p.x,p.y,3.5,0,Math.PI*2); ctx.fill(); });
+      const cx = pts.reduce((s,p)=>s+p.x,0)/pts.length;
+      const cy = pts.reduce((s,p)=>s+p.y,0)/pts.length;
+      drawLabel(cx, cy, '#'+idx+'  '+formatArea(m.sqMeters), {border:color, sub:'周長 '+formatLength(m.perimMeters)});
+    }
+    ctx.restore();
+  }
+
+  function drawCalibrationLine(){
+    if(!calibration) return;
+    const [p1,p2] = calibration.line.map(imageToScreen);
+    ctx.save();
+    ctx.setLineDash([6,4]);
+    ctx.strokeStyle = COLORS.accent;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
+    ctx.setLineDash([]);
+    [p1,p2].forEach(p=>{ ctx.fillStyle = COLORS.accent; ctx.beginPath(); ctx.arc(p.x,p.y,3,0,Math.PI*2); ctx.fill(); });
+    const mid = {x:(p1.x+p2.x)/2, y:(p1.y+p2.y)/2};
+    drawLabel(mid.x, mid.y-16, '基準  '+calibration.label, {border:COLORS.accent});
+    ctx.restore();
+  }
+
+  function drawPending(){
+    if(!sourceImage || pendingPoints.length===0) return;
+    const pts = pendingPoints.map(imageToScreen);
+    ctx.save();
+    ctx.setLineDash([5,4]);
+    ctx.strokeStyle = COLORS.accent;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    pts.forEach((p,i)=> i===0 ? ctx.moveTo(p.x,p.y) : ctx.lineTo(p.x,p.y));
+    if(lastMouseScreen && (mode==='area' || ((mode==='length'||mode==='scale') && pts.length===1))){
+      ctx.lineTo(lastMouseScreen.x, lastMouseScreen.y);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+    pts.forEach((p,i)=>{
+      const isStart = mode==='area' && i===0 && pts.length>=3;
+      ctx.beginPath();
+      ctx.arc(p.x,p.y, isStart?6:4, 0, Math.PI*2);
+      ctx.fillStyle = COLORS.accent;
+      ctx.fill();
+      if(isStart){ ctx.strokeStyle = COLORS.ink; ctx.lineWidth = 1.5; ctx.stroke(); }
+    });
+    if(lastMouseScreen && calibration && (mode==='length' || mode==='area')){
+      const lastImgPt = pendingPoints[pendingPoints.length-1];
+      const curImgPt = screenToImage(lastMouseScreen);
+      const segMeters = Math.hypot(curImgPt.x-lastImgPt.x, curImgPt.y-lastImgPt.y) * calibration.metersPerPixel;
+      const lastScreen = pts[pts.length-1];
+      drawLabel((lastScreen.x+lastMouseScreen.x)/2, (lastScreen.y+lastMouseScreen.y)/2-16, formatLength(segMeters), {border:COLORS.accent});
+    }
+    ctx.restore();
+  }
+
+  function draw(){
+    const dpr = window.devicePixelRatio||1;
+    const w = canvas.width/dpr, h = canvas.height/dpr;
+    ctx.clearRect(0,0,w,h);
+    if(!sourceImage) return;
+    ctx.save();
+    ctx.translate(view.offsetX, view.offsetY);
+    ctx.scale(view.scale, view.scale);
+    ctx.drawImage(sourceImage, 0, 0, imgWidth, imgHeight);
+    ctx.restore();
+
+    drawCalibrationLine();
+    measurements.forEach((m,i)=>drawMeasurement(m, i+1));
+    drawPending();
+    updateScaleBarDisplay();
+    updateZoomLabel();
+  }
+
+  function updateScaleBarDisplay(){
+    if(!sourceImage || !calibration){ scaleBarEl.hidden = true; return; }
+    scaleBarEl.hidden = false;
+    const metersPerScreenPx = calibration.metersPerPixel / view.scale;
+    const candidates = [0.01,0.02,0.05,0.1,0.2,0.25,0.5,1,2,5,10,20,25,50,100,200,500,1000,2000,5000];
+    let chosen = candidates[0];
+    for(const m of candidates){
+      const px = m/metersPerScreenPx;
+      chosen = m;
+      if(px>=60 && px<=160) break;
+      if(px>160) break;
+    }
+    const totalPx = Math.max(20, chosen/metersPerScreenPx);
+    const segments = 4;
+    const segPx = totalPx/segments;
+    let svg = '<svg width="'+(totalPx+6)+'" height="34" class="scale-svg">';
+    for(let i=0;i<segments;i++){
+      const fill = i%2===0 ? COLORS.ink : 'transparent';
+      svg += '<rect x="'+(3+i*segPx)+'" y="10" width="'+segPx+'" height="6" fill="'+fill+'" stroke="'+COLORS.ink+'" stroke-width="1"/>';
+    }
+    svg += '<line x1="3" y1="8" x2="3" y2="18" stroke="'+COLORS.ink+'" stroke-width="1"/>';
+    svg += '<line x1="'+(3+totalPx)+'" y1="8" x2="'+(3+totalPx)+'" y2="18" stroke="'+COLORS.ink+'" stroke-width="1"/>';
+    svg += '<text x="3" y="30" font-family="IBM Plex Mono, monospace" font-size="10" fill="'+COLORS.inkDim+'">0</text>';
+    svg += '<text x="'+(3+totalPx)+'" y="30" font-family="IBM Plex Mono, monospace" font-size="10" fill="'+COLORS.ink+'" text-anchor="end">'+formatMetersShort(chosen)+'</text>';
+    svg += '</svg>';
+    scaleBarEl.innerHTML = svg;
+  }
+
+  function updateZoomLabel(){
+    if(!sourceImage || !baseScale){ zoomLabel.textContent = '—'; return; }
+    zoomLabel.textContent = Math.round(view.scale/baseScale*100)+'%';
+  }
+
+  /* ---------------- View controls ---------------- */
+  function fitToView(){
+    const rect = canvasWrap.getBoundingClientRect();
+    const margin = 40;
+    const scaleX = (rect.width-margin*2)/imgWidth;
+    const scaleY = (rect.height-margin*2)/imgHeight;
+    view.scale = Math.max(0.001, Math.min(scaleX,scaleY));
+    view.offsetX = (rect.width - imgWidth*view.scale)/2;
+    view.offsetY = (rect.height - imgHeight*view.scale)/2;
+    baseScale = view.scale;
+  }
+
+  function zoomBy(factor){
+    if(!sourceImage) return;
+    const rect = canvasWrap.getBoundingClientRect();
+    const cx = rect.width/2, cy = rect.height/2;
+    const imgPt = screenToImage({x:cx,y:cy});
+    view.scale = Math.max(0.02, Math.min(view.scale*factor, 40));
+    view.offsetX = cx - imgPt.x*view.scale;
+    view.offsetY = cy - imgPt.y*view.scale;
+    draw();
+  }
+
+  function focusOnMeasurement(m){
+    const xs = m.points.map(p=>p.x), ys = m.points.map(p=>p.y);
+    const minX=Math.min(...xs), maxX=Math.max(...xs);
+    const minY=Math.min(...ys), maxY=Math.max(...ys);
+    const w = Math.max(maxX-minX, imgWidth*0.04);
+    const h = Math.max(maxY-minY, imgHeight*0.04);
+    const rect = canvasWrap.getBoundingClientRect();
+    const margin = 90;
+    const scaleX = (rect.width-margin*2)/w;
+    const scaleY = (rect.height-margin*2)/h;
+    view.scale = Math.min(Math.min(scaleX,scaleY), 30);
+    const cx = (minX+maxX)/2, cy = (minY+maxY)/2;
+    view.offsetX = rect.width/2 - cx*view.scale;
+    view.offsetY = rect.height/2 - cy*view.scale;
+    draw();
+  }
+
+  /* ---------------- Mode & hints ---------------- */
+  function setMode(newMode){
+    if(!sourceImage) return;
+    if((newMode==='length'||newMode==='area') && !calibration) return;
+    mode = newMode;
+    pendingPoints = [];
+    Object.entries(modeButtons).forEach(([k,btn])=>btn.classList.toggle('active', k===newMode));
+    canvasWrap.style.cursor = newMode==='pan' ? 'grab' : 'crosshair';
+    draw(); updateHint();
+  }
+
+  function updateHint(){
+    let text = '';
+    if(!sourceImage){ text = '図面(画像またはPDF)をアップロードしてください'; }
+    else if(mode==='pan'){ text = 'ドラッグして図面を移動できます(ホイールで拡大縮小)'; }
+    else if(mode==='scale'){ text = pendingPoints.length===0 ? '基準線の始点をクリック' : '基準線の終点をクリック'; }
+    else if(mode==='length'){
+      if(!calibration) text = '先に縮尺を設定してください';
+      else text = pendingPoints.length===0 ? '測定する線の始点をクリック' : '終点をクリック(Escでキャンセル)';
+    } else if(mode==='area'){
+      if(!calibration) text = '先に縮尺を設定してください';
+      else if(pendingPoints.length===0) text = '多角形の頂点を順にクリック';
+      else if(pendingPoints.length<3) text = '頂点をクリック(あと'+(3-pendingPoints.length)+'点で確定可能)';
+      else text = '続けてクリック、始点に戻るかEnterで確定';
+    }
+    hintText.textContent = text;
+    hintUndo.hidden = pendingPoints.length===0;
+    hintFinish.hidden = !(mode==='area' && pendingPoints.length>=3);
+  }
+
+  /* ---------------- Point placement ---------------- */
+  function handlePlacePoint(imgPt, screenPt){
+    if(mode==='scale'){
+      pendingPoints.push(imgPt);
+      if(pendingPoints.length===2) openCalibModal();
+      draw(); updateHint();
+    } else if(mode==='length'){
+      if(!calibration) return;
+      pendingPoints.push(imgPt);
+      if(pendingPoints.length===2) finalizeLength();
+      draw(); updateHint();
+    } else if(mode==='area'){
+      if(!calibration) return;
+      if(pendingPoints.length>=3){
+        const startScreen = imageToScreen(pendingPoints[0]);
+        const dist = Math.hypot(screenPt.x-startScreen.x, screenPt.y-startScreen.y);
+        if(dist<14){ finalizeArea(); draw(); updateHint(); return; }
+      }
+      pendingPoints.push(imgPt);
+      draw(); updateHint();
+    }
+  }
+
+  function finalizeLength(){
+    const [p1,p2] = pendingPoints;
+    const pixelDist = Math.hypot(p2.x-p1.x, p2.y-p1.y);
+    const meters = pixelDist * calibration.metersPerPixel;
+    measurements.push({id:uid(), type:'length', points:[p1,p2], meters});
+    pendingPoints = [];
+    renderList();
+  }
+
+  function finalizeArea(){
+    const pts = pendingPoints.slice();
+    const sqMeters = polygonAreaMetersSq(pts);
+    const perimMeters = polygonPerimeterMeters(pts);
+    measurements.push({id:uid(), type:'area', points:pts, sqMeters, perimMeters});
+    pendingPoints = [];
+    renderList();
+  }
+
+  /* ---------------- Calibration modal ---------------- */
+  function closeModal(){ modalOverlay.hidden = true; modalBox.innerHTML = ''; }
+
+  function openCalibModal(){
+    const [p1,p2] = pendingPoints;
+    const pixelDist = Math.hypot(p2.x-p1.x, p2.y-p1.y);
+    modalBox.innerHTML =
+      '<h3>基準線の実際の長さ</h3>'+
+      '<p class="modal-sub">この線が図面上で実際に何mmまたは何mかを入力してください。</p>'+
+      '<div class="modal-field">'+
+        '<input type="number" id="calibValue" min="0.001" step="0.001" placeholder="例: 3500">'+
+        '<select class="bp-select" id="calibUnit">'+
+          '<option value="mm" selected>mm</option>'+
+          '<option value="cm">cm</option>'+
+          '<option value="m">m</option>'+
+        '</select>'+
+      '</div>'+
+      '<div class="modal-actions">'+
+        '<button class="btn" id="calibCancel">キャンセル</button>'+
+        '<button class="btn primary" id="calibOk">縮尺を設定</button>'+
+      '</div>';
+    modalOverlay.hidden = false;
+    const valueInput = modalBox.querySelector('#calibValue');
+    const unitSelect = modalBox.querySelector('#calibUnit');
+    valueInput.focus();
+    modalBox.querySelector('#calibCancel').onclick = ()=>{ pendingPoints=[]; closeModal(); draw(); updateHint(); };
+    modalBox.querySelector('#calibOk').onclick = ()=>{
+      const val = parseFloat(valueInput.value);
+      if(!val || val<=0){ valueInput.focus(); return; }
+      const unit = unitSelect.value;
+      const meters = unit==='mm' ? val/1000 : (unit==='cm' ? val/100 : val);
+      calibration = {metersPerPixel: meters/pixelDist, line:[p1,p2], label: formatLength(meters)};
+      pendingPoints = [];
+      closeModal();
+      onCalibrationSet();
+      draw(); updateHint(); renderList();
+    };
+    valueInput.addEventListener('keydown', e=>{ if(e.key==='Enter'){ modalBox.querySelector('#calibOk').click(); }});
+  }
+
+  function openConfirm(message, onYes){
+    modalBox.innerHTML =
+      '<h3>確認</h3>'+
+      '<p class="modal-sub">'+message+'</p>'+
+      '<div class="modal-actions">'+
+        '<button class="btn" id="confirmNo">キャンセル</button>'+
+        '<button class="btn danger" id="confirmYes">実行</button>'+
+      '</div>';
+    modalOverlay.hidden = false;
+    modalBox.querySelector('#confirmNo').onclick = closeModal;
+    modalBox.querySelector('#confirmYes').onclick = ()=>{ closeModal(); onYes(); };
+  }
+
+  function onCalibrationSet(){
+    btnLength.disabled = false;
+    btnArea.disabled = false;
+    updateScaleStatus();
+  }
+
+  function updateScaleStatus(){
+    if(!calibration){
+      scaleStatusEl.innerHTML = '<span class="badge badge-off">縮尺 未設定</span>';
+    } else {
+      scaleStatusEl.innerHTML = '<span class="badge badge-on">縮尺 設定済み</span><span class="scale-detail">基準線 = '+calibration.label+'</span>';
+    }
+  }
+
+  /* ---------------- List / sidebar ---------------- */
+  function renderList(){
+    listEl.innerHTML = '';
+    if(measurements.length===0){
+      listEl.innerHTML = '<div class="list-empty">まだ計測結果はありません。<br>「縮尺設定」→「距離」または「面積」の順に進めてください。</div>';
+    } else {
+      measurements.forEach((m,i)=>{
+        const row = document.createElement('div');
+        row.className = 'm-row';
+        row.dataset.id = m.id;
+        const iconTxt = m.type==='length' ? 'L' : 'A';
+        const value = m.type==='length' ? formatLength(m.meters) : formatArea(m.sqMeters);
+        const sub = m.type==='length' ? '距離' : ('周長 '+formatLength(m.perimMeters));
+        row.innerHTML =
+          '<div class="m-icon">'+iconTxt+(i+1)+'</div>'+
+          '<div class="m-body"><div class="m-value">'+value+'</div><div class="m-sub">'+sub+'</div></div>'+
+          '<button class="m-del" title="削除" data-del="'+m.id+'">×</button>';
+        listEl.appendChild(row);
+      });
+    }
+    updateSummary();
+    draw();
+  }
+
+  listEl.addEventListener('click', e=>{
+    const delBtn = e.target.closest('.m-del');
+    const row = e.target.closest('.m-row');
+    if(!row) return;
+    const id = row.dataset.id;
+    if(delBtn){
+      measurements = measurements.filter(m=>m.id!==id);
+      renderList();
+    } else {
+      const m = measurements.find(x=>x.id===id);
+      if(m) focusOnMeasurement(m);
+    }
+  });
+  listEl.addEventListener('mouseover', e=>{
+    const row = e.target.closest('.m-row');
+    const newId = row ? row.dataset.id : null;
+    if(newId!==hoveredId){ hoveredId = newId; draw(); }
+  });
+  listEl.addEventListener('mouseout', e=>{
+    if(hoveredId){ hoveredId = null; draw(); }
+  });
+
+  function updateSummary(){
+    const lens = measurements.filter(m=>m.type==='length');
+    const areas = measurements.filter(m=>m.type==='area');
+    const totalLen = lens.reduce((s,m)=>s+m.meters,0);
+    const totalArea = areas.reduce((s,m)=>s+m.sqMeters,0);
+    summaryEl.innerHTML =
+      '<div class="summary-row"><span>長さ計測</span><span>'+lens.length+'件'+(lens.length? '  '+formatLength(totalLen):'')+'</span></div>'+
+      '<div class="summary-row"><span>面積計測</span><span>'+areas.length+'件'+(areas.length? '  '+formatArea(totalArea):'')+'</span></div>';
+  }
+
+  /* ---------------- File loading ---------------- */
+  function resetMeasurementsOnly(){
+    calibration = null; measurements = []; pendingPoints = []; hoveredId = null;
+    btnLength.disabled = true; btnArea.disabled = true;
+    updateScaleStatus();
+    renderList();
+  }
+  function resetAllState(){
+    sourceImage = null; imgWidth = 0; imgHeight = 0; pdfInfo = null;
+    view = {scale:1, offsetX:0, offsetY:0};
+    resetMeasurementsOnly();
+  }
+
+  function requestLoadFile(file){
+    if(measurements.length>0 || calibration){
+      openConfirm('新しい図面を読み込むと、現在の計測データはリセットされます。よろしいですか?', ()=>loadFile(file));
+    } else {
+      loadFile(file);
+    }
+  }
+
+  async function loadFile(file){
+    resetAllState();
+    filenameEl.textContent = file.name;
+    const isPdf = file.type==='application/pdf' || /\.pdf$/i.test(file.name);
+    try{
+      if(isPdf){ await loadPdf(file); }
+      else { await loadImage(file); }
+      emptyState.hidden = true;
+      hintBar.hidden = false;
+      [btnScale, btnPan, zoomInBtn, zoomOutBtn, zoomResetBtn].forEach(b=>b.disabled=false);
+      resizeCanvas();
+      fitToView();
+      setMode('scale');
+      draw();
+    }catch(err){
+      console.error(err);
+      hintText.textContent = '図面の読み込みに失敗しました: '+(err && err.message ? err.message : '不明なエラー');
+      hintBar.hidden = false;
+    }
+  }
+
+  function loadImage(file){
+    return new Promise((resolve,reject)=>{
+      const img = new Image();
+      img.onload = ()=>{
+        sourceImage = img; imgWidth = img.naturalWidth; imgHeight = img.naturalHeight;
+        pdfInfo = null; updatePdfNav();
+        resolve();
+      };
+      img.onerror = ()=>reject(new Error('画像を読み込めませんでした'));
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
+  function waitForPdfJs(timeout){
+    timeout = timeout || 10000;
+    return new Promise((resolve,reject)=>{
+      const start = Date.now();
+      (function check(){
+        if(window.pdfjsLib){ resolve(window.pdfjsLib); return; }
+        if(Date.now()-start>timeout){ reject(new Error('PDF表示ライブラリの読み込みに失敗しました')); return; }
+        setTimeout(check,120);
+      })();
+    });
+  }
+
+  async function loadPdf(file){
+    const pdfjsLib = await waitForPdfJs();
+    if(!pdfjsLib.GlobalWorkerOptions.workerSrc){
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+    const buf = await file.arrayBuffer();
+    const doc = await pdfjsLib.getDocument({data:buf}).promise;
+    pdfInfo = {doc, pageNum:1, numPages:doc.numPages};
+    await renderPdfPage(1);
+    updatePdfNav();
+  }
+
+  async function renderPdfPage(n){
+    const page = await pdfInfo.doc.getPage(n);
+    const baseViewport = page.getViewport({scale:1});
+    const targetMax = 2200;
+    const scale = Math.min(3, targetMax/Math.max(baseViewport.width, baseViewport.height));
+    const viewport = page.getViewport({scale});
+    const off = document.createElement('canvas');
+    off.width = Math.ceil(viewport.width);
+    off.height = Math.ceil(viewport.height);
+    const offCtx = off.getContext('2d');
+    await page.render({canvasContext:offCtx, viewport}).promise;
+    sourceImage = off; imgWidth = off.width; imgHeight = off.height;
+    pdfInfo.pageNum = n;
+  }
+
+  function updatePdfNav(){
+    if(pdfInfo && pdfInfo.numPages>1){
+      pdfNavEl.hidden = false;
+      pdfPageLabel.textContent = pdfInfo.pageNum+' / '+pdfInfo.numPages;
+      pdfPrev.disabled = pdfInfo.pageNum<=1;
+      pdfNext.disabled = pdfInfo.pageNum>=pdfInfo.numPages;
+    } else {
+      pdfNavEl.hidden = true;
+    }
+  }
+
+  function changePdfPage(n){
+    const doIt = async ()=>{
+      await renderPdfPage(n);
+      resetMeasurementsOnly();
+      fitToView();
+      setMode('scale');
+      draw();
+      updatePdfNav();
+    };
+    if(measurements.length>0 || calibration){
+      openConfirm('ページを切り替えると、現在の計測データはリセットされます。よろしいですか?', doIt);
+    } else { doIt(); }
+  }
+
+  /* ---------------- CSV export ---------------- */
+  function exportCSV(){
+    if(measurements.length===0) return;
+    const rows = [['No','種別','値','補足']];
+    measurements.forEach((m,i)=>{
+      if(m.type==='length'){ rows.push([i+1,'長さ',formatLength(m.meters),'']); }
+      else { rows.push([i+1,'面積',formatArea(m.sqMeters),'周長 '+formatLength(m.perimMeters)]); }
+    });
+    const csv = rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\r\n');
+    const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = '計測結果.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  /* ---------------- Events: toolbar ---------------- */
+  fileInput.addEventListener('change', e=>{
+    const file = e.target.files[0];
+    if(file) requestLoadFile(file);
+    fileInput.value = '';
+  });
+  uploadBtnEmpty.addEventListener('click', ()=>fileInput.click());
+
+  btnScale.addEventListener('click', ()=>setMode('scale'));
+  btnLength.addEventListener('click', ()=>setMode('length'));
+  btnArea.addEventListener('click', ()=>setMode('area'));
+  btnPan.addEventListener('click', ()=>setMode('pan'));
+
+  zoomInBtn.addEventListener('click', ()=>zoomBy(1.25));
+  zoomOutBtn.addEventListener('click', ()=>zoomBy(0.8));
+  zoomResetBtn.addEventListener('click', ()=>{ if(sourceImage){ fitToView(); draw(); } });
+
+  lengthUnitSel.addEventListener('change', ()=>{ lengthUnit = lengthUnitSel.value; renderList(); });
+  areaUnitSel.addEventListener('change', ()=>{ areaUnit = areaUnitSel.value; renderList(); });
+
+  exportCsvBtn.addEventListener('click', exportCSV);
+  clearAllBtn.addEventListener('click', ()=>{
+    if(measurements.length===0 && !calibration) return;
+    openConfirm('すべての計測結果と縮尺設定を削除します。よろしいですか?', ()=>{
+      resetMeasurementsOnly();
+      draw(); updateHint();
+    });
+  });
+
+  hintUndo.addEventListener('click', ()=>{ pendingPoints.pop(); draw(); updateHint(); });
+  hintFinish.addEventListener('click', ()=>{ finalizeArea(); draw(); updateHint(); });
+
+  pdfPrev.addEventListener('click', ()=>{ if(pdfInfo && pdfInfo.pageNum>1) changePdfPage(pdfInfo.pageNum-1); });
+  pdfNext.addEventListener('click', ()=>{ if(pdfInfo && pdfInfo.pageNum<pdfInfo.numPages) changePdfPage(pdfInfo.pageNum+1); });
+
+  /* ---------------- Events: canvas (pointer) ---------------- */
+  canvas.addEventListener('contextmenu', e=>e.preventDefault());
+
+  canvas.addEventListener('pointerdown', e=>{
+    if(!sourceImage) return;
+    try{ canvas.setPointerCapture(e.pointerId); }catch(err){}
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX-rect.left, my = e.clientY-rect.top;
+    pointerDownPos = {x:mx,y:my};
+    didDrag = false;
+    const panRequested = mode==='pan' || spaceHeld || e.button===1;
+    if(panRequested){
+      isDragging = true;
+      dragOrigOffset = {x:view.offsetX,y:view.offsetY};
+      canvasWrap.style.cursor = 'grabbing';
+    }
+  });
+
+  window.addEventListener('pointermove', e=>{
+    if(!sourceImage) return;
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX-rect.left, my = e.clientY-rect.top;
+    lastMouseScreen = {x:mx,y:my};
+    if(isDragging && pointerDownPos){
+      const dx = mx-pointerDownPos.x, dy = my-pointerDownPos.y;
+      if(Math.abs(dx)>3 || Math.abs(dy)>3) didDrag = true;
+      view.offsetX = dragOrigOffset.x+dx;
+      view.offsetY = dragOrigOffset.y+dy;
+      draw();
+    } else if(pendingPoints.length>0){
+      draw();
+    }
+  });
+
+  window.addEventListener('pointerup', e=>{
+    if(!sourceImage){ isDragging=false; return; }
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX-rect.left, my = e.clientY-rect.top;
+    const wasDragging = isDragging;
+    if(isDragging){
+      isDragging = false;
+      if(mode==='pan') canvasWrap.style.cursor = 'grab';
+    }
+    const withinCanvas = mx>=0 && my>=0 && mx<=canvas.clientWidth && my<=canvas.clientHeight;
+    if(!didDrag && withinCanvas && mode!=='pan' && !spaceHeld && e.button!==1 && !wasDragging){
+      const imgPt = screenToImage({x:mx,y:my});
+      handlePlacePoint(imgPt, {x:mx,y:my});
+    }
+    didDrag = false;
+  });
+
+  canvas.addEventListener('wheel', e=>{
+    if(!sourceImage) return;
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX-rect.left, my = e.clientY-rect.top;
+    const imgPtBefore = screenToImage({x:mx,y:my});
+    const factor = Math.exp(-e.deltaY*0.001);
+    view.scale = Math.max(0.02, Math.min(view.scale*factor, 40));
+    view.offsetX = mx - imgPtBefore.x*view.scale;
+    view.offsetY = my - imgPtBefore.y*view.scale;
+    draw();
+  }, {passive:false});
+
+  /* ---------------- Keyboard ---------------- */
+  window.addEventListener('keydown', e=>{
+    if(e.key===' '){
+      if(!modalOverlay.hidden) return;
+      if(sourceImage){ spaceHeld = true; canvasWrap.style.cursor = 'grab'; e.preventDefault(); }
+    }
+    if(!modalOverlay.hidden){
+      if(e.key==='Escape') closeModal();
+      return;
+    }
+    if(e.key==='Escape'){
+      if(pendingPoints.length>0){ pendingPoints=[]; draw(); updateHint(); }
+    } else if(e.key==='Enter'){
+      if(mode==='area' && pendingPoints.length>=3){ finalizeArea(); draw(); updateHint(); }
+    } else if(e.key==='Backspace'){
+      if(pendingPoints.length>0){ pendingPoints.pop(); draw(); updateHint(); e.preventDefault(); }
+    }
+  });
+  window.addEventListener('keyup', e=>{
+    if(e.key===' '){
+      spaceHeld = false;
+      canvasWrap.style.cursor = (mode==='pan') ? 'grab' : 'crosshair';
+    }
+  });
+
+  /* ---------------- Init ---------------- */
+  updateHint();
+  updateScaleStatus();
+  renderList();
+  resizeCanvas();
+})();
+</script>
