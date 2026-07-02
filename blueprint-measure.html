@@ -135,6 +135,23 @@
   .empty-state h2{font-family:var(--font-display);font-size:18px;margin:0;font-weight:600;}
   .empty-state p{font-size:13px;color:var(--bp-ink-dim);margin:0;max-width:320px;line-height:1.6;}
 
+  .drop-overlay{
+    position:absolute;inset:0;z-index:30;
+    display:flex;align-items:center;justify-content:center;
+    background:rgba(13,36,56,0.82);
+    pointer-events:none;
+  }
+  .drop-inner{
+    border:2px dashed var(--bp-accent);
+    border-radius:12px;
+    padding:36px 48px;
+    text-align:center;
+    background:rgba(18,51,80,0.85);
+  }
+  .drop-inner .icon{font-size:36px;display:block;margin-bottom:10px;}
+  .drop-inner strong{font-family:var(--font-display);font-size:16px;display:block;margin-bottom:4px;}
+  .drop-inner span{font-size:12px;color:var(--bp-ink-dim);}
+
   .hint-bar{
     position:absolute;left:12px;bottom:12px;
     display:flex;align-items:center;gap:10px;
@@ -315,8 +332,16 @@
       <div class="empty-state" id="emptyState">
         <div class="icon">🖼️</div>
         <h2>図面をアップロードしてください</h2>
-        <p>写真・スキャン画像(JPEG/PNG)またはPDFの図面を読み込むと、基準線から縮尺を割り出して、長さと面積をクリックだけで測定できます。</p>
+        <p>写真・スキャン画像(JPEG/PNG)またはPDFの図面を読み込むと、基準線から縮尺を割り出して、長さと面積をクリックだけで測定できます。この画面にファイルをドラッグ&ドロップしてもOKです。</p>
         <button class="btn primary" id="uploadBtnEmpty">図面を開く</button>
+      </div>
+
+      <div class="drop-overlay" id="dropOverlay" hidden>
+        <div class="drop-inner">
+          <span class="icon">📥</span>
+          <strong>ここにドロップして読み込み</strong>
+          <span>画像(JPEG/PNG)またはPDF</span>
+        </div>
       </div>
 
       <div class="hint-bar" id="hintBar" hidden>
@@ -1056,6 +1081,53 @@
 
   pdfPrev.addEventListener('click', ()=>{ if(pdfInfo && pdfInfo.pageNum>1) changePdfPage(pdfInfo.pageNum-1); });
   pdfNext.addEventListener('click', ()=>{ if(pdfInfo && pdfInfo.pageNum<pdfInfo.numPages) changePdfPage(pdfInfo.pageNum+1); });
+
+  /* ---------------- Drag & drop upload ---------------- */
+  const dropOverlay = document.getElementById('dropOverlay');
+  const appRoot = document.querySelector('.bp-app');
+  let dragDepth = 0;
+
+  function isFileDrag(e){
+    return e.dataTransfer && Array.from(e.dataTransfer.types||[]).includes('Files');
+  }
+  function isAcceptedFile(file){
+    return /^image\//.test(file.type) || file.type==='application/pdf' || /\.(png|jpe?g|gif|webp|bmp|pdf)$/i.test(file.name);
+  }
+
+  appRoot.addEventListener('dragenter', e=>{
+    if(!isFileDrag(e)) return;
+    e.preventDefault();
+    dragDepth++;
+    dropOverlay.hidden = false;
+  });
+  appRoot.addEventListener('dragover', e=>{
+    if(!isFileDrag(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  });
+  appRoot.addEventListener('dragleave', e=>{
+    if(!isFileDrag(e)) return;
+    dragDepth = Math.max(0, dragDepth-1);
+    if(dragDepth===0) dropOverlay.hidden = true;
+  });
+  appRoot.addEventListener('drop', e=>{
+    if(!isFileDrag(e)) return;
+    e.preventDefault();
+    dragDepth = 0;
+    dropOverlay.hidden = true;
+    const files = Array.from(e.dataTransfer.files||[]);
+    if(files.length===0) return;
+    const file = files.find(isAcceptedFile);
+    if(!file){
+      hintBar.hidden = false;
+      hintText.textContent = '対応していないファイル形式です(画像またはPDFをドロップしてください)';
+      return;
+    }
+    requestLoadFile(file);
+  });
+  // ブラウザ既定の「ファイルをそのまま開く」動作を全体で抑止
+  window.addEventListener('dragover', e=>{ if(isFileDrag(e)) e.preventDefault(); });
+  window.addEventListener('drop', e=>{ if(isFileDrag(e)) e.preventDefault(); });
 
   /* ---------------- Events: canvas (pointer) ---------------- */
   canvas.addEventListener('contextmenu', e=>e.preventDefault());
