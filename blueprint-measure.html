@@ -163,6 +163,14 @@
     backdrop-filter:blur(2px);
   }
   #hintText{font-size:12.5px;color:var(--bp-ink);}
+  .smooth-toggle{
+    display:inline-flex;align-items:center;gap:5px;
+    font-size:11.5px;color:var(--bp-ink);
+    font-family:var(--font-mono);
+    border-left:1px solid rgba(111,168,201,0.3);
+    padding-left:10px;cursor:pointer;white-space:nowrap;
+  }
+  .smooth-toggle input{accent-color:var(--bp-accent);cursor:pointer;}
   .hint-actions{display:flex;gap:6px;}
 
   .scale-bar{
@@ -294,6 +302,7 @@
     <div class="mode-group">
       <button class="btn" id="btnScale" disabled>縮尺設定</button>
       <button class="btn" id="btnLength" disabled>距離</button>
+      <button class="btn" id="btnCurve" disabled>曲線</button>
       <button class="btn" id="btnArea" disabled>面積</button>
       <button class="btn" id="btnPan" disabled>パン</button>
     </div>
@@ -346,6 +355,9 @@
 
       <div class="hint-bar" id="hintBar" hidden>
         <span id="hintText" aria-live="polite"></span>
+        <label class="smooth-toggle" id="smoothToggleWrap" hidden>
+          <input type="checkbox" id="areaSmoothChk"> 曲線でつなぐ
+        </label>
         <div class="hint-actions">
           <button class="btn small" id="hintUndo" hidden>1点戻す</button>
           <button class="btn small primary" id="hintFinish" hidden>確定</button>
@@ -404,9 +416,12 @@
 
   const btnScale = document.getElementById('btnScale');
   const btnLength = document.getElementById('btnLength');
+  const btnCurve = document.getElementById('btnCurve');
   const btnArea = document.getElementById('btnArea');
   const btnPan = document.getElementById('btnPan');
-  const modeButtons = {scale:btnScale, length:btnLength, area:btnArea, pan:btnPan};
+  const modeButtons = {scale:btnScale, length:btnLength, curve:btnCurve, area:btnArea, pan:btnPan};
+  const smoothToggleWrap = document.getElementById('smoothToggleWrap');
+  const areaSmoothChk = document.getElementById('areaSmoothChk');
 
   const zoomInBtn = document.getElementById('zoomInBtn');
   const zoomOutBtn = document.getElementById('zoomOutBtn');
@@ -497,6 +512,38 @@
     }
     return s * calibration.metersPerPixel;
   }
+  function pathLengthMeters(pts){
+    let s=0;
+    for(let i=0;i<pts.length-1;i++){
+      s += Math.hypot(pts[i+1].x-pts[i].x, pts[i+1].y-pts[i].y);
+    }
+    return s * calibration.metersPerPixel;
+  }
+
+  // Catmull-Romスプラインで点列をなめらかにサンプリング
+  function catmullRomSample(pts, closed, samplesPerSeg){
+    samplesPerSeg = samplesPerSeg || 20;
+    const n = pts.length;
+    if(n<3) return pts.slice();
+    const out = [];
+    const segCount = closed ? n : n-1;
+    const P = i=>{
+      if(closed) return pts[((i%n)+n)%n];
+      return pts[Math.max(0, Math.min(n-1, i))];
+    };
+    for(let i=0;i<segCount;i++){
+      const p0=P(i-1), p1=P(i), p2=P(i+1), p3=P(i+2);
+      for(let j=0;j<samplesPerSeg;j++){
+        const t=j/samplesPerSeg, t2=t*t, t3=t2*t;
+        out.push({
+          x: 0.5*((2*p1.x) + (-p0.x+p2.x)*t + (2*p0.x-5*p1.x+4*p2.x-p3.x)*t2 + (-p0.x+3*p1.x-3*p2.x+p3.x)*t3),
+          y: 0.5*((2*p1.y) + (-p0.y+p2.y)*t + (2*p0.y-5*p1.y+4*p2.y-p3.y)*t2 + (-p0.y+3*p1.y-3*p2.y+p3.y)*t3)
+        });
+      }
+    }
+    if(!closed) out.push(pts[n-1]);
+    return out;
+  }
 
   /* ---------------- Canvas sizing ---------------- */
   function resizeCanvas(){
@@ -566,9 +613,18 @@
       pts.forEach(p=>{ ctx.beginPath(); ctx.arc(p.x,p.y,3.5,0,Math.PI*2); ctx.fill(); });
       const mid = {x:(pts[0].x+pts[1].x)/2, y:(pts[0].y+pts[1].y)/2};
       drawLabel(mid.x, mid.y-16, '#'+idx+'  '+formatLength(m.meters), {border:color});
-    } else {
+    } else if(m.type==='curve'){
+      const smoothScreen = catmullRomSample(pts, false);
       ctx.beginPath();
-      pts.forEach((p,i)=> i===0 ? ctx.moveTo(p.x,p.y) : ctx.lineTo(p.x,p.y));
+      smoothScreen.forEach((p,i)=> i===0 ? ctx.moveTo(p.x,p.y) : ctx.lineTo(p.x,p.y));
+      ctx.stroke();
+      pts.forEach(p=>{ ctx.beginPath(); ctx.arc(p.x,p.y,3.5,0,Math.PI*2); ctx.fill(); });
+      const midPt = smoothScreen[Math.floor(smoothScreen.length/2)];
+      drawLabel(midPt.x, midPt.y-16, '#'+idx+'  '+formatLength(m.meters), {border:color});
+    } else {
+      const outline = m.smooth ? catmullRomSample(pts, true) : pts;
+      ctx.beginPath();
+      outline.forEach((p,i)=> i===0 ? ctx.moveTo(p.x,p.y) : ctx.lineTo(p.x,p.y));
       ctx.closePath();
       ctx.globalAlpha = 0.14; ctx.fill(); ctx.globalAlpha = 1; ctx.stroke();
       pts.forEach(p=>{ ctx.beginPath(); ctx.arc(p.x,p.y,3.5,0,Math.PI*2); ctx.fill(); });
@@ -597,17 +653,26 @@
   function drawPending(){
     if(!sourceImage || pendingPoints.length===0) return;
     const pts = pendingPoints.map(imageToScreen);
+    const useSmooth = mode==='curve' || (mode==='area' && areaSmoothChk.checked);
     ctx.save();
     ctx.setLineDash([5,4]);
     ctx.strokeStyle = COLORS.accent;
     ctx.lineWidth = 2;
-    ctx.beginPath();
-    pts.forEach((p,i)=> i===0 ? ctx.moveTo(p.x,p.y) : ctx.lineTo(p.x,p.y));
-    if(lastMouseScreen && (mode==='area' || ((mode==='length'||mode==='scale') && pts.length===1))){
-      ctx.lineTo(lastMouseScreen.x, lastMouseScreen.y);
+
+    // マウス位置まで含めたプレビュー点列
+    let previewPts = pts.slice();
+    const followMouse = lastMouseScreen && (mode==='area' || mode==='curve' || ((mode==='length'||mode==='scale') && pts.length===1));
+    if(followMouse) previewPts = previewPts.concat([lastMouseScreen]);
+
+    let drawPts = previewPts;
+    if(useSmooth && previewPts.length>=3){
+      drawPts = catmullRomSample(previewPts, false);
     }
+    ctx.beginPath();
+    drawPts.forEach((p,i)=> i===0 ? ctx.moveTo(p.x,p.y) : ctx.lineTo(p.x,p.y));
     ctx.stroke();
     ctx.setLineDash([]);
+
     pts.forEach((p,i)=>{
       const isStart = mode==='area' && i===0 && pts.length>=3;
       ctx.beginPath();
@@ -616,12 +681,22 @@
       ctx.fill();
       if(isStart){ ctx.strokeStyle = COLORS.ink; ctx.lineWidth = 1.5; ctx.stroke(); }
     });
-    if(lastMouseScreen && calibration && (mode==='length' || mode==='area')){
-      const lastImgPt = pendingPoints[pendingPoints.length-1];
-      const curImgPt = screenToImage(lastMouseScreen);
-      const segMeters = Math.hypot(curImgPt.x-lastImgPt.x, curImgPt.y-lastImgPt.y) * calibration.metersPerPixel;
+
+    if(lastMouseScreen && calibration && (mode==='length' || mode==='area' || mode==='curve')){
+      let labelText;
+      if(mode==='curve'){
+        // 曲線はマウス位置まで含めた暫定の合計長を表示
+        const previewImg = pendingPoints.concat([screenToImage(lastMouseScreen)]);
+        const sampled = previewImg.length>=3 ? catmullRomSample(previewImg, false) : previewImg;
+        labelText = '合計 '+formatLength(pathLengthMeters(sampled));
+      } else {
+        const lastImgPt = pendingPoints[pendingPoints.length-1];
+        const curImgPt = screenToImage(lastMouseScreen);
+        const segMeters = Math.hypot(curImgPt.x-lastImgPt.x, curImgPt.y-lastImgPt.y) * calibration.metersPerPixel;
+        labelText = formatLength(segMeters);
+      }
       const lastScreen = pts[pts.length-1];
-      drawLabel((lastScreen.x+lastMouseScreen.x)/2, (lastScreen.y+lastMouseScreen.y)/2-16, formatLength(segMeters), {border:COLORS.accent});
+      drawLabel((lastScreen.x+lastMouseScreen.x)/2, (lastScreen.y+lastMouseScreen.y)/2-16, labelText, {border:COLORS.accent});
     }
     ctx.restore();
   }
@@ -720,11 +795,12 @@
   /* ---------------- Mode & hints ---------------- */
   function setMode(newMode){
     if(!sourceImage) return;
-    if((newMode==='length'||newMode==='area') && !calibration) return;
+    if((newMode==='length'||newMode==='area'||newMode==='curve') && !calibration) return;
     mode = newMode;
     pendingPoints = [];
     Object.entries(modeButtons).forEach(([k,btn])=>btn.classList.toggle('active', k===newMode));
     canvasWrap.style.cursor = newMode==='pan' ? 'grab' : 'crosshair';
+    smoothToggleWrap.hidden = newMode!=='area';
     draw(); updateHint();
   }
 
@@ -736,6 +812,11 @@
     else if(mode==='length'){
       if(!calibration) text = '先に縮尺を設定してください';
       else text = pendingPoints.length===0 ? '測定する線の始点をクリック' : '終点をクリック(Escでキャンセル)';
+    } else if(mode==='curve'){
+      if(!calibration) text = '先に縮尺を設定してください';
+      else if(pendingPoints.length===0) text = '曲線に沿って点を順にクリック';
+      else if(pendingPoints.length===1) text = '続けてクリック(点が多いほど正確)';
+      else text = '続けてクリック、Enterまたは「確定」で計測';
     } else if(mode==='area'){
       if(!calibration) text = '先に縮尺を設定してください';
       else if(pendingPoints.length===0) text = '多角形の頂点を順にクリック';
@@ -744,7 +825,7 @@
     }
     hintText.textContent = text;
     hintUndo.hidden = pendingPoints.length===0;
-    hintFinish.hidden = !(mode==='area' && pendingPoints.length>=3);
+    hintFinish.hidden = !((mode==='area' && pendingPoints.length>=3) || (mode==='curve' && pendingPoints.length>=2));
   }
 
   /* ---------------- Point placement ---------------- */
@@ -757,6 +838,10 @@
       if(!calibration) return;
       pendingPoints.push(imgPt);
       if(pendingPoints.length===2) finalizeLength();
+      draw(); updateHint();
+    } else if(mode==='curve'){
+      if(!calibration) return;
+      pendingPoints.push(imgPt);
       draw(); updateHint();
     } else if(mode==='area'){
       if(!calibration) return;
@@ -779,11 +864,22 @@
     renderList();
   }
 
+  function finalizeCurve(){
+    const pts = pendingPoints.slice();
+    const sampled = pts.length>=3 ? catmullRomSample(pts, false) : pts;
+    const meters = pathLengthMeters(sampled);
+    measurements.push({id:uid(), type:'curve', points:pts, meters});
+    pendingPoints = [];
+    renderList();
+  }
+
   function finalizeArea(){
     const pts = pendingPoints.slice();
-    const sqMeters = polygonAreaMetersSq(pts);
-    const perimMeters = polygonPerimeterMeters(pts);
-    measurements.push({id:uid(), type:'area', points:pts, sqMeters, perimMeters});
+    const smooth = areaSmoothChk.checked && pts.length>=3;
+    const outline = smooth ? catmullRomSample(pts, true) : pts;
+    const sqMeters = polygonAreaMetersSq(outline);
+    const perimMeters = polygonPerimeterMeters(outline);
+    measurements.push({id:uid(), type:'area', points:pts, smooth, sqMeters, perimMeters});
     pendingPoints = [];
     renderList();
   }
@@ -843,6 +939,7 @@
 
   function onCalibrationSet(){
     btnLength.disabled = false;
+    btnCurve.disabled = false;
     btnArea.disabled = false;
     updateScaleStatus();
   }
@@ -865,9 +962,12 @@
         const row = document.createElement('div');
         row.className = 'm-row';
         row.dataset.id = m.id;
-        const iconTxt = m.type==='length' ? 'L' : 'A';
-        const value = m.type==='length' ? formatLength(m.meters) : formatArea(m.sqMeters);
-        const sub = m.type==='length' ? '距離' : ('周長 '+formatLength(m.perimMeters));
+        const iconTxt = m.type==='length' ? 'L' : (m.type==='curve' ? 'C' : 'A');
+        const value = m.type==='area' ? formatArea(m.sqMeters) : formatLength(m.meters);
+        let sub;
+        if(m.type==='length') sub = '距離(直線)';
+        else if(m.type==='curve') sub = '距離(曲線・'+m.points.length+'点)';
+        else sub = (m.smooth?'曲線囲み・':'')+'周長 '+formatLength(m.perimMeters);
         row.innerHTML =
           '<div class="m-icon">'+iconTxt+(i+1)+'</div>'+
           '<div class="m-body"><div class="m-value">'+value+'</div><div class="m-sub">'+sub+'</div></div>'+
@@ -902,7 +1002,7 @@
   });
 
   function updateSummary(){
-    const lens = measurements.filter(m=>m.type==='length');
+    const lens = measurements.filter(m=>m.type==='length'||m.type==='curve');
     const areas = measurements.filter(m=>m.type==='area');
     const totalLen = lens.reduce((s,m)=>s+m.meters,0);
     const totalArea = areas.reduce((s,m)=>s+m.sqMeters,0);
@@ -914,7 +1014,7 @@
   /* ---------------- File loading ---------------- */
   function resetMeasurementsOnly(){
     calibration = null; measurements = []; pendingPoints = []; hoveredId = null;
-    btnLength.disabled = true; btnArea.disabled = true;
+    btnLength.disabled = true; btnCurve.disabled = true; btnArea.disabled = true;
     updateScaleStatus();
     renderList();
   }
@@ -1035,8 +1135,9 @@
     if(measurements.length===0) return;
     const rows = [['No','種別','値','補足']];
     measurements.forEach((m,i)=>{
-      if(m.type==='length'){ rows.push([i+1,'長さ',formatLength(m.meters),'']); }
-      else { rows.push([i+1,'面積',formatArea(m.sqMeters),'周長 '+formatLength(m.perimMeters)]); }
+      if(m.type==='length'){ rows.push([i+1,'長さ(直線)',formatLength(m.meters),'']); }
+      else if(m.type==='curve'){ rows.push([i+1,'長さ(曲線)',formatLength(m.meters),m.points.length+'点']); }
+      else { rows.push([i+1,'面積'+(m.smooth?'(曲線囲み)':''),formatArea(m.sqMeters),'周長 '+formatLength(m.perimMeters)]); }
     });
     const csv = rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\r\n');
     const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
@@ -1057,8 +1158,10 @@
 
   btnScale.addEventListener('click', ()=>setMode('scale'));
   btnLength.addEventListener('click', ()=>setMode('length'));
+  btnCurve.addEventListener('click', ()=>setMode('curve'));
   btnArea.addEventListener('click', ()=>setMode('area'));
   btnPan.addEventListener('click', ()=>setMode('pan'));
+  areaSmoothChk.addEventListener('change', ()=>draw());
 
   zoomInBtn.addEventListener('click', ()=>zoomBy(1.25));
   zoomOutBtn.addEventListener('click', ()=>zoomBy(0.8));
@@ -1077,7 +1180,11 @@
   });
 
   hintUndo.addEventListener('click', ()=>{ pendingPoints.pop(); draw(); updateHint(); });
-  hintFinish.addEventListener('click', ()=>{ finalizeArea(); draw(); updateHint(); });
+  hintFinish.addEventListener('click', ()=>{
+    if(mode==='curve' && pendingPoints.length>=2){ finalizeCurve(); }
+    else if(mode==='area' && pendingPoints.length>=3){ finalizeArea(); }
+    draw(); updateHint();
+  });
 
   pdfPrev.addEventListener('click', ()=>{ if(pdfInfo && pdfInfo.pageNum>1) changePdfPage(pdfInfo.pageNum-1); });
   pdfNext.addEventListener('click', ()=>{ if(pdfInfo && pdfInfo.pageNum<pdfInfo.numPages) changePdfPage(pdfInfo.pageNum+1); });
@@ -1207,6 +1314,7 @@
       if(pendingPoints.length>0){ pendingPoints=[]; draw(); updateHint(); }
     } else if(e.key==='Enter'){
       if(mode==='area' && pendingPoints.length>=3){ finalizeArea(); draw(); updateHint(); }
+      else if(mode==='curve' && pendingPoints.length>=2){ finalizeCurve(); draw(); updateHint(); }
     } else if(e.key==='Backspace'){
       if(pendingPoints.length>0){ pendingPoints.pop(); draw(); updateHint(); e.preventDefault(); }
     }
