@@ -196,33 +196,32 @@ input:focus,select:focus,.cell:focus{background:#fbf7e8;box-shadow:inset 0 0 0 1
   .cell{padding:3px 7px;font-size:11.5px;}
   .tot-row{padding:5px 14px;}
   .conditions{padding:6px 12px;}
-  .link-col{display:none !important;}
+  .link-col{width:0 !important;min-width:0 !important;max-width:0 !important;
+    padding:0 !important;overflow:hidden !important;border:none !important;
+    border-top:1px solid var(--line) !important;}
+  .link-col *{display:none !important;}
   .dim{color:transparent !important;font-size:0 !important;}
   .empty-cond{display:none !important;}
-  /* === 罫線方式：separate にして外周をテーブル自身のborderで確実に描く === */
+  /* === 罫線方式：separate + 全セル四辺1px で太さを完全統一（外周の二重を解消） === */
   .qt{table-layout:fixed !important;border-collapse:separate !important;
-    border-spacing:0 !important;
-    border-top:1px solid var(--line) !important;
-    border-left:1px solid var(--line) !important;
-    border-right:1px solid var(--line) !important;
-    border-bottom:1px solid var(--line) !important;}
+    border-spacing:0 !important;border:none !important;}
+  /* 削除列は非表示。最右の実セル（金額列）に右罫線を持たせる */
   .del-col{display:none !important;}
-  /* 各セルは右と下の罫線だけ持つ（separateなので重ならない） */
+  /* 全セルは上・左に罫線（隣接で重なり均一な1本に見える） */
   .qt th,.qt td{border:none !important;
-    border-right:1px solid var(--line) !important;
-    border-bottom:1px solid var(--line) !important;}
-  /* 削除列を消したぶん、金額列（最後から2番目）が最右になるので右罫線を保証 */
-  .qt tr>td:nth-last-child(2),
-  .qt tr>th:nth-last-child(2){border-right:1px solid var(--line) !important;}
+    border-top:1px solid var(--line) !important;
+    border-left:1px solid var(--line) !important;}
+  /* 各行の最右の実セル（削除列は非表示なので最後から2番目＝金額列）に右罫線 */
+  .qt tr>td:nth-last-child(2),.qt tr>th:nth-last-child(2){border-right:1px solid var(--line) !important;}
+  /* 最終行の下罫線 */
+  .qt tbody tr:last-child td{border-bottom:1px solid var(--line) !important;}
   /* 表紙フッター（条件・合計）の枠 */
   .foot-grid{border:1px solid var(--line) !important;border-top:none !important;}
-  /* 用紙いっぱい：内訳テーブルを縦に伸ばし下端を固定 */
-  .table-scroll-bd{flex:1;display:flex;flex-direction:column;}
-  .qt-bd{flex:1;height:100%;}
-  .qt-bd tbody{height:100%;}
-  .qt-bd tbody tr{height:auto;}
-  .qt-bd .bd-row,.qt-bd tbody tr:not(.sum-row){height:calc((100% - 28px)/12);}
-  .qt-bd .sum-row{height:28px;}
+  /* 内訳：行を固定高にして罫線位置を安定させる（太さ均一を優先） */
+  .table-scroll-bd{display:block;}
+  .qt-bd{height:auto;}
+  .qt-bd .bd-row,.qt-bd tbody tr:not(.sum-row){height:12mm;}
+  .qt-bd .sum-row{height:9mm;}
   .qt-bd .cell-ta{min-height:0 !important;height:100% !important;}
   /* 表紙：条件と合計を最下部へ */
   .add-row{display:none;}
