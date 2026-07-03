@@ -198,25 +198,28 @@ input:focus,select:focus,.cell:focus{background:#fbf7e8;box-shadow:inset 0 0 0 1
   .conditions{padding:6px 12px;}
   .link-col{width:0 !important;min-width:0 !important;max-width:0 !important;
     padding:0 !important;overflow:hidden !important;border:none !important;
-    border-top:1px solid var(--line) !important;}
+    border-top:0.4mm solid var(--line) !important;}
   .link-col *{display:none !important;}
   .dim{color:transparent !important;font-size:0 !important;}
   .empty-cond{display:none !important;}
-  /* === 罫線方式：separate + 全セル四辺1px で太さを完全統一（外周の二重を解消） === */
+  /* === 罫線：全て 0.4mm で統一（プリンタでのサブピクセルむらを防ぐ） === */
   .qt{table-layout:fixed !important;border-collapse:separate !important;
     border-spacing:0 !important;border:none !important;}
   /* 削除列は非表示。最右の実セル（金額列）に右罫線を持たせる */
   .del-col{display:none !important;}
   /* 全セルは上・左に罫線（隣接で重なり均一な1本に見える） */
   .qt th,.qt td{border:none !important;
-    border-top:1px solid var(--line) !important;
-    border-left:1px solid var(--line) !important;}
+    border-top:0.4mm solid var(--line) !important;
+    border-left:0.4mm solid var(--line) !important;}
   /* 各行の最右の実セル（削除列は非表示なので最後から2番目＝金額列）に右罫線 */
-  .qt tr>td:nth-last-child(2),.qt tr>th:nth-last-child(2){border-right:1px solid var(--line) !important;}
+  .qt tr>td:nth-last-child(2),.qt tr>th:nth-last-child(2){border-right:0.4mm solid var(--line) !important;}
   /* 最終行の下罫線 */
-  .qt tbody tr:last-child td{border-bottom:1px solid var(--line) !important;}
+  .qt tbody tr:last-child td{border-bottom:0.4mm solid var(--line) !important;}
   /* 表紙フッター（条件・合計）の枠 */
-  .foot-grid{border:1px solid var(--line) !important;border-top:none !important;}
+  .foot-grid{border:0.4mm solid var(--line) !important;border-top:none !important;}
+  .conditions{border-right:0.4mm solid var(--line) !important;}
+  .tot-row{border-bottom:0.4mm solid var(--line) !important;}
+  .tot-row.grand{border-bottom:none !important;}
   /* 内訳：行を固定高にして罫線位置を安定させる（太さ均一を優先） */
   .table-scroll-bd{display:block;}
   .qt-bd{height:auto;}
