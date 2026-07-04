@@ -198,16 +198,14 @@ input:focus,select:focus,.cell:focus{background:#fbf7e8;box-shadow:inset 0 0 0 1
   .conditions{padding:6px 12px;}
   .dim{color:transparent !important;font-size:0 !important;}
   .empty-cond{display:none !important;}
-  /* === 罫線：collapse で1本化。外周＝テーブルborder、内部＝セルborder、全て0.3mm === */
+  /* === 罫線：collapse で全罫線を1本化。テーブル外周＋全セルを同一0.3mm === */
   .qt{table-layout:fixed !important;border-collapse:collapse !important;
-    border:0.3mm solid var(--line) !important;}
-  /* 隠す列は幅0で残す（display:noneにすると幅が他列に回り右端がずれるため） */
-  .del-col,.link-col{width:0 !important;min-width:0 !important;max-width:0 !important;
-    padding:0 !important;overflow:hidden !important;border:none !important;}
-  .del-col *,.link-col *{display:none !important;}
+    border:0.3mm solid var(--line) !important;
+    border-right:0.3mm solid var(--line) !important;
+    border-bottom:0.3mm solid var(--line) !important;}
   .qt th,.qt td{border:0.3mm solid var(--line) !important;}
-  /* 幅0の列は罫線を出さない（金額列の右＝テーブル外周borderが担う） */
-  .del-col,.link-col{border:none !important;}
+  .qt tr>td:last-child,.qt tr>th:last-child{border-right:0.3mm solid var(--line) !important;}
+  .qt tbody tr:last-child td{border-bottom:0.3mm solid var(--line) !important;}
   /* 表紙フッター（条件・合計）の枠 */
   .foot-grid{border:0.3mm solid var(--line) !important;border-top:none !important;}
   .conditions{border-right:0.3mm solid var(--line) !important;}
@@ -494,24 +492,21 @@ function coverSheet(c){
   const T=c.T;
   const rows=[];
   Q.items.forEach(it=>rows.push(itemRow(it,T)));
-  for(let i=Q.items.length;i<TABLE_ROWS_COVER;i++)rows.push(emptyTr(7,5));
+  for(let i=Q.items.length;i<TABLE_ROWS_COVER;i++)rows.push(emptyTr(6));
 
   const tbl=h("table",{class:"qt"},
     h("thead",{},h("tr",{},
-      th("名 称","23%"),th("品 質・規 格","30%"),th("数 量","8%"),
-      th("呼 称","7%"),h("th",{class:"link-col",style:"width:13%"},"連動内訳"),th("金 額","19%"),
-      h("th",{class:"del-col"}))),
+      th("名 称","26%"),th("品 質・規 格","34%"),th("数 量","9%"),
+      th("呼 称","8%"),th("金 額","23%"))),
     h("tbody",{},...rows,
       h("tr",{class:"sum-row"},
-        td("法定福利費"),td(""),tdc("1.0"),tdc("式"),h("td",{class:"link-col"}),
-        h("td",{class:"num"},inp(Q.laborCost,"0","cell ta-r",v=>{Q.laborCost=v;recalc();})),
-        h("td",{class:"del-col"})),
+        td("法定福利費"),td(""),tdc("1.0"),tdc("式"),
+        h("td",{class:"num"},inp(Q.laborCost,"0","cell ta-r",v=>{Q.laborCost=v;recalc();}))),
       h("tr",{class:"sum-row"},
         td("諸経費"),
         h("td",{class:"dim",id:"overheadDim"},"（対象 "+yen(c.itemsSubtotal)+" × "+(Q.overheadRate*100).toFixed(0)+"%）"),
-        tdc("1.0"),tdc("式"),h("td",{class:"link-col"}),
-        h("td",{class:"num",id:"overheadCell"},yen(c.overhead)),
-        h("td",{class:"del-col"}))
+        tdc("1.0"),tdc("式"),
+        h("td",{class:"num",id:"overheadCell"},yen(c.overhead)))
     ));
 
   return h("div",{class:"sheet"},
@@ -549,11 +544,6 @@ function coverSheet(c){
         h("div",{class:"staff-line"},"担当者 ",
           inp(Q.staff,"","staff-inp",v=>{Q.staff=v;})))),
     h("div",{class:"table-scroll"},tbl),
-    h("div",{class:"add-row no-print"},
-      h("button",{class:"btn-mini",onClick:()=>{
-        if(Q.items.length>=MAX_ITEMS){toast("明細行はこれ以上追加できません（最大"+MAX_ITEMS+"行）");return;}
-        Q.items.push(emptyItem());render();}},
-        h("span",{html:ICONS.plus}),"明細行を追加")),
     h("div",{class:"foot-grid"},
       h("div",{class:"conditions"},
         h("div",{class:"cond-title"},"見積条件"),
@@ -575,40 +565,27 @@ function coverSheet(c){
 function itemRow(it,T){
   const linked=resolveLink(it.linkBdId);
   const isLinked=linked&&T[linked]!=null;
-  const sel=h("select",{class:"sel",onChange:e=>{it.linkBdId=e.target.value||null;render();}},
-    h("option",{value:""},"（手入力）"),
-    ...Q.breakdowns.map((s,idx)=>{
-      const v=idx===0?"FIRST":s.id;
-      const o=h("option",{value:v},s.title);
-      if((it.linkBdId||"")===v)o.selected=true;
-      return o;}));
   return h("tr",{},
     h("td",{},inp(it.name,"名称","cell",v=>{it.name=v;})),
     h("td",{},inp(it.spec,"","cell",v=>{it.spec=v;})),
     h("td",{class:"num"},inp(it.qty,"","cell ta-r",v=>{it.qty=v;})),
     h("td",{class:"ctr"},inp(it.unit,"","cell ta-c",v=>{it.unit=v;})),
-    h("td",{class:"ctr link-col"},sel),
     h("td",{class:"num"}, isLinked?h("span",{class:"linked",id:"itemamt_"+it.id},yen(T[linked]))
-      :inp(it.amount,"0","cell ta-r",v=>{it.amount=v;recalc();})),
-    h("td",{class:"del-col"},
-      h("button",{class:"icon-btn",onClick:()=>{Q.items=Q.items.filter(x=>x.id!==it.id);render();}},
-        h("span",{html:ICONS.trash}))));
+      :inp(it.amount,"0","cell ta-r",v=>{it.amount=v;recalc();})));
 }
 
 function bdSheet(sheet,c){
   const rows=[];
   sheet.rows.forEach(r=>rows.push(bdRow(sheet,r)));
-  for(let i=sheet.rows.length;i<TABLE_ROWS_BD;i++)rows.push(emptyTr(7));
+  for(let i=sheet.rows.length;i<TABLE_ROWS_BD;i++)rows.push(emptyTr(6));
   const tbl=h("table",{class:"qt qt-bd"},
     h("thead",{},h("tr",{},
-      th("名 称","22%"),th("品 質・規 格","32%"),th("数 量","9%"),
-      th("呼 称","7%"),th("単 価","13%"),th("金 額","17%"),
-      h("th",{class:"del-col"}))),
+      th("名 称","24%"),th("品 質・規 格","34%"),th("数 量","10%"),
+      th("呼 称","8%"),th("単 価","12%"),th("金 額","12%"))),
     h("tbody",{},...rows,
       h("tr",{class:"sum-row"},
         h("td",{class:"ta-r-strong",colspan:5},"小計"),
-        h("td",{class:"num grand-cell",id:"bdsub_"+sheet.id},yen(bdTotal(sheet))),
-        h("td",{class:"del-col"}))));
+        h("td",{class:"num grand-cell",id:"bdsub_"+sheet.id},yen(bdTotal(sheet))))));
   return h("div",{class:"sheet"},
     h("div",{class:"bd-head"},
       inp(sheet.title,"","bd-title-inp",v=>{sheet.title=v;render();}),
@@ -617,12 +594,7 @@ function bdSheet(sheet,c){
         Q.items.forEach(it=>{if(resolveLink(it.linkBdId)===sheet.id)it.linkBdId=null;});
         Q.breakdowns=Q.breakdowns.filter(s=>s.id!==sheet.id);render();
       }},h("span",{html:ICONS.trash}))),
-    h("div",{class:"table-scroll table-scroll-bd"},tbl),
-    h("div",{class:"add-row no-print"},
-      h("button",{class:"btn-mini",onClick:()=>{
-        if(sheet.rows.length>=MAX_BD_ROWS){toast("内訳行はこれ以上追加できません（最大"+MAX_BD_ROWS+"行）");return;}
-        sheet.rows.push(emptyBdRow());render();}},
-        h("span",{html:ICONS.plus}),"内訳行を追加")));
+    h("div",{class:"table-scroll table-scroll-bd"},tbl));
 }
 
 function bdRow(sheet,r){
@@ -632,10 +604,7 @@ function bdRow(sheet,r){
     h("td",{class:"num"},inp(r.qty,"","cell ta-r",v=>{r.qty=v;recalcRow(sheet);})),
     h("td",{class:"ctr"},inp(r.unit,"","cell ta-c",v=>{r.unit=v;})),
     h("td",{class:"num"},inp(r.price,"","cell ta-r",v=>{r.price=v;recalcRow(sheet);})),
-    h("td",{class:"num amt",id:"bdamt_"+r.id},yen((Number(r.qty)||0)*(Number(r.price)||0))),
-    h("td",{class:"del-col"},
-      h("button",{class:"icon-btn",onClick:()=>{sheet.rows=sheet.rows.filter(x=>x.id!==r.id);render();}},
-        h("span",{html:ICONS.trash}))));
+    h("td",{class:"num amt",id:"bdamt_"+r.id},yen((Number(r.qty)||0)*(Number(r.price)||0))));
 }
 
 /* 部分再計算：フル再描画せず金額表示だけ更新（入力中のフォーカス維持）*/
@@ -671,9 +640,8 @@ function recalcRow(sheet){
 function th(label,w){return h("th",{style:"width:"+w},label);}
 function td(t){return h("td",{},t);}
 function tdc(t){return h("td",{class:"ctr"},t);}
-function emptyTr(n,linkCol){const cells=[];for(let i=0;i<n-1;i++){
-    cells.push(h("td",{class:(linkCol&&i===linkCol-1)?"link-col":null}));}
-  cells.push(h("td",{class:"del-col"}));return h("tr",{},...cells);}
+function emptyTr(n){const cells=[];for(let i=0;i<n;i++){cells.push(h("td",{}));}
+  return h("tr",{},...cells);}
 function inp(value,ph,cls,onInput){
   return h("input",{class:cls,value:value||"",placeholder:ph||"",
     oninput:e=>onInput(e.target.value)});
