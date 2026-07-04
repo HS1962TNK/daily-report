@@ -196,29 +196,22 @@ input:focus,select:focus,.cell:focus{background:#fbf7e8;box-shadow:inset 0 0 0 1
   .cell{padding:3px 7px;font-size:11.5px;}
   .tot-row{padding:5px 14px;}
   .conditions{padding:6px 12px;}
-  .link-col{width:0 !important;min-width:0 !important;max-width:0 !important;
-    padding:0 !important;overflow:hidden !important;border:none !important;
-    border-top:0.4mm solid var(--line) !important;}
-  .link-col *{display:none !important;}
   .dim{color:transparent !important;font-size:0 !important;}
   .empty-cond{display:none !important;}
-  /* === 罫線：全て 0.4mm で統一（プリンタでのサブピクセルむらを防ぐ） === */
-  .qt{table-layout:fixed !important;border-collapse:separate !important;
-    border-spacing:0 !important;border:none !important;}
-  /* 削除列は非表示。最右の実セル（金額列）に右罫線を持たせる */
-  .del-col{display:none !important;}
-  /* 全セルは上・左に罫線（隣接で重なり均一な1本に見える） */
-  .qt th,.qt td{border:none !important;
-    border-top:0.4mm solid var(--line) !important;
-    border-left:0.4mm solid var(--line) !important;}
-  /* 各行の最右の実セル（削除列は非表示なので最後から2番目＝金額列）に右罫線 */
-  .qt tr>td:nth-last-child(2),.qt tr>th:nth-last-child(2){border-right:0.4mm solid var(--line) !important;}
-  /* 最終行の下罫線 */
-  .qt tbody tr:last-child td{border-bottom:0.4mm solid var(--line) !important;}
+  /* === 罫線：collapse で1本化。外周＝テーブルborder、内部＝セルborder、全て0.3mm === */
+  .qt{table-layout:fixed !important;border-collapse:collapse !important;
+    border:0.3mm solid var(--line) !important;}
+  /* 隠す列は幅0で残す（display:noneにすると幅が他列に回り右端がずれるため） */
+  .del-col,.link-col{width:0 !important;min-width:0 !important;max-width:0 !important;
+    padding:0 !important;overflow:hidden !important;border:none !important;}
+  .del-col *,.link-col *{display:none !important;}
+  .qt th,.qt td{border:0.3mm solid var(--line) !important;}
+  /* 幅0の列は罫線を出さない（金額列の右＝テーブル外周borderが担う） */
+  .del-col,.link-col{border:none !important;}
   /* 表紙フッター（条件・合計）の枠 */
-  .foot-grid{border:0.4mm solid var(--line) !important;border-top:none !important;}
-  .conditions{border-right:0.4mm solid var(--line) !important;}
-  .tot-row{border-bottom:0.4mm solid var(--line) !important;}
+  .foot-grid{border:0.3mm solid var(--line) !important;border-top:none !important;}
+  .conditions{border-right:0.3mm solid var(--line) !important;}
+  .tot-row{border-bottom:0.3mm solid var(--line) !important;}
   .tot-row.grand{border-bottom:none !important;}
   /* 内訳：行を固定高にして罫線位置を安定させる（太さ均一を優先） */
   .table-scroll-bd{display:block;}
