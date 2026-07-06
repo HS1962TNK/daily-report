@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>書類作成メーカー</title>
+<style>
+  :root{
+    --ink:#1a1a1a; --line:#111; --paper:#fff;
+    --bg:#e9e7e2; --tb:#1f2430; --tb-soft:#2b3242;
+    --accent:#2563a8; --accent-soft:#eef4fb;
+    --muted:#8a8f98;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);min-height:100vh;color:var(--ink);
+    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;}
+
+  .toolbar{display:flex;align-items:center;gap:10px;background:var(--tb);color:#fff;
+    padding:14px 20px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}
+  .toolbar svg{flex:0 0 auto;}
+  .tb-title{font-size:16px;font-weight:600;letter-spacing:.02em;}
+  .tb-sub{font-size:11.5px;color:#aeb6c6;margin-left:auto;}
+
+  main{max-width:900px;margin:0 auto;padding:32px 20px 60px;}
+
+  .lead{font-size:13.5px;color:#5a5f66;line-height:1.7;margin:0 0 28px;}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;}
+
+  .card{background:var(--paper);border-radius:14px;padding:22px 20px;text-decoration:none;color:inherit;
+    box-shadow:0 2px 10px rgba(0,0,0,.06);display:flex;flex-direction:column;gap:10px;
+    transition:transform .15s ease, box-shadow .15s ease;position:relative;overflow:hidden;}
+  .card:active{transform:scale(.98);}
+  .card.ready{cursor:pointer;}
+  .card.soon{opacity:.6;cursor:default;}
+
+  .card-icon{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+    background:var(--accent-soft);color:var(--accent);flex:0 0 auto;}
+  .card-icon svg{width:22px;height:22px;}
+
+  .card-name{font-size:15.5px;font-weight:700;letter-spacing:.02em;}
+  .card-desc{font-size:12px;color:var(--muted);line-height:1.6;}
+
+  .badge{position:absolute;top:16px;right:16px;font-size:10px;font-weight:600;letter-spacing:.05em;
+    padding:3px 9px;border-radius:20px;}
+  .badge.open{background:#e8f3ec;color:#1d7a4d;}
+  .badge.soon{background:#f0f0f0;color:#888;}
+
+  .card-cta{margin-top:auto;font-size:12px;font-weight:600;color:var(--accent);display:flex;align-items:center;gap:4px;}
+  .card.soon .card-cta{color:var(--muted);}
+
+  footer{max-width:900px;margin:0 auto;padding:0 20px 40px;font-size:11px;color:#9a9fa6;}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="white" stroke-width="2">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>
+  </svg>
+  <span class="tb-title">書類作成メーカー</span>
+  <span class="tb-sub">ティエヌケイ株式会社　防水事業部</span>
+</div>
+
+<main>
+  <p class="lead">作りたい書類を選んでください。それぞれ別のツールが開きます。</p>
+
+  <div class="grid">
+
+    <a class="card ready" href="https://docs.google.com/spreadsheets/d/1BHOIZX9j-7w5qoJ0zcTyBzpLTp-XOkKAEeFHY2DKSf4/edit" target="_blank" rel="noopener">
+      <span class="badge open">利用可</span>
+      <div class="card-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>
+          <line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/>
+        </svg>
+      </div>
+      <div class="card-name">見積書</div>
+      <div class="card-desc">Googleスプレッドシートで作成。表紙＋内訳書が自動連動し、複数人で同時に使えます。</div>
+      <div class="card-cta">スプレッドシートを開く →</div>
+    </a>
+
+    <div class="card soon">
+      <span class="badge soon">準備中</span>
+      <div class="card-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="9" x2="17" y2="9"/>
+          <line x1="7" y1="13" x2="17" y2="13"/><line x1="7" y1="17" x2="12" y2="17"/>
+        </svg>
+      </div>
+      <div class="card-name">請求書</div>
+      <div class="card-desc">近日公開予定です。見積書と同じ仕組みで作成できるようにする予定です。</div>
+      <div class="card-cta">近日公開</div>
+    </div>
+
+  </div>
+</main>
+
+<footer>書類作成メーカー ／ ティエヌケイ株式会社 防水事業部</footer>
+
+</body>
+</html>
