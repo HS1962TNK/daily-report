@@ -47,6 +47,7 @@ input[type=range]{width:100%;accent-color:#185FA5}
 .btn-row{padding:10px;padding-bottom:24px}
 .btn-save{width:100%;padding:13px;background:#185FA5;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;font-family:inherit}
 .btn-save:active{background:#0e4a82}
+.btn-save:disabled{background:#9db8cf;cursor:not-allowed}
 .tab{display:none}
 .tab.active{display:block;padding-bottom:24px}
 .hi{background:#fff;border-radius:12px;margin:10px;padding:13px 15px}
@@ -68,98 +69,100 @@ input[type=range]{width:100%;accent-color:#185FA5}
 .xl-cnt{font-size:12px;color:#888;margin-top:2px}
 .dl-btn{padding:7px 13px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600}
 .xl-all{width:calc(100% - 20px);margin:0 10px;padding:12px;background:#fff;border:1.5px solid #185FA5;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;color:#185FA5;display:flex;align-items:center;justify-content:center;gap:7px;font-family:inherit}
+.sending-banner{position:fixed;top:0;left:0;right:0;background:#e8590c;color:#fff;text-align:center;padding:11px 16px;font-size:13px;font-weight:700;z-index:200;box-shadow:0 2px 8px rgba(0,0,0,.2);line-height:1.5}
 </style>
 </head>
 <body>
 <div class="app">
-  <div class="header">
-    <div>
-      <div class="header-title">📋 作業日報</div>
-      <div class="header-sub" id="hdate"></div>
-    </div>
-    <button onclick="location.href='genba.html'" style="padding:7px 12px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:8px;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:center;gap:2px">
-      <span style="font-size:18px">🏗️</span>
-      <span style="font-size:10px">現場情報</span>
-    </button>
-  </div>
-  <div class="nav">
-    <button class="nav-btn active" onclick="sw('form',this)"><span class="nav-icon">✏️</span>入力</button>
-    <button class="nav-btn" onclick="sw('history',this)"><span class="nav-icon">📂</span>履歴</button>
-    <button class="nav-btn" onclick="sw('export',this)"><span class="nav-icon">📊</span>Excel出力</button>
-  </div>
+<div class="header">
+<div>
+<div class="header-title">📋 作業日報</div>
+<div class="header-sub" id="hdate"></div>
+</div>
+<button onclick="location.href='genba.html'" style="padding:7px 12px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:8px;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:center;gap:2px">
+<span style="font-size:18px">🏗️</span>
+<span style="font-size:10px">現場情報</span>
+</button>
+</div>
+<div class="nav">
+<button class="nav-btn active" onclick="sw('form',this)"><span class="nav-icon">✏️</span>入力</button>
+<button class="nav-btn" onclick="sw('history',this)"><span class="nav-icon">📂</span>履歴</button>
+<button class="nav-btn" onclick="sw('export',this)"><span class="nav-icon">📊</span>Excel出力</button>
+</div>
 
-  <div id="tab-form" class="tab active">
-    <div class="section">
-      <div class="sec-title">📍 基本情報</div>
-      <div class="fl"><label>日付</label><input type="date" id="f-date"></div>
-      <div class="fl">
-        <label>現場名</label>
-        <div style="display:flex;gap:8px">
-          <select id="f-site" style="flex:1" onchange="onSiteSelect(this.value)">
-            <option value="">現場を選択してください</option>
-          </select>
-          <button onclick="location.href='genba.html'" style="padding:8px 10px;background:#1B3A6B;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;white-space:nowrap;font-family:inherit">＋ 現場登録</button>
-        </div>
-      </div>
-      <div class="fl"><label>報告者名</label><input type="text" id="f-rep" placeholder="氏名"></div>
-    </div>
-    <div class="section">
-      <div class="sec-title">🌤️ 天気・気温</div>
-      <button onclick="fetchWeather()" style="width:100%;padding:9px;background:#E8F4FD;border:1px solid #B5D4F4;border-radius:8px;cursor:pointer;color:#185FA5;font-size:13px;font-weight:600;font-family:inherit;margin-bottom:10px">📍 現在地の天気を自動取得</button>
-      <div class="g2">
-        <div class="fl" style="margin:0"><label>天気（修正可）</label>
-          <select id="f-wx"><option value="">選択</option><option>晴れ</option><option>曇り</option><option>雨</option><option>雪</option></select>
-        </div>
-        <div class="fl" style="margin:0"><label>最高気温（℃）</label><input type="number" id="f-tmp" placeholder="28"></div>
-      </div>
-    </div>
-    <div class="section">
-      <div class="sec-title">👷 作業員・人数</div>
-      <div id="wlist"></div>
-      <button class="add-btn" onclick="addW()">＋ 職種・人員を追加</button>
-    </div>
-    <div class="section">
-      <div class="sec-title">📝 作業内容・進捗</div>
-      <div class="fl"><label>本日の作業内容</label><textarea id="f-work" placeholder="実施した作業を詳しく記入"></textarea></div>
-      <div class="fl"><label>特記事項・問題点</label><textarea id="f-note" placeholder="トラブル・変更事項など" style="min-height:56px"></textarea></div>
-      <div class="fl">
-        <div class="prog-lbl"><span>全体進捗</span><b id="pv">50%</b></div>
-        <input type="range" min="0" max="100" step="5" value="50" id="f-prog" oninput="document.getElementById('pv').textContent=this.value+'%'">
-      </div>
-    </div>
-    <div class="section">
-      <div class="sec-title">📦 使用材料・数量</div>
-      <div id="mlist"></div>
-      <button class="add-btn" onclick="addM()">＋ 材料を追加</button>
-    </div>
-    <div class="section">
-      <div class="sec-title">🦺 保護具の着用確認</div>
-      <div class="safety-grid" id="sgrid"></div>
-    </div>
-    <div class="section">
-      <div class="sec-title">📷 工事写真</div>
-      <div class="photo-grid" id="pgrid"></div>
-      <button class="add-btn" onclick="addPhoto()" style="margin-top:8px">＋ 写真を追加</button>
-    </div>
-    <div class="btn-row">
-      <button class="btn-save" onclick="saveR()">💾 日報を保存</button>
-    </div>
-  </div>
+<div id="tab-form" class="tab active">
+<div class="section">
+<div class="sec-title">📍 基本情報</div>
+<div class="fl"><label>日付</label><input type="date" id="f-date"></div>
+<div class="fl">
+<label>現場名</label>
+<div style="display:flex;gap:8px">
+<select id="f-site" style="flex:1" onchange="onSiteSelect(this.value)">
+<option value="">現場を選択してください</option>
+</select>
+<button onclick="location.href='genba.html'" style="padding:8px 10px;background:#1B3A6B;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;white-space:nowrap;font-family:inherit">＋ 現場登録</button>
+</div>
+</div>
+<div class="fl"><label>報告者名</label><input type="text" id="f-rep" placeholder="氏名"></div>
+</div>
+<div class="section">
+<div class="sec-title">🌤️ 天気・気温</div>
+<button onclick="fetchWeather()" style="width:100%;padding:9px;background:#E8F4FD;border:1px solid #B5D4F4;border-radius:8px;cursor:pointer;color:#185FA5;font-size:13px;font-weight:600;font-family:inherit;margin-bottom:10px">📍 現在地の天気を自動取得</button>
+<div class="g2">
+<div class="fl" style="margin:0"><label>天気（修正可）</label>
+<select id="f-wx"><option value="">選択</option><option>晴れ</option><option>曇り</option><option>雨</option><option>雪</option></select>
+</div>
+<div class="fl" style="margin:0"><label>最高気温（℃）</label><input type="number" id="f-tmp" placeholder="28"></div>
+</div>
+</div>
+<div class="section">
+<div class="sec-title">👷 作業員・人数</div>
+<div id="wlist"></div>
+<button class="add-btn" onclick="addW()">＋ 職種・人員を追加</button>
+</div>
+<div class="section">
+<div class="sec-title">📝 作業内容・進捗</div>
+<div class="fl"><label>本日の作業内容</label><textarea id="f-work" placeholder="実施した作業を詳しく記入"></textarea></div>
+<div class="fl"><label>特記事項・問題点</label><textarea id="f-note" placeholder="トラブル・変更事項など" style="min-height:56px"></textarea></div>
+<div class="fl">
+<div class="prog-lbl"><span>全体進捗</span><b id="pv">50%</b></div>
+<input type="range" min="0" max="100" step="5" value="50" id="f-prog" oninput="document.getElementById('pv').textContent=this.value+'%'">
+</div>
+</div>
+<div class="section">
+<div class="sec-title">📦 使用材料・数量</div>
+<div id="mlist"></div>
+<button class="add-btn" onclick="addM()">＋ 材料を追加</button>
+</div>
+<div class="section">
+<div class="sec-title">🦺 保護具の着用確認</div>
+<div class="safety-grid" id="sgrid"></div>
+</div>
+<div class="section">
+<div class="sec-title">📷 工事写真</div>
+<div class="photo-grid" id="pgrid"></div>
+<button class="add-btn" onclick="addPhoto()" style="margin-top:8px">＋ 写真を追加</button>
+</div>
+<div class="btn-row">
+<button class="btn-save" onclick="saveR()">💾 日報を保存</button>
+</div>
+</div>
 
-  <div id="tab-history" class="tab"><div id="hlist"></div></div>
+<div id="tab-history" class="tab"><div id="hlist"></div></div>
 
-  <div id="tab-export" class="tab">
-    <div class="section" style="margin-top:10px;font-size:13px;color:#666;line-height:1.7">
+<div id="tab-export" class="tab">
+<div class="section" style="margin-top:10px;font-size:13px;color:#666;line-height:1.7">
       現場ごとにシートを分けて出力します。写真はGoogle Driveの「工事写真アルバム」フォルダで確認できます。
-    </div>
-    <div class="xl-section">
-      <div class="sec-title">🏗️ 現場別ダウンロード</div>
-      <div id="site-list"></div>
-    </div>
-    <button class="xl-all" onclick="exportAll()">📥 全現場まとめてダウンロード</button>
-  </div>
+</div>
+<div class="xl-section">
+<div class="sec-title">🏗️ 現場別ダウンロード</div>
+<div id="site-list"></div>
+</div>
+<button class="xl-all" onclick="exportAll()">📥 全現場まとめてダウンロード</button>
+</div>
 </div>
 <div class="toast" id="toast"></div>
+<div class="sending-banner" id="sendingBanner" hidden>📤 送信中です。この表示が消えるまで画面を閉じたりアプリを切り替えたりしないでください</div>
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
@@ -287,8 +290,34 @@ function loadPhoto(id,inp){
 }
 function readPhotoInto(id,file){
   const r=new FileReader();
-  r.onload=e=>{const p=photos.find(x=>x.id===id);if(p){p.data=e.target.result;}renderPhotos();};
+  r.onload=e=>{
+    resizeImage(e.target.result,1280,0.75).then(resized=>{
+      const p=photos.find(x=>x.id===id);
+      if(p){p.data=resized;}
+      renderPhotos();
+    });
+  };
   r.readAsDataURL(file);
+}
+
+// 画像を縮小・圧縮してdataURLを返す（送信失敗防止のため）
+function resizeImage(dataUrl,maxSize,quality){
+  return new Promise(resolve=>{
+    const img=new Image();
+    img.onload=()=>{
+      let w=img.width,h=img.height;
+      if(w>maxSize||h>maxSize){
+        if(w>h){h=Math.round(h*maxSize/w);w=maxSize;}
+        else{w=Math.round(w*maxSize/h);h=maxSize;}
+      }
+      const canvas=document.createElement('canvas');
+      canvas.width=w;canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      resolve(canvas.toDataURL('image/jpeg',quality));
+    };
+    img.onerror=()=>resolve(dataUrl); // 失敗時は元データを使用
+    img.src=dataUrl;
+  });
 }
 function removePhoto(id){photos=photos.filter(p=>p.id!==id);renderPhotos();}
 function updatePhotoLabel(id,val){const p=photos.find(x=>x.id===id);if(p)p.label=val;}
@@ -300,7 +329,7 @@ function toast(msg){
   setTimeout(()=>t.classList.remove('show'),2800);
 }
 
-function saveR(){
+async function saveR(){
   const date=$('f-date').value,site=$('f-site').value.trim();
   if(!date||!site){toast('⚠️ 日付と現場名を入力してください');return;}
   const photoCount=photos.filter(p=>p.data).length;
@@ -322,18 +351,26 @@ function saveR(){
   const stored=JSON.parse(localStorage.getItem('dr_v2')||'[]');
   stored.unshift(rep);
   localStorage.setItem('dr_v2',JSON.stringify(stored));
-  toast('✅ 日報を保存しました！');
 
-  // ①テキストデータをGASに送信（写真なし）
+  // 二重送信防止＆送信中であることを明示
+  const btn=document.querySelector('.btn-save');
+  const banner=$('sendingBanner');
+  if(btn){btn.disabled=true;btn.textContent='📤 送信中…（このままお待ちください）';}
+  if(banner) banner.hidden=false;
+
+  // ①テキストデータを先に送信し、完了を待つ（スプレッドシートに行を作る）
   const textPayload={...rep,photos:[]};
-  fetch(GAS_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(textPayload)}).catch(()=>{});
+  await fetch(GAS_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(textPayload)}).catch(()=>{});
 
-  // ②写真がある場合はDriveに送信
+  // ②①の行が出来てから写真を送信（行がまだ無い状態で枚数更新が空振りするのを防ぐ）
   if(photoCount>0){
-    const photoPayload={date,site,photos:photos.map(p=>({data:p.data,label:p.label})),photoOnly:true};
-    fetch(GAS_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(photoPayload)}).catch(()=>{});
+    const photoPayload={date,site,photos:photos.filter(p=>p.data).map(p=>({data:p.data,label:p.label})),photoOnly:true};
+    await fetch(GAS_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(photoPayload)}).catch(()=>{});
   }
 
+  if(btn){btn.disabled=false;btn.textContent='💾 日報を保存';}
+  if(banner) banner.hidden=true;
+  toast('✅ 日報を保存しました！');
   resetForm();
 }
 
