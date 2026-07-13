@@ -385,7 +385,8 @@
         <p class="shortcuts" style="margin-top:10px;">
           Esc キャンセル ／ Enter 確定<br>
           Backspace 1点戻す<br>
-          ホイール 拡大縮小 ／ Space+ドラッグ 移動
+          ドラッグ 図面を移動 ／ ホイール 拡大縮小<br>
+          矢印キー 移動(Shiftで大きく)
         </p>
       </div>
     </aside>
@@ -1246,10 +1247,10 @@
     const mx = e.clientX-rect.left, my = e.clientY-rect.top;
     pointerDownPos = {x:mx,y:my};
     didDrag = false;
-    const panRequested = mode==='pan' || spaceHeld || e.button===1;
-    if(panRequested){
-      isDragging = true;
-      dragOrigOffset = {x:view.offsetX,y:view.offsetY};
+    // どのモードでもドラッグで図面を移動できる(3px以上動いたらパン、動かなければクリック=点打ち)
+    isDragging = true;
+    dragOrigOffset = {x:view.offsetX,y:view.offsetY};
+    if(mode==='pan' || spaceHeld || e.button===1){
       canvasWrap.style.cursor = 'grabbing';
     }
   });
@@ -1261,10 +1262,15 @@
     lastMouseScreen = {x:mx,y:my};
     if(isDragging && pointerDownPos){
       const dx = mx-pointerDownPos.x, dy = my-pointerDownPos.y;
-      if(Math.abs(dx)>3 || Math.abs(dy)>3) didDrag = true;
-      view.offsetX = dragOrigOffset.x+dx;
-      view.offsetY = dragOrigOffset.y+dy;
-      draw();
+      if(Math.abs(dx)>3 || Math.abs(dy)>3){
+        didDrag = true;
+        canvasWrap.style.cursor = 'grabbing';
+      }
+      if(didDrag){
+        view.offsetX = dragOrigOffset.x+dx;
+        view.offsetY = dragOrigOffset.y+dy;
+        draw();
+      }
     } else if(pendingPoints.length>0){
       draw();
     }
@@ -1274,13 +1280,12 @@
     if(!sourceImage){ isDragging=false; return; }
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX-rect.left, my = e.clientY-rect.top;
-    const wasDragging = isDragging;
     if(isDragging){
       isDragging = false;
-      if(mode==='pan') canvasWrap.style.cursor = 'grab';
+      canvasWrap.style.cursor = (mode==='pan'||spaceHeld) ? 'grab' : 'crosshair';
     }
     const withinCanvas = mx>=0 && my>=0 && mx<=canvas.clientWidth && my<=canvas.clientHeight;
-    if(!didDrag && withinCanvas && mode!=='pan' && !spaceHeld && e.button!==1 && !wasDragging){
+    if(!didDrag && withinCanvas && mode!=='pan' && !spaceHeld && e.button!==1){
       const imgPt = screenToImage({x:mx,y:my});
       handlePlacePoint(imgPt, {x:mx,y:my});
     }
@@ -1312,6 +1317,18 @@
     }
     if(e.key==='Escape'){
       if(pendingPoints.length>0){ pendingPoints=[]; draw(); updateHint(); }
+    } else if(e.key==='ArrowUp' || e.key==='ArrowDown' || e.key==='ArrowLeft' || e.key==='ArrowRight'){
+      if(!sourceImage) return;
+      // 単位選択などにフォーカスがある場合は通常動作を優先
+      const tag = document.activeElement && document.activeElement.tagName;
+      if(tag==='SELECT' || tag==='INPUT' || tag==='TEXTAREA') return;
+      const step = e.shiftKey ? 200 : 60;
+      if(e.key==='ArrowUp') view.offsetY += step;
+      if(e.key==='ArrowDown') view.offsetY -= step;
+      if(e.key==='ArrowLeft') view.offsetX += step;
+      if(e.key==='ArrowRight') view.offsetX -= step;
+      draw();
+      e.preventDefault();
     } else if(e.key==='Enter'){
       if(mode==='area' && pendingPoints.length>=3){ finalizeArea(); draw(); updateHint(); }
       else if(mode==='curve' && pendingPoints.length>=2){ finalizeCurve(); draw(); updateHint(); }
