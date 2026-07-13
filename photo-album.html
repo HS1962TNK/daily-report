@@ -48,6 +48,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .photo-cell .ph-placeholder .ph-icon{font-size:32px;margin-bottom:6px}
 .photo-cell input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
 .photo-del{position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:none;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;z-index:5}
+.photo-cell .ph-pick-btn{position:relative;z-index:6;margin-top:8px;background:#1B3A6B;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-family:inherit}
+.photo-cell .ph-pick-btn:hover{background:#14294d}
+
+/* 現場の写真ピッカー モーダル */
+.pp-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;display:none;align-items:center;justify-content:center;padding:16px}
+.pp-modal.show{display:flex}
+.pp-modal-inner{background:#fff;border-radius:12px;max-width:640px;width:100%;max-height:80vh;display:flex;flex-direction:column;overflow:hidden}
+.pp-modal-header{padding:14px 16px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:14px;color:#1B3A6B}
+.pp-modal-header button{background:none;border:none;font-size:20px;cursor:pointer;color:#888;line-height:1}
+.pp-modal-body{padding:14px 16px;overflow-y:auto}
+.pp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px}
+.pp-item{position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;cursor:pointer;border:2px solid transparent;background:#f0f0f0}
+.pp-item:hover{border-color:#1B3A6B}
+.pp-item img{width:100%;height:100%;object-fit:cover;display:block}
+.pp-item .pp-folder{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);color:#fff;font-size:10px;padding:2px 4px;text-align:center}
+.pp-empty{text-align:center;color:#999;font-size:13px;padding:30px 10px;line-height:1.7}
 
 .info-cell{display:flex;flex-direction:column}
 .info-cell .info-row:last-child{flex:1;align-items:stretch}
@@ -107,6 +123,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 
 <div class="pages" id="pages"></div>
 
+<div class="pp-modal no-print" id="photo-picker-modal">
+  <div class="pp-modal-inner">
+    <div class="pp-modal-header">
+      <span>📂 現場の写真から選ぶ</span>
+      <button onclick="closePhotoPicker()">✕</button>
+    </div>
+    <div class="pp-modal-body" id="pp-grid"></div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 const GAS_URL = 'https://script.google.com/macros/s/AKfycby9b1XxHyum6h_k50ki3kFLDrauDAEXPXAq5GwzSXcr61A9DpvRlf5q3nLCYSYlO9_j/exec';
@@ -114,6 +140,8 @@ const PHOTOS_PER_PAGE = 3;
 let pageCount = 0;
 let header = { koji:'', genba:'', addr:'', gyosha:'' };
 let photoData = {};
+let pickerTargetKey = null;
+let pickerPhotosCache = null;
 
 function $(id){return document.getElementById(id)}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
@@ -189,7 +217,7 @@ function buildPhotoPage(pageIdx){
           ondrop="onCellDrop(event,'${key}')">
           ${photoData[key]
             ? `<img src="${photoData[key]}"><button class="photo-del" onclick="delPhoto('${key}')">✕</button>`
-            : `<div class="ph-placeholder"><div class="ph-icon">📷</div>クリック または<br>ドラッグ＆ドロップ</div>`}
+            : `<div class="ph-placeholder"><div class="ph-icon">📷</div>クリック または<br>ドラッグ＆ドロップ<br><button type="button" class="ph-pick-btn" onclick="event.stopPropagation();openPhotoPicker('${key}')">📂 現場の写真から選ぶ</button></div>`}
           <input type="file" accept="image/*" onchange="loadPhoto('${key}',this)">
         </div>
         <div class="info-cell">
@@ -244,7 +272,7 @@ function setPhoto(key,file){
 }
 function delPhoto(key){
   delete photoData[key];
-  $('cell-'+key).innerHTML=`<div class="ph-placeholder"><div class="ph-icon">📷</div>クリック または<br>ドラッグ＆ドロップ</div><input type="file" accept="image/*" onchange="loadPhoto('${key}',this)">`;
+  $('cell-'+key).innerHTML=`<div class="ph-placeholder"><div class="ph-icon">📷</div>クリック または<br>ドラッグ＆ドロップ<br><button type="button" class="ph-pick-btn" onclick="event.stopPropagation();openPhotoPicker('${key}')">📂 現場の写真から選ぶ</button></div><input type="file" accept="image/*" onchange="loadPhoto('${key}',this)">`;
 }
 
 // ドラッグ＆ドロップ
@@ -260,6 +288,52 @@ function onCellDrop(e,key){
   $('cell-'+key).classList.remove('drag-over');
   const f=e.dataTransfer.files[0];
   if(f) setPhoto(key,f);
+}
+
+// 現場の写真ピッカー（日報アプリでGoogle Driveに保存済みの写真から選ぶ）
+function openPhotoPicker(key){
+  pickerTargetKey = key;
+  $('photo-picker-modal').classList.add('show');
+  const grid = $('pp-grid');
+  const siteName = (header.genba || header.koji || '').trim();
+  if(!siteName){
+    grid.innerHTML = '<div class="pp-empty">先に上の「現場名」を入力するか、現場情報から選択してください</div>';
+    return;
+  }
+  grid.innerHTML = '<div class="pp-empty">読み込み中...</div>';
+  fetch(GAS_URL + '?action=getSitePhotos&site=' + encodeURIComponent(siteName))
+    .then(r=>r.json())
+    .then(res=>{
+      if(res.status!=='ok' || !res.photos || !res.photos.length){
+        grid.innerHTML = '<div class="pp-empty">この現場の写真はまだ見つかりませんでした<br>（日報アプリで撮影・保存した写真がここに表示されます）</div>';
+        return;
+      }
+      pickerPhotosCache = res.photos;
+      renderPickerGrid(res.photos);
+    })
+    .catch(()=>{
+      grid.innerHTML = '<div class="pp-empty">読み込みに失敗しました。通信環境を確認してもう一度お試しください</div>';
+    });
+}
+function renderPickerGrid(photos){
+  const grid = $('pp-grid');
+  grid.innerHTML = photos.map((p,i)=>`
+    <div class="pp-item" onclick="choosePickerPhoto(${i})">
+      <img src="${p.url}" loading="lazy">
+      ${p.folder?`<div class="pp-folder">${esc(p.folder)}</div>`:''}
+    </div>`).join('');
+}
+function choosePickerPhoto(i){
+  const p = pickerPhotosCache && pickerPhotosCache[i];
+  if(!p || !pickerTargetKey) return;
+  const key = pickerTargetKey;
+  photoData[key] = p.url;
+  $('cell-'+key).innerHTML = `<img src="${p.url}"><button class="photo-del" onclick="delPhoto('${key}')">✕</button><input type="file" accept="image/*" onchange="loadPhoto('${key}',this)">`;
+  closePhotoPicker();
+}
+function closePhotoPicker(){
+  $('photo-picker-modal').classList.remove('show');
+  pickerTargetKey = null;
 }
 
 function syncHeader(){
