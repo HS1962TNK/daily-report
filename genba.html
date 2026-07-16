@@ -27,7 +27,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .site-item{background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.07)}
 .site-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px}
 .site-name{font-size:15px;font-weight:700;color:#1a1a1a}
-.site-badge{font-size:10px;background:#eff6ff;color:#1d6fcf;padding:3px 8px;border-radius:20px;font-weight:600}
+.site-badge{font-size:10px;background:#eff6ff;color:#1d6fcf;padding:3px 8px;border-radius:20px;font-weight:600}.site-badge.badge-before{background:#fef3c7;color:#b45309}.site-badge.badge-active{background:#dcfce7;color:#16a34a}.site-badge.badge-done{background:#f3f4f6;color:#6b7280}
 .site-info{font-size:12px;color:#6b7280;line-height:1.8}
 .site-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 .btn-diary{flex:1;min-width:120px;padding:9px;background:#1d6fcf;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer}
@@ -332,6 +332,14 @@ function loadSites(showMsg){
     });
 }
 
+function getPeriodStatus(s){
+  if(!s.startDate && !s.endDate) return null;
+  const todayStr = new Date().toLocaleDateString('sv-SE', {timeZone:'Asia/Tokyo'});
+  if(s.startDate && todayStr < s.startDate) return {label:'作業前', cls:'badge-before'};
+  if(s.endDate && todayStr > s.endDate) return {label:'作業完了', cls:'badge-done'};
+  return {label:'作業中', cls:'badge-active'};
+}
+
 function renderSites(){
   const el = document.getElementById('sites-list');
   document.getElementById('site-count').textContent = sites.length + '件の現場';
@@ -352,7 +360,7 @@ function renderSites(){
     <div class="site-item">
       <div class="site-head">
         <div class="site-name">${esc(s.name)}</div>
-        ${s.endDate ? '<div class="site-badge">工期あり</div>' : ''}
+        ${(() => { const st = getPeriodStatus(s); return st ? '<div class="site-badge ' + st.cls + '">' + st.label + '</div>' : ''; })()}
       </div>
       <div class="site-info">
         ${s.address   ? `<span>📍 ${esc(s.address)}</span>` : ''}
