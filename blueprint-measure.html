@@ -1,3 +1,14 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>図面計測ツール</title>
+</head>
+<body>
 <style>
   :root{
     --bp-bg:#0d2438;
@@ -62,6 +73,16 @@
     margin-top:1px;
   }
   .bp-divider{width:1px;align-self:stretch;background:rgba(111,168,201,0.22);margin:2px 0;}
+  .bp-version{
+    font-family:var(--font-mono);
+    font-size:10px;
+    color:var(--bp-ink-dim);
+    letter-spacing:.3px;
+    padding:2px 7px;
+    border:1px solid rgba(111,168,201,0.28);
+    border-radius:999px;
+    white-space:nowrap;
+  }
 
   .bp-group{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
   .bp-filename{font-size:12px;color:var(--bp-ink-dim);font-family:var(--font-mono);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -283,6 +304,7 @@
         <span class="tag">SCALE · LENGTH · AREA</span>
       </div>
     </div>
+    <span class="bp-version" id="versionEl"></span>
     <div class="bp-divider"></div>
 
     <div class="bp-group">
@@ -314,6 +336,7 @@
       <span class="zoom-label" id="zoomLabel">—</span>
       <button class="btn small" id="zoomInBtn" disabled>＋</button>
       <button class="btn small" id="zoomResetBtn" disabled>全体表示</button>
+      <button class="btn small" id="saveImageBtn" disabled>画像保存</button>
     </div>
 
     <div class="spacer"></div>
@@ -402,6 +425,11 @@
 (function(){
   "use strict";
 
+  /* ===== 改定時はこの2行だけ変更してください ===== */
+  const APP_VERSION = 'v1.4';
+  const APP_UPDATED = '2026-07-16';
+  /* ============================================ */
+
   /* ---------------- DOM refs ---------------- */
   const canvas = document.getElementById('mainCanvas');
   const ctx = canvas.getContext('2d');
@@ -427,6 +455,7 @@
   const zoomInBtn = document.getElementById('zoomInBtn');
   const zoomOutBtn = document.getElementById('zoomOutBtn');
   const zoomResetBtn = document.getElementById('zoomResetBtn');
+  const saveImageBtn = document.getElementById('saveImageBtn');
   const zoomLabel = document.getElementById('zoomLabel');
 
   const lengthUnitSel = document.getElementById('lengthUnitSel');
@@ -1042,7 +1071,7 @@
       else { await loadImage(file); }
       emptyState.hidden = true;
       hintBar.hidden = false;
-      [btnScale, btnPan, zoomInBtn, zoomOutBtn, zoomResetBtn].forEach(b=>b.disabled=false);
+      [btnScale, btnPan, zoomInBtn, zoomOutBtn, zoomResetBtn, saveImageBtn].forEach(b=>b.disabled=false);
       resizeCanvas();
       fitToView();
       setMode('scale');
@@ -1131,6 +1160,114 @@
     } else { doIt(); }
   }
 
+  /* ---------------- Export annotated image ---------------- */
+  function exportAnnotatedImage(){
+    if(!sourceImage) return;
+
+    // 原寸のオフスクリーンキャンバスに図面＋注釈を描画
+    const out = document.createElement('canvas');
+    out.width = imgWidth;
+    out.height = imgHeight;
+    const octx = out.getContext('2d');
+    octx.drawImage(sourceImage, 0, 0, imgWidth, imgHeight);
+
+    // 図面サイズに応じて線・文字を拡大(画面表示と近い見た目に)
+    const s = Math.max(1, Math.min(imgWidth, imgHeight) / 900);
+    const lineW = 2 * s;
+    const dotR = 3.5 * s;
+    const fontMain = (12 * s);
+    const fontSub = (10 * s);
+
+    function label(x, y, text, opts){
+      opts = opts || {};
+      const sub = opts.sub;
+      octx.font = '600 ' + fontMain + "px 'IBM Plex Mono', monospace";
+      const w1 = octx.measureText(text).width;
+      let w2 = 0;
+      if(sub){ octx.font = '400 ' + fontSub + "px 'IBM Plex Mono', monospace"; w2 = octx.measureText(sub).width; }
+      const w = Math.max(w1, w2) + 16 * s;
+      const h = (sub ? 34 : 20) * s;
+      const r = 5 * s;
+      octx.beginPath();
+      octx.moveTo(x - w/2 + r, y - h/2);
+      octx.arcTo(x + w/2, y - h/2, x + w/2, y + h/2, r);
+      octx.arcTo(x + w/2, y + h/2, x - w/2, y + h/2, r);
+      octx.arcTo(x - w/2, y + h/2, x - w/2, y - h/2, r);
+      octx.arcTo(x - w/2, y - h/2, x + w/2, y - h/2, r);
+      octx.closePath();
+      octx.fillStyle = 'rgba(13,36,56,0.92)';
+      octx.fill();
+      octx.strokeStyle = opts.border || COLORS.line;
+      octx.lineWidth = 1 * s;
+      octx.stroke();
+      octx.textAlign = 'center';
+      octx.textBaseline = 'middle';
+      if(sub){
+        octx.font = '600 ' + fontMain + "px 'IBM Plex Mono', monospace";
+        octx.fillStyle = COLORS.ink; octx.fillText(text, x, y - 7*s);
+        octx.font = '400 ' + fontSub + "px 'IBM Plex Mono', monospace";
+        octx.fillStyle = COLORS.inkDim; octx.fillText(sub, x, y + 9*s);
+      } else {
+        octx.font = '600 ' + fontMain + "px 'IBM Plex Mono', monospace";
+        octx.fillStyle = COLORS.ink; octx.fillText(text, x, y + 1);
+      }
+    }
+
+    // 基準線
+    if(calibration){
+      const [p1,p2] = calibration.line;
+      octx.save();
+      octx.setLineDash([6*s,4*s]);
+      octx.strokeStyle = COLORS.accent; octx.lineWidth = lineW;
+      octx.beginPath(); octx.moveTo(p1.x,p1.y); octx.lineTo(p2.x,p2.y); octx.stroke();
+      octx.setLineDash([]);
+      [p1,p2].forEach(p=>{ octx.fillStyle = COLORS.accent; octx.beginPath(); octx.arc(p.x,p.y,3*s,0,Math.PI*2); octx.fill(); });
+      const mid = {x:(p1.x+p2.x)/2, y:(p1.y+p2.y)/2};
+      label(mid.x, mid.y - 16*s, '基準  ' + calibration.label, {border:COLORS.accent});
+      octx.restore();
+    }
+
+    // 各計測
+    measurements.forEach((m, idx)=>{
+      const num = idx + 1;
+      const pts = m.points;
+      octx.save();
+      octx.strokeStyle = COLORS.teal; octx.fillStyle = COLORS.teal; octx.lineWidth = lineW;
+      if(m.type==='length'){
+        octx.beginPath(); octx.moveTo(pts[0].x,pts[0].y); octx.lineTo(pts[1].x,pts[1].y); octx.stroke();
+        pts.forEach(p=>{ octx.beginPath(); octx.arc(p.x,p.y,dotR,0,Math.PI*2); octx.fill(); });
+        const mid = {x:(pts[0].x+pts[1].x)/2, y:(pts[0].y+pts[1].y)/2};
+        label(mid.x, mid.y - 16*s, '#'+num+'  '+formatLength(m.meters), {border:COLORS.teal});
+      } else if(m.type==='curve'){
+        const sm = catmullRomSample(pts, false);
+        octx.beginPath(); sm.forEach((p,i)=> i===0 ? octx.moveTo(p.x,p.y) : octx.lineTo(p.x,p.y)); octx.stroke();
+        pts.forEach(p=>{ octx.beginPath(); octx.arc(p.x,p.y,dotR,0,Math.PI*2); octx.fill(); });
+        const mp = sm[Math.floor(sm.length/2)];
+        label(mp.x, mp.y - 16*s, '#'+num+'  '+formatLength(m.meters), {border:COLORS.teal});
+      } else {
+        const outline = m.smooth ? catmullRomSample(pts, true) : pts;
+        octx.beginPath(); outline.forEach((p,i)=> i===0 ? octx.moveTo(p.x,p.y) : octx.lineTo(p.x,p.y)); octx.closePath();
+        octx.globalAlpha = 0.14; octx.fill(); octx.globalAlpha = 1; octx.stroke();
+        pts.forEach(p=>{ octx.beginPath(); octx.arc(p.x,p.y,dotR,0,Math.PI*2); octx.fill(); });
+        const cx = pts.reduce((a,p)=>a+p.x,0)/pts.length;
+        const cy = pts.reduce((a,p)=>a+p.y,0)/pts.length;
+        label(cx, cy, '#'+num+'  '+formatArea(m.sqMeters), {border:COLORS.teal, sub:'周長 '+formatLength(m.perimMeters)});
+      }
+      octx.restore();
+    });
+
+    // 出力
+    out.toBlob(blob=>{
+      if(!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const base = (filenameEl.textContent || '図面').replace(/\.[^.]+$/, '');
+      a.href = url; a.download = base + '_計測.png';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 'image/png');
+  }
+
   /* ---------------- CSV export ---------------- */
   function exportCSV(){
     if(measurements.length===0) return;
@@ -1167,6 +1304,7 @@
   zoomInBtn.addEventListener('click', ()=>zoomBy(1.25));
   zoomOutBtn.addEventListener('click', ()=>zoomBy(0.8));
   zoomResetBtn.addEventListener('click', ()=>{ if(sourceImage){ fitToView(); draw(); } });
+  saveImageBtn.addEventListener('click', exportAnnotatedImage);
 
   lengthUnitSel.addEventListener('change', ()=>{ lengthUnit = lengthUnitSel.value; renderList(); });
   areaUnitSel.addEventListener('change', ()=>{ areaUnit = areaUnitSel.value; renderList(); });
@@ -1344,9 +1482,14 @@
   });
 
   /* ---------------- Init ---------------- */
+  const versionEl = document.getElementById('versionEl');
+  if(versionEl) versionEl.textContent = APP_VERSION + ' · ' + APP_UPDATED;
   updateHint();
   updateScaleStatus();
   renderList();
   resizeCanvas();
 })();
 </script>
+
+</body>
+</html>
