@@ -23,7 +23,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .hf-field label{font-size:11px;color:#6b7280;display:block;margin-bottom:3px;font-weight:600}
 .hf-field input{width:100%;padding:8px 10px;border:1.5px solid #e5e7eb;border-radius:7px;font-size:13px;font-family:inherit}
 .hf-field input:focus{outline:none;border-color:#1B3A6B}
-.site-select{padding:7px 10px;border:1.5px solid #1B3A6B;border-radius:7px;font-size:12px;font-family:inherit;background:#EBF4FF;color:#1B3A6B;font-weight:600;cursor:pointer}
+.site-select{padding:7px 10px;border:1.5px solid #1B3A6B;border-radius:7px;font-size:12px;font-family:inherit;background:#EBF4FF;color:#1B3A6B;font-weight:600;cursor:pointer;width:220px}
+.site-search-wrap{position:relative;display:inline-block}
+.site-search-results{display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1.5px solid #1B3A6B;border-radius:8px;max-height:280px;overflow-y:auto;z-index:200;box-shadow:0 4px 16px rgba(0,0,0,.15)}
+.site-search-results.show{display:block}
+.site-search-item{padding:8px 12px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.site-search-item:hover{background:#EBF4FF}
+.site-search-item .ssi-badge{font-size:10px;color:#f59e0b;font-weight:700;flex-shrink:0}
+.site-search-empty{padding:12px;font-size:12px;color:#999;text-align:center}
 
 .pages{padding:12px 12px 40px}
 .page{background:#fff;width:210mm;min-height:297mm;margin:0 auto 16px;padding:14mm 12mm;box-shadow:0 2px 12px rgba(0,0,0,.15);position:relative;display:flex;flex-direction:column}
@@ -109,9 +116,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 <div class="header-form no-print">
   <div class="hf-title">
     <span>📋 台帳の基本情報（表紙に反映）</span>
-    <select class="site-select" id="site-select" onchange="applySite(this.value)">
-      <option value="">現場情報から選択…</option>
-    </select>
+    <div class="site-search-wrap">
+      <input type="text" class="site-select" id="site-search" placeholder="🔍 現場名で検索…" autocomplete="off" oninput="onSiteSearchInput(this.value)" onfocus="onSiteSearchInput(this.value)">
+      <div class="site-search-results" id="site-search-results"></div>
+    </div>
   </div>
   <div class="hf-grid">
     <div class="hf-field"><label>工事名</label><input type="text" id="h-koji" placeholder="○○マンション防水工事" oninput="syncHeader()"></div>
@@ -148,47 +156,65 @@ function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;'
 
 // 現場リスト読み込み
 function loadSiteList(){
-  const cached = JSON.parse(localStorage.getItem('genba-sites')||'[]');
-  fillSiteSelect(cached);
-  fetch(GAS_URL + '?action=getSites')
-    .then(r=>r.json())
-    .then(res=>{
-      if(res.sites){
-        localStorage.setItem('genba-sites', JSON.stringify(res.sites));
-        fillSiteSelect(res.sites);
-      }
-    }).catch(()=>{});
+const cached = JSON.parse(localStorage.getItem('genba-sites-all')||'[]');
+window._sites = cached;
+autoSelectFromUrl();
+fetch(GAS_URL + '?action=getSites&includeArchived=1')
+.then(r=>r.json())
+.then(res=>{
+if(res.sites){
+localStorage.setItem('genba-sites-all', JSON.stringify(res.sites));
+window._sites = res.sites;
+autoSelectFromUrl();
 }
-function fillSiteSelect(sites){
-  const sel = $('site-select');
-  sel.innerHTML = '<option value="">現場情報から選択…</option>';
-  sites.forEach((s,i)=>{
-    const opt = document.createElement('option');
-    opt.value = i;
-    opt.textContent = s.name;
-    sel.appendChild(opt);
-  });
-  window._sites = sites;
-  // URL引数 ?site=現場名 があれば自動選択
-  const params = new URLSearchParams(location.search);
-  const siteName = params.get('site');
-  if(siteName && !$('h-koji').value){
-    const idx = sites.findIndex(s=>s.name===siteName);
-    if(idx>=0){ sel.value=idx; applySite(idx); }
-  }
+}).catch(()=>{});
+}
+function autoSelectFromUrl(){
+const params = new URLSearchParams(location.search);
+const siteName = params.get('site');
+if(siteName && !$('h-koji').value){
+const idx = (window._sites||[]).findIndex(s=>s.name===siteName);
+if(idx>=0){ $('site-search').value = siteName; applySite(idx); }
+}
+}
+function onSiteSearchInput(q){
+const box = $('site-search-results');
+const query = (q||'').trim();
+const sites = window._sites || [];
+const matched = query ? sites.filter(s => s.name && s.name.indexOf(query) !== -1) : sites;
+const list = matched.slice(0, 30);
+if(!list.length){
+box.innerHTML = '<div class="site-search-empty">該当する現場がありません</div>';
+} else {
+box.innerHTML = list.map(s=>{
+const realIdx = sites.indexOf(s);
+const badge = s.status === '削除済み' ? '<span class="ssi-badge">終了</span>' : '';
+return '<div class="site-search-item" onmousedown="selectSiteFromSearch(' + realIdx + ')"><span>' + esc(s.name) + '</span>' + badge + '</div>';
+}).join('');
+}
+box.classList.add('show');
+}
+function selectSiteFromSearch(idx){
+const s = (window._sites||[])[idx];
+if(!s) return;
+$('site-search').value = s.name;
+$('site-search-results').classList.remove('show');
+applySite(idx);
 }
 function applySite(idx){
-  if(idx==='') return;
-  const s = (window._sites||[])[idx];
-  if(!s) return;
-  $('h-koji').value = s.name||'';
-  $('h-genba').value = s.name||'';
-  $('h-addr').value = s.address||'';
-  $('h-gyosha').value = s.client||'';
-  syncHeader();
+const s = (window._sites||[])[idx];
+if(!s) return;
+$('h-koji').value = s.name||'';
+$('h-genba').value = s.name||'';
+$('h-addr').value = s.address||'';
+$('h-gyosha').value = s.client||'';
+syncHeader();
 }
+document.addEventListener('click', function(e){
+const wrap = document.querySelector('.site-search-wrap');
+if(wrap && !wrap.contains(e.target)) $('site-search-results').classList.remove('show');
+});
 
-// 表紙ページ
 function buildCover(){
   return `
     <div class="page cover" id="cover-page">
