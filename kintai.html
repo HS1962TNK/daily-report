@@ -56,6 +56,8 @@ table.history{min-width:520px}
 .summary-item{background:#f8f9fb;border-radius:8px;padding:10px;text-align:center}
 .summary-item .s-label{font-size:11px;color:#999}
 .summary-item .s-val{font-size:18px;font-weight:700;margin-top:2px;color:#1a1a1a}
+.save-btn{width:100%;padding:12px;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;background:#1B3A6B;color:#fff;margin-top:12px}
+.save-btn:disabled{background:#d1d5db;color:#9ca3af;cursor:not-allowed}
 </style>
 </head>
 <body>
@@ -100,6 +102,7 @@ table.history{min-width:520px}
     <div class="card-title">📊 月次集計</div>
     <input type="month" class="month-input" id="summary-month" onchange="refreshSummary()">
     <div class="summary-grid" id="summary-grid"></div>
+    <button class="save-btn" id="save-summary-btn" onclick="saveSummaryToSheet()">💾 全従業員の集計をシートに保存</button>
   </div>
 
   <div class="card" id="history-card" style="display:none">
@@ -202,6 +205,30 @@ function refreshSummary(){
     })
     .catch(()=>{
       grid.innerHTML = '<div class="summary-item" style="grid-column:span 2">通信に失敗しました</div>';
+    });
+}
+
+function saveSummaryToSheet(){
+  const ym = $('summary-month').value || fmtYearMonth();
+  if(!confirm(ym + 'の全従業員分の月次集計をスプレッドシートに保存します。よろしいですか？')) return;
+  const btn = $('save-summary-btn');
+  btn.disabled = true;
+  btn.textContent = '保存中...';
+  fetch(GAS_URL + '?action=saveMonthlySummary&yearMonth=' + encodeURIComponent(ym))
+    .then(r=>r.json())
+    .then(res=>{
+      btn.disabled = false;
+      btn.textContent = '💾 全従業員の集計をシートに保存';
+      if(res.status!=='ok'){
+        alert('⚠️ ' + (res.message||'保存に失敗しました'));
+        return;
+      }
+      alert('✅ ' + res.yearMonth + 'の集計を' + res.count + '名分保存しました');
+    })
+    .catch(()=>{
+      btn.disabled = false;
+      btn.textContent = '💾 全従業員の集計をシートに保存';
+      alert('⚠️ 通信に失敗しました');
     });
 }
 
