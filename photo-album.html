@@ -59,6 +59,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .photo-cell .ph-placeholder .ph-icon{font-size:32px;margin-bottom:6px}
 .photo-cell input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
 .photo-del{position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:none;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;z-index:5}
+.photo-rotate{position:absolute;top:4px;left:4px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:none;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;z-index:5}
 .photo-cell .ph-pick-btn{position:relative;z-index:6;margin-top:8px;background:#1B3A6B;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-family:inherit}
 .photo-cell .ph-pick-btn:hover{background:#14294d}
 
@@ -96,7 +97,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
   .pages{padding:0}
   .page{box-shadow:none;margin:0;width:auto;min-height:auto;page-break-after:always}
   .page:last-child{page-break-after:auto}
-  .photo-del{display:none!important}
+  .photo-del,.photo-rotate{display:none!important}
   .photo-cell .ph-placeholder{display:none}
   .info-val input,.info-comment textarea{background:transparent!important}
   @page{size:A4 portrait;margin:0}
@@ -289,7 +290,7 @@ function buildPhotoPage(pageIdx){
           ondragleave="onCellDragLeave('${key}')"
           ondrop="onCellDrop(event,'${key}')">
           ${photoData[key]
-            ? `<img src="${photoData[key]}"><button class="photo-del" onclick="delPhoto('${key}')">✕</button>`
+            ? photoFilledHtml(key, photoData[key])
             : `<div class="ph-placeholder"><div class="ph-icon">📷</div>クリック または<br>ドラッグ＆ドロップ<br><button type="button" class="ph-pick-btn" onclick="event.stopPropagation();openPhotoPicker('${key}')">📂 現場の写真から選ぶ</button></div>`}
           <input type="file" accept="image/*" onchange="loadPhoto('${key}',this)">
         </div>
@@ -334,14 +335,45 @@ function loadPhoto(key,inp){
   const f=inp.files[0];if(!f)return;
   setPhoto(key,f);
 }
+function photoFilledHtml(key, src){
+  return `<img src="${src}"><button class="photo-del" onclick="delPhoto('${key}')">✕</button><button class="photo-rotate" onclick="event.stopPropagation();rotatePhoto('${key}')" title="90度回転">↻</button><input type="file" accept="image/*" onchange="loadPhoto('${key}',this)">`;
+}
 function setPhoto(key,file){
   if(!file||!file.type.startsWith('image/')){alert('⚠️ 画像ファイルを選択してください');return;}
   const r=new FileReader();
   r.onload=e=>{
     photoData[key]=e.target.result;
-    $('cell-'+key).innerHTML=`<img src="${e.target.result}"><button class="photo-del" onclick="delPhoto('${key}')">✕</button><input type="file" accept="image/*" onchange="loadPhoto('${key}',this)">`;
+    $('cell-'+key).innerHTML=photoFilledHtml(key, e.target.result);
   };
   r.readAsDataURL(file);
+}
+function rotatePhoto(key){
+  const src = photoData[key];
+  if(!src) return;
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalHeight;
+    canvas.height = img.naturalWidth;
+    const ctx = canvas.getContext('2d');
+    ctx.translate(canvas.width/2, canvas.height/2);
+    ctx.rotate(90 * Math.PI/180);
+    ctx.drawImage(img, -img.naturalWidth/2, -img.naturalHeight/2);
+    let rotated;
+    try{
+      rotated = canvas.toDataURL('image/jpeg', 0.9);
+    }catch(err){
+      alert('⚠️ この写真は回転できませんでした。一度パソコンに保存してから再アップロードしてお試しください。');
+      return;
+    }
+    photoData[key] = rotated;
+    $('cell-'+key).innerHTML = photoFilledHtml(key, rotated);
+  };
+  img.onerror = () => {
+    alert('⚠️ 画像の読み込みに失敗し、回転できませんでした');
+  };
+  img.src = src;
 }
 function delPhoto(key){
   delete photoData[key];
@@ -401,7 +433,7 @@ function choosePickerPhoto(i){
   if(!p || !pickerTargetKey) return;
   const key = pickerTargetKey;
   photoData[key] = p.url;
-  $('cell-'+key).innerHTML = `<img src="${p.url}"><button class="photo-del" onclick="delPhoto('${key}')">✕</button><input type="file" accept="image/*" onchange="loadPhoto('${key}',this)">`;
+  $('cell-'+key).innerHTML = photoFilledHtml(key, p.url);
   closePhotoPicker();
 }
 function closePhotoPicker(){
