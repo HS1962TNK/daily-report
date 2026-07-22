@@ -90,6 +90,14 @@ table.history{min-width:520px}
         <div class="time-item"><div class="t-label">深夜</div><div class="t-val" id="t-night">--</div></div>
         <div class="time-item"><div class="t-label">区分</div><div class="t-val" id="t-holiday">平日</div></div>
       </div>
+      <div class="time-row">
+        <div class="time-item"><div class="t-label">遅刻</div><div class="t-val" id="t-late">--</div></div>
+        <div class="time-item"><div class="t-label">早退</div><div class="t-val" id="t-early">--</div></div>
+      </div>
+      <div class="time-row">
+        <div class="time-item" style="flex:1"><div class="t-label">出勤地</div><div class="t-val" id="t-loc-in" style="font-size:12px">--</div></div>
+        <div class="time-item" style="flex:1"><div class="t-label">退勤地</div><div class="t-val" id="t-loc-out" style="font-size:12px">--</div></div>
+      </div>
     </div>
     <input type="text" class="note-input" id="note-input" placeholder="備考（任意）">
     <div class="btn-row">
@@ -124,7 +132,7 @@ table.history{min-width:520px}
     <div class="card-title">📋 直近の記録</div>
     <div class="history-scroll">
     <table class="history">
-      <thead><tr><th>日付</th><th>区分</th><th>出勤</th><th>退勤</th><th>実働</th><th>残業</th><th>深夜</th></tr></thead>
+      <thead><tr><th>日付</th><th>区分</th><th>出勤</th><th>退勤</th><th>実働</th><th>残業</th><th>深夜</th><th>遅刻</th><th>早退</th><th>出勤地</th><th>退勤地</th></tr></thead>
       <tbody id="history-body"></tbody>
     </table>
     </div>
@@ -273,20 +281,36 @@ function refreshStatus(){
   fetch(GAS_URL + '?action=getTodayStatus&name=' + encodeURIComponent(name))
     .then(r=>r.json())
     .then(res=>{
-      renderStatus(res.clockIn||'', res.clockOut||'', res.workMinutes, res.overtimeMinutes, res.nightMinutes, res.holiday);
+      renderStatus(res.clockIn||'', res.clockOut||'', res.workMinutes, res.overtimeMinutes, res.nightMinutes, res.holiday, res.locationIn, res.locationOut, res.lateMinutes, res.earlyMinutes);
     })
     .catch(()=>{
       $('status-value').textContent = '取得に失敗しました';
     });
 }
 
-function renderStatus(clockIn, clockOut, workMinutes, overtimeMinutes, nightMinutes, holiday){
+// GPS位置情報を取得する（打刻には必須。取得できなければnullを返す）
+function getLocation(){
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) { resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+    );
+  });
+}
+
+function renderStatus(clockIn, clockOut, workMinutes, overtimeMinutes, nightMinutes, holiday, locationIn, locationOut, lateMinutes, earlyMinutes){
   $('t-in').textContent = clockIn || '--:--';
   $('t-out').textContent = clockOut || '--:--';
   $('t-work').textContent = fmtWorkMinutes(workMinutes);
   $('t-ot').textContent = fmtWorkMinutes(overtimeMinutes);
   $('t-night').textContent = fmtWorkMinutes(nightMinutes);
   $('t-holiday').textContent = holiday ? '休日' : '平日';
+  $('t-loc-in').textContent = locationIn || '--';
+  $('t-loc-out').textContent = locationOut || '--';
+  $('t-late').textContent = lateMinutes>0 ? fmtWorkMinutes(lateMinutes) : 'なし';
+  $('t-early').textContent = earlyMinutes>0 ? fmtWorkMinutes(earlyMinutes) : 'なし';
 
   const statusEl = $('status-value');
   const btnIn = $('btn-in');
@@ -310,13 +334,26 @@ function renderStatus(clockIn, clockOut, workMinutes, overtimeMinutes, nightMinu
   }
 }
 
-function doClock(action){
+async function doClock(action){
   const name = $('emp-select').value;
   if(!name) return;
   const note = $('note-input').value;
-  $('btn-in').disabled = true;
-  $('btn-out').disabled = true;
-  fetch(GAS_URL + '?action=' + action + '&name=' + encodeURIComponent(name) + '&note=' + encodeURIComponent(note))
+  const btnIn = $('btn-in'), btnOut = $('btn-out');
+  btnIn.disabled = true;
+  btnOut.disabled = true;
+  const prevStatus = $('status-value').textContent;
+  $('status-value').textContent = '📍 位置情報を取得中...';
+
+  const loc = await getLocation();
+  if(!loc){
+    alert('⚠️ 位置情報の取得が必要です。ブラウザ・端末の位置情報の利用を許可してから、もう一度お試しください。');
+    $('status-value').textContent = prevStatus;
+    refreshStatus();
+    return;
+  }
+
+  fetch(GAS_URL + '?action=' + action + '&name=' + encodeURIComponent(name) + '&note=' + encodeURIComponent(note)
+    + '&lat=' + loc.lat + '&lon=' + loc.lon)
     .then(r=>r.json())
     .then(res=>{
       if(res.status!=='ok'){
@@ -337,13 +374,13 @@ function refreshHistory(){
   const name = $('emp-select').value;
   if(!name) return;
   const body = $('history-body');
-  body.innerHTML = '<tr><td colspan="7" class="empty">読み込み中...</td></tr>';
+  body.innerHTML = '<tr><td colspan="11" class="empty">読み込み中...</td></tr>';
   fetch(GAS_URL + '?action=getMyHistory&name=' + encodeURIComponent(name) + '&days=30')
     .then(r=>r.json())
     .then(res=>{
       const records = res.records || [];
       if(!records.length){
-        body.innerHTML = '<tr><td colspan="7" class="empty">記録がありません</td></tr>';
+        body.innerHTML = '<tr><td colspan="11" class="empty">記録がありません</td></tr>';
         return;
       }
       body.innerHTML = records.map(r=>`
@@ -355,10 +392,14 @@ function refreshHistory(){
           <td>${fmtWorkMinutes(r.workMinutes)}</td>
           <td>${fmtWorkMinutes(r.overtimeMinutes)}</td>
           <td>${fmtWorkMinutes(r.nightMinutes)}</td>
+          <td>${r.lateMinutes>0?fmtWorkMinutes(r.lateMinutes):'--'}</td>
+          <td>${r.earlyMinutes>0?fmtWorkMinutes(r.earlyMinutes):'--'}</td>
+          <td>${esc(r.locationIn)||'--'}</td>
+          <td>${esc(r.locationOut)||'--'}</td>
         </tr>`).join('');
     })
     .catch(()=>{
-      body.innerHTML = '<tr><td colspan="7" class="empty">読み込みに失敗しました</td></tr>';
+      body.innerHTML = '<tr><td colspan="11" class="empty">読み込みに失敗しました</td></tr>';
     });
 }
 
