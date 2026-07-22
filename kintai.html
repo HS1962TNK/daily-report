@@ -50,6 +50,12 @@ table.history .empty{color:#999;padding:16px;text-align:center}
 .holiday-badge{display:inline-block;font-size:11px;font-weight:700;color:#ef4444;background:#fee;border-radius:4px;padding:1px 6px;margin-left:4px}
 .history-scroll{overflow-x:auto}
 table.history{min-width:520px}
+
+.month-input{width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:14px;font-family:inherit;margin-bottom:12px}
+.summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.summary-item{background:#f8f9fb;border-radius:8px;padding:10px;text-align:center}
+.summary-item .s-label{font-size:11px;color:#999}
+.summary-item .s-val{font-size:18px;font-weight:700;margin-top:2px;color:#1a1a1a}
 </style>
 </head>
 <body>
@@ -88,6 +94,12 @@ table.history{min-width:520px}
       <button class="btn-clock in" id="btn-in" onclick="doClock('clockIn')"><span class="ic">🟢</span>出勤</button>
       <button class="btn-clock out" id="btn-out" onclick="doClock('clockOut')"><span class="ic">🔴</span>退勤</button>
     </div>
+  </div>
+
+  <div class="card" id="summary-card" style="display:none">
+    <div class="card-title">📊 月次集計</div>
+    <input type="month" class="month-input" id="summary-month" onchange="refreshSummary()">
+    <div class="summary-grid" id="summary-grid"></div>
   </div>
 
   <div class="card" id="history-card" style="display:none">
@@ -146,14 +158,51 @@ function onEmpChange(){
   const name = $('emp-select').value;
   if(!name){
     $('status-card').style.display='none';
+    $('summary-card').style.display='none';
     $('history-card').style.display='none';
     return;
   }
   localStorage.setItem('kintai_last_employee', name);
   $('status-card').style.display='block';
+  $('summary-card').style.display='block';
   $('history-card').style.display='block';
   refreshStatus();
+  refreshSummary();
   refreshHistory();
+}
+
+function fmtYearMonth(){
+  const d = new Date();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  return `${d.getFullYear()}-${m}`;
+}
+
+function refreshSummary(){
+  const name = $('emp-select').value;
+  if(!name) return;
+  if(!$('summary-month').value) $('summary-month').value = fmtYearMonth();
+  const ym = $('summary-month').value;
+  const grid = $('summary-grid');
+  grid.innerHTML = '<div class="summary-item" style="grid-column:span 2">読み込み中...</div>';
+  fetch(GAS_URL + '?action=getMonthlySummary&name=' + encodeURIComponent(name) + '&yearMonth=' + encodeURIComponent(ym))
+    .then(r=>r.json())
+    .then(res=>{
+      if(res.status!=='ok'){
+        grid.innerHTML = '<div class="summary-item" style="grid-column:span 2">取得に失敗しました</div>';
+        return;
+      }
+      grid.innerHTML = `
+        <div class="summary-item"><div class="s-label">労働日数</div><div class="s-val">${res.workDays}日</div></div>
+        <div class="summary-item"><div class="s-label">実労働時間</div><div class="s-val">${fmtWorkMinutes(res.workMinutes)}</div></div>
+        <div class="summary-item"><div class="s-label">残業時間</div><div class="s-val">${fmtWorkMinutes(res.overtimeMinutes)}</div></div>
+        <div class="summary-item"><div class="s-label">深夜労働時間</div><div class="s-val">${fmtWorkMinutes(res.nightMinutes)}</div></div>
+        <div class="summary-item"><div class="s-label">休日労働日数</div><div class="s-val">${res.holidayDays}日</div></div>
+        <div class="summary-item"><div class="s-label">休日労働時間</div><div class="s-val">${fmtWorkMinutes(res.holidayMinutes)}</div></div>
+      `;
+    })
+    .catch(()=>{
+      grid.innerHTML = '<div class="summary-item" style="grid-column:span 2">通信に失敗しました</div>';
+    });
 }
 
 function refreshStatus(){
