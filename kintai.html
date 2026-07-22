@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="勤怠管理">
+<title>勤怠管理</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sans-serif;background:#e8e8e6;color:#1a1a1a;padding-bottom:40px}
+
+.toolbar{background:#1B3A6B;color:#fff;padding:14px 16px;position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.toolbar h1{font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px}
+.toolbar .today{font-size:12px;opacity:.85}
+
+.wrap{max-width:480px;margin:0 auto;padding:16px}
+
+.card{background:#fff;border-radius:12px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.1);margin-bottom:14px}
+.card-title{font-size:12px;font-weight:700;color:#6b7280;margin-bottom:10px}
+
+.emp-select{width:100%;padding:12px;border:1.5px solid #1B3A6B;border-radius:8px;font-size:15px;font-family:inherit;background:#EBF4FF;color:#1B3A6B;font-weight:600}
+
+.status-box{text-align:center;padding:14px 0}
+.status-label{font-size:13px;color:#6b7280;margin-bottom:4px}
+.status-value{font-size:22px;font-weight:700;color:#1a1a1a}
+.status-value.working{color:#22c55e}
+.status-value.done{color:#888}
+
+.time-row{display:flex;justify-content:space-around;margin-top:12px;padding-top:12px;border-top:1px solid #eee}
+.time-item{text-align:center}
+.time-item .t-label{font-size:11px;color:#999}
+.time-item .t-val{font-size:18px;font-weight:700;margin-top:2px}
+
+.btn-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.btn-clock{padding:18px 10px;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:center;gap:4px}
+.btn-clock .ic{font-size:26px}
+.btn-clock.in{background:#22c55e;color:#fff}
+.btn-clock.out{background:#ef4444;color:#fff}
+.btn-clock:disabled{background:#d1d5db;color:#9ca3af;cursor:not-allowed}
+
+.note-input{width:100%;padding:10px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:13px;font-family:inherit;margin-top:10px}
+
+table.history{width:100%;border-collapse:collapse;font-size:12px}
+table.history th{background:#f0f0f0;padding:6px 4px;font-weight:700;color:#555;border-bottom:1px solid #ddd;text-align:center}
+table.history td{padding:6px 4px;border-bottom:1px solid #eee;text-align:center}
+table.history .empty{color:#999;padding:16px;text-align:center}
+
+.msg{text-align:center;color:#999;font-size:13px;padding:20px 0}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <h1>⏰ 勤怠管理</h1>
+  <div class="today" id="today-label"></div>
+</div>
+
+<div class="wrap">
+
+  <div class="card">
+    <div class="card-title">👤 氏名を選択</div>
+    <select class="emp-select" id="emp-select" onchange="onEmpChange()">
+      <option value="">-- 選択してください --</option>
+    </select>
+  </div>
+
+  <div class="card" id="status-card" style="display:none">
+    <div class="status-box">
+      <div class="status-label">本日の状態</div>
+      <div class="status-value" id="status-value">読み込み中...</div>
+      <div class="time-row">
+        <div class="time-item"><div class="t-label">出勤</div><div class="t-val" id="t-in">--:--</div></div>
+        <div class="time-item"><div class="t-label">退勤</div><div class="t-val" id="t-out">--:--</div></div>
+        <div class="time-item"><div class="t-label">実働</div><div class="t-val" id="t-work">--</div></div>
+      </div>
+    </div>
+    <input type="text" class="note-input" id="note-input" placeholder="備考（任意）">
+    <div class="btn-row">
+      <button class="btn-clock in" id="btn-in" onclick="doClock('clockIn')"><span class="ic">🟢</span>出勤</button>
+      <button class="btn-clock out" id="btn-out" onclick="doClock('clockOut')"><span class="ic">🔴</span>退勤</button>
+    </div>
+  </div>
+
+  <div class="card" id="history-card" style="display:none">
+    <div class="card-title">📋 直近の記録</div>
+    <table class="history">
+      <thead><tr><th>日付</th><th>出勤</th><th>退勤</th><th>実働</th></tr></thead>
+      <tbody id="history-body"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+const GAS_URL = 'GAS_WEB_APP_URLをここに貼り付けてください';
+
+function $(id){return document.getElementById(id)}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
+
+function fmtToday(){
+  const d = new Date();
+  const w = ['日','月','火','水','木','金','土'][d.getDay()];
+  return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日(${w})`;
+}
+function fmtWorkMinutes(min){
+  if(min===''||min===null||min===undefined||isNaN(min)) return '--';
+  const m = Number(min);
+  const h = Math.floor(m/60), r = m%60;
+  return `${h}時間${r}分`;
+}
+
+function loadEmployees(){
+  fetch(GAS_URL + '?action=getEmployees')
+    .then(r=>r.json())
+    .then(res=>{
+      const sel = $('emp-select');
+      (res.employees||[]).forEach(emp=>{
+        const opt = document.createElement('option');
+        opt.value = emp.name;
+        opt.textContent = emp.name;
+        sel.appendChild(opt);
+      });
+      const last = localStorage.getItem('kintai_last_employee');
+      if(last && (res.employees||[]).some(e=>e.name===last)){
+        sel.value = last;
+        onEmpChange();
+      }
+    })
+    .catch(()=>{
+      $('emp-select').innerHTML = '<option value="">読み込みに失敗しました</option>';
+    });
+}
+
+function onEmpChange(){
+  const name = $('emp-select').value;
+  if(!name){
+    $('status-card').style.display='none';
+    $('history-card').style.display='none';
+    return;
+  }
+  localStorage.setItem('kintai_last_employee', name);
+  $('status-card').style.display='block';
+  $('history-card').style.display='block';
+  refreshStatus();
+  refreshHistory();
+}
+
+function refreshStatus(){
+  const name = $('emp-select').value;
+  if(!name) return;
+  $('status-value').textContent = '読み込み中...';
+  fetch(GAS_URL + '?action=getTodayStatus&name=' + encodeURIComponent(name))
+    .then(r=>r.json())
+    .then(res=>{
+      renderStatus(res.clockIn||'', res.clockOut||'', res.workMinutes);
+    })
+    .catch(()=>{
+      $('status-value').textContent = '取得に失敗しました';
+    });
+}
+
+function renderStatus(clockIn, clockOut, workMinutes){
+  $('t-in').textContent = clockIn || '--:--';
+  $('t-out').textContent = clockOut || '--:--';
+  $('t-work').textContent = fmtWorkMinutes(workMinutes);
+
+  const statusEl = $('status-value');
+  const btnIn = $('btn-in');
+  const btnOut = $('btn-out');
+
+  if(!clockIn){
+    statusEl.textContent = '未出勤';
+    statusEl.className = 'status-value';
+    btnIn.disabled = false;
+    btnOut.disabled = true;
+  } else if(clockIn && !clockOut){
+    statusEl.textContent = '勤務中';
+    statusEl.className = 'status-value working';
+    btnIn.disabled = true;
+    btnOut.disabled = false;
+  } else {
+    statusEl.textContent = '退勤済み';
+    statusEl.className = 'status-value done';
+    btnIn.disabled = true;
+    btnOut.disabled = true;
+  }
+}
+
+function doClock(action){
+  const name = $('emp-select').value;
+  if(!name) return;
+  const note = $('note-input').value;
+  $('btn-in').disabled = true;
+  $('btn-out').disabled = true;
+  fetch(GAS_URL + '?action=' + action + '&name=' + encodeURIComponent(name) + '&note=' + encodeURIComponent(note))
+    .then(r=>r.json())
+    .then(res=>{
+      if(res.status!=='ok'){
+        alert('⚠️ ' + (res.message||'処理に失敗しました'));
+        refreshStatus();
+        return;
+      }
+      refreshStatus();
+      refreshHistory();
+    })
+    .catch(()=>{
+      alert('⚠️ 通信に失敗しました');
+      refreshStatus();
+    });
+}
+
+function refreshHistory(){
+  const name = $('emp-select').value;
+  if(!name) return;
+  const body = $('history-body');
+  body.innerHTML = '<tr><td colspan="4" class="empty">読み込み中...</td></tr>';
+  fetch(GAS_URL + '?action=getMyHistory&name=' + encodeURIComponent(name) + '&days=30')
+    .then(r=>r.json())
+    .then(res=>{
+      const records = res.records || [];
+      if(!records.length){
+        body.innerHTML = '<tr><td colspan="4" class="empty">記録がありません</td></tr>';
+        return;
+      }
+      body.innerHTML = records.map(r=>`
+        <tr>
+          <td>${esc(r.date)}</td>
+          <td>${esc(r.clockIn)||'--'}</td>
+          <td>${esc(r.clockOut)||'--'}</td>
+          <td>${fmtWorkMinutes(r.workMinutes)}</td>
+        </tr>`).join('');
+    })
+    .catch(()=>{
+      body.innerHTML = '<tr><td colspan="4" class="empty">読み込みに失敗しました</td></tr>';
+    });
+}
+
+$('today-label').textContent = fmtToday();
+loadEmployees();
+</script>
+</body>
+</html>
