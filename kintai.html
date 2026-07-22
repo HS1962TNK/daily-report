@@ -102,7 +102,22 @@ table.history{min-width:520px}
     <div class="card-title">📊 月次集計</div>
     <input type="month" class="month-input" id="summary-month" onchange="refreshSummary()">
     <div class="summary-grid" id="summary-grid"></div>
-    <button class="save-btn" id="save-summary-btn" onclick="saveSummaryToSheet()">💾 全従業員の集計をシートに保存</button>
+  </div>
+
+  <div class="card" id="correct-card" style="display:none">
+    <div class="card-title">✏️ 打刻の修正</div>
+    <input type="date" class="month-input" id="correct-date">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div>
+        <label style="font-size:11px;color:#999">出勤時刻</label>
+        <input type="time" class="note-input" id="correct-in" style="margin-top:4px">
+      </div>
+      <div>
+        <label style="font-size:11px;color:#999">退勤時刻</label>
+        <input type="time" class="note-input" id="correct-out" style="margin-top:4px">
+      </div>
+    </div>
+    <button class="save-btn" id="save-correct-btn" onclick="saveCorrection()">💾 修正を保存</button>
   </div>
 
   <div class="card" id="history-card" style="display:none">
@@ -162,13 +177,16 @@ function onEmpChange(){
   if(!name){
     $('status-card').style.display='none';
     $('summary-card').style.display='none';
+    $('correct-card').style.display='none';
     $('history-card').style.display='none';
     return;
   }
   localStorage.setItem('kintai_last_employee', name);
   $('status-card').style.display='block';
   $('summary-card').style.display='block';
+  $('correct-card').style.display='block';
   $('history-card').style.display='block';
+  if(!$('correct-date').value) $('correct-date').value = fmtTodayISODate();
   refreshStatus();
   refreshSummary();
   refreshHistory();
@@ -178,6 +196,12 @@ function fmtYearMonth(){
   const d = new Date();
   const m = String(d.getMonth()+1).padStart(2,'0');
   return `${d.getFullYear()}-${m}`;
+}
+function fmtTodayISODate(){
+  const d = new Date();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${d.getFullYear()}-${m}-${day}`;
 }
 
 function refreshSummary(){
@@ -208,26 +232,36 @@ function refreshSummary(){
     });
 }
 
-function saveSummaryToSheet(){
-  const ym = $('summary-month').value || fmtYearMonth();
-  if(!confirm(ym + 'の全従業員分の月次集計をスプレッドシートに保存します。よろしいですか？')) return;
-  const btn = $('save-summary-btn');
+function saveCorrection(){
+  const name = $('emp-select').value;
+  if(!name) return;
+  const date = $('correct-date').value;
+  if(!date){ alert('日付を選択してください'); return; }
+  const clockIn = $('correct-in').value;
+  const clockOut = $('correct-out').value;
+  const btn = $('save-correct-btn');
   btn.disabled = true;
   btn.textContent = '保存中...';
-  fetch(GAS_URL + '?action=saveMonthlySummary&yearMonth=' + encodeURIComponent(ym))
+  fetch(GAS_URL + '?action=correctTime&name=' + encodeURIComponent(name)
+    + '&date=' + encodeURIComponent(date)
+    + '&clockIn=' + encodeURIComponent(clockIn)
+    + '&clockOut=' + encodeURIComponent(clockOut))
     .then(r=>r.json())
     .then(res=>{
       btn.disabled = false;
-      btn.textContent = '💾 全従業員の集計をシートに保存';
+      btn.textContent = '💾 修正を保存';
       if(res.status!=='ok'){
-        alert('⚠️ ' + (res.message||'保存に失敗しました'));
+        alert('⚠️ ' + (res.message||'修正に失敗しました'));
         return;
       }
-      alert('✅ ' + res.yearMonth + 'の集計を' + res.count + '名分保存しました');
+      alert('✅ ' + date + 'の打刻を修正しました');
+      refreshStatus();
+      refreshSummary();
+      refreshHistory();
     })
     .catch(()=>{
       btn.disabled = false;
-      btn.textContent = '💾 全従業員の集計をシートに保存';
+      btn.textContent = '💾 修正を保存';
       alert('⚠️ 通信に失敗しました');
     });
 }
