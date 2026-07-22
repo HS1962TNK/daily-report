@@ -350,8 +350,35 @@ function setPhoto(key,file){
 function rotatePhoto(key){
   const src = photoData[key];
   if(!src) return;
+
+  // Google Drive由来の写真はCORS制限で直接canvasに描画できないため、
+  // GAS経由で実データ(base64)を取得してから回転する
+  const driveMatch = /^https:\/\/drive\.google\.com\/thumbnail\?id=([^&]+)/.exec(src);
+  if(driveMatch){
+    const cell = $('cell-'+key);
+    const before = cell.innerHTML;
+    cell.innerHTML = '<div class="ph-placeholder">回転中…</div>';
+    fetch(GAS_URL + '?action=getPhotoData&id=' + encodeURIComponent(driveMatch[1]))
+      .then(r=>r.json())
+      .then(res=>{
+        if(res.status!=='ok' || !res.dataUrl){
+          cell.innerHTML = before;
+          alert('⚠️ 写真データの取得に失敗し、回転できませんでした');
+          return;
+        }
+        doRotate(key, res.dataUrl);
+      })
+      .catch(()=>{
+        cell.innerHTML = before;
+        alert('⚠️ 写真データの取得に失敗し、回転できませんでした');
+      });
+    return;
+  }
+
+  doRotate(key, src);
+}
+function doRotate(key, src){
   const img = new Image();
-  img.crossOrigin = 'anonymous';
   img.onload = () => {
     const canvas = document.createElement('canvas');
     canvas.width = img.naturalHeight;
@@ -360,13 +387,7 @@ function rotatePhoto(key){
     ctx.translate(canvas.width/2, canvas.height/2);
     ctx.rotate(90 * Math.PI/180);
     ctx.drawImage(img, -img.naturalWidth/2, -img.naturalHeight/2);
-    let rotated;
-    try{
-      rotated = canvas.toDataURL('image/jpeg', 0.9);
-    }catch(err){
-      alert('⚠️ この写真は回転できませんでした。一度パソコンに保存してから再アップロードしてお試しください。');
-      return;
-    }
+    const rotated = canvas.toDataURL('image/jpeg', 0.9);
     photoData[key] = rotated;
     $('cell-'+key).innerHTML = photoFilledHtml(key, rotated);
   };
@@ -375,10 +396,7 @@ function rotatePhoto(key){
   };
   img.src = src;
 }
-function delPhoto(key){
-  delete photoData[key];
-  $('cell-'+key).innerHTML=`<div class="ph-placeholder"><div class="ph-icon">📷</div>クリック または<br>ドラッグ＆ドロップ<br><button type="button" class="ph-pick-btn" onclick="event.stopPropagation();openPhotoPicker('${key}')">📂 現場の写真から選ぶ</button></div><input type="file" accept="image/*" onchange="loadPhoto('${key}',this)">`;
-}
+
 
 // ドラッグ＆ドロップ
 function onCellDragOver(e,key){
