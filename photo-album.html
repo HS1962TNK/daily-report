@@ -31,6 +31,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .site-search-item:hover{background:#EBF4FF}
 .site-search-item .ssi-badge{font-size:10px;color:#f59e0b;font-weight:700;flex-shrink:0}
 .site-search-empty{padding:12px;font-size:12px;color:#999;text-align:center}
+.completed-link{font-size:11px;color:#1B3A6B;cursor:pointer;text-decoration:underline;white-space:nowrap;margin-left:8px}
+.cp-year-item,.cp-site-item{padding:10px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid #eee}
+.cp-year-item:hover,.cp-site-item:hover{background:#EBF4FF}
+.cp-back{padding:8px 12px;font-size:12px;color:#1B3A6B;cursor:pointer;font-weight:600}
 
 .pages{padding:12px 12px 40px}
 .page{background:#fff;width:210mm;min-height:297mm;margin:0 auto 16px;padding:14mm 12mm;box-shadow:0 2px 12px rgba(0,0,0,.15);position:relative;display:flex;flex-direction:column}
@@ -120,6 +124,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
       <input type="text" class="site-select" id="site-search" placeholder="🔍 現場名で検索…" autocomplete="off" oninput="onSiteSearchInput(this.value)" onfocus="onSiteSearchInput(this.value)">
       <div class="site-search-results" id="site-search-results"></div>
     </div>
+    <span class="completed-link" onclick="openCompletedPicker()">📁 完了現場から探す</span>
   </div>
   <div class="hf-grid">
     <div class="hf-field"><label>工事名</label><input type="text" id="h-koji" placeholder="○○マンション防水工事" oninput="syncHeader()"></div>
@@ -138,6 +143,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
       <button onclick="closePhotoPicker()">✕</button>
     </div>
     <div class="pp-modal-body" id="pp-grid"></div>
+  </div>
+</div>
+
+<div class="pp-modal no-print" id="completed-picker-modal">
+  <div class="pp-modal-inner">
+    <div class="pp-modal-header">
+      <span>📁 完了現場から探す</span>
+      <button onclick="closeCompletedPicker()">✕</button>
+    </div>
+    <div class="pp-modal-body" id="completed-picker-body" style="padding:0"></div>
   </div>
 </div>
 
@@ -181,7 +196,7 @@ function onSiteSearchInput(q){
 const box = $('site-search-results');
 const query = (q||'').trim();
 const sites = window._sites || [];
-const matched = query ? sites.filter(s => s.name && s.name.indexOf(query) !== -1) : sites;
+const matched = query ? sites.filter(s => s.name && s.name.indexOf(query) !== -1) : sites.filter(s => !s.completed);
 const list = matched.slice(0, 30);
 if(!list.length){
 box.innerHTML = '<div class="site-search-empty">該当する現場がありません</div>';
@@ -212,6 +227,40 @@ document.addEventListener('click', function(e){
 const wrap = document.querySelector('.site-search-wrap');
 if(wrap && !wrap.contains(e.target)) $('site-search-results').classList.remove('show');
 });
+
+// 完了現場ピッカー（年→現場名の2段階選択）
+function openCompletedPicker(){
+  $('completed-picker-modal').classList.add('show');
+  renderCompletedYears();
+}
+function closeCompletedPicker(){
+  $('completed-picker-modal').classList.remove('show');
+}
+function renderCompletedYears(){
+  const body = $('completed-picker-body');
+  const years = Array.from(new Set((window._sites||[]).filter(s=>s.completed && s.year).map(s=>s.year))).sort().reverse();
+  if(!years.length){
+    body.innerHTML = '<div class="pp-empty">完了現場はまだありません</div>';
+    return;
+  }
+  body.innerHTML = years.map(y=>
+    '<div class="cp-year-item" onclick="renderCompletedSites(\''+esc(y)+'\')">📅 '+esc(y)+'年</div>'
+  ).join('');
+}
+function renderCompletedSites(year){
+  const body = $('completed-picker-body');
+  const sites = window._sites||[];
+  const list = sites.filter(s=>s.completed && s.year===year);
+  const backBtn = '<div class="cp-back" onclick="renderCompletedYears()">← 年を選び直す</div>';
+  if(!list.length){
+    body.innerHTML = backBtn + '<div class="pp-empty">この年の現場はありません</div>';
+    return;
+  }
+  body.innerHTML = backBtn + list.map(s=>{
+    const idx = sites.indexOf(s);
+    return '<div class="cp-site-item" onclick="selectSiteFromSearch('+idx+');closeCompletedPicker();">'+esc(s.name)+'</div>';
+  }).join('');
+}
 
 function buildCover(){
   return `
