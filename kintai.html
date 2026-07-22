@@ -47,6 +47,9 @@ table.history td{padding:6px 4px;border-bottom:1px solid #eee;text-align:center}
 table.history .empty{color:#999;padding:16px;text-align:center}
 
 .msg{text-align:center;color:#999;font-size:13px;padding:20px 0}
+.holiday-badge{display:inline-block;font-size:11px;font-weight:700;color:#ef4444;background:#fee;border-radius:4px;padding:1px 6px;margin-left:4px}
+.history-scroll{overflow-x:auto}
+table.history{min-width:520px}
 </style>
 </head>
 <body>
@@ -74,6 +77,11 @@ table.history .empty{color:#999;padding:16px;text-align:center}
         <div class="time-item"><div class="t-label">退勤</div><div class="t-val" id="t-out">--:--</div></div>
         <div class="time-item"><div class="t-label">実働</div><div class="t-val" id="t-work">--</div></div>
       </div>
+      <div class="time-row">
+        <div class="time-item"><div class="t-label">残業</div><div class="t-val" id="t-ot">--</div></div>
+        <div class="time-item"><div class="t-label">深夜</div><div class="t-val" id="t-night">--</div></div>
+        <div class="time-item"><div class="t-label">区分</div><div class="t-val" id="t-holiday">平日</div></div>
+      </div>
     </div>
     <input type="text" class="note-input" id="note-input" placeholder="備考（任意）">
     <div class="btn-row">
@@ -84,10 +92,12 @@ table.history .empty{color:#999;padding:16px;text-align:center}
 
   <div class="card" id="history-card" style="display:none">
     <div class="card-title">📋 直近の記録</div>
+    <div class="history-scroll">
     <table class="history">
-      <thead><tr><th>日付</th><th>出勤</th><th>退勤</th><th>実働</th></tr></thead>
+      <thead><tr><th>日付</th><th>区分</th><th>出勤</th><th>退勤</th><th>実働</th><th>残業</th><th>深夜</th></tr></thead>
       <tbody id="history-body"></tbody>
     </table>
+    </div>
   </div>
 
 </div>
@@ -153,17 +163,20 @@ function refreshStatus(){
   fetch(GAS_URL + '?action=getTodayStatus&name=' + encodeURIComponent(name))
     .then(r=>r.json())
     .then(res=>{
-      renderStatus(res.clockIn||'', res.clockOut||'', res.workMinutes);
+      renderStatus(res.clockIn||'', res.clockOut||'', res.workMinutes, res.overtimeMinutes, res.nightMinutes, res.holiday);
     })
     .catch(()=>{
       $('status-value').textContent = '取得に失敗しました';
     });
 }
 
-function renderStatus(clockIn, clockOut, workMinutes){
+function renderStatus(clockIn, clockOut, workMinutes, overtimeMinutes, nightMinutes, holiday){
   $('t-in').textContent = clockIn || '--:--';
   $('t-out').textContent = clockOut || '--:--';
   $('t-work').textContent = fmtWorkMinutes(workMinutes);
+  $('t-ot').textContent = fmtWorkMinutes(overtimeMinutes);
+  $('t-night').textContent = fmtWorkMinutes(nightMinutes);
+  $('t-holiday').textContent = holiday ? '休日' : '平日';
 
   const statusEl = $('status-value');
   const btnIn = $('btn-in');
@@ -214,25 +227,28 @@ function refreshHistory(){
   const name = $('emp-select').value;
   if(!name) return;
   const body = $('history-body');
-  body.innerHTML = '<tr><td colspan="4" class="empty">読み込み中...</td></tr>';
+  body.innerHTML = '<tr><td colspan="7" class="empty">読み込み中...</td></tr>';
   fetch(GAS_URL + '?action=getMyHistory&name=' + encodeURIComponent(name) + '&days=30')
     .then(r=>r.json())
     .then(res=>{
       const records = res.records || [];
       if(!records.length){
-        body.innerHTML = '<tr><td colspan="4" class="empty">記録がありません</td></tr>';
+        body.innerHTML = '<tr><td colspan="7" class="empty">記録がありません</td></tr>';
         return;
       }
       body.innerHTML = records.map(r=>`
         <tr>
           <td>${esc(r.date)}</td>
+          <td>${r.holiday?'<span class="holiday-badge">休日</span>':'平日'}</td>
           <td>${esc(r.clockIn)||'--'}</td>
           <td>${esc(r.clockOut)||'--'}</td>
           <td>${fmtWorkMinutes(r.workMinutes)}</td>
+          <td>${fmtWorkMinutes(r.overtimeMinutes)}</td>
+          <td>${fmtWorkMinutes(r.nightMinutes)}</td>
         </tr>`).join('');
     })
     .catch(()=>{
-      body.innerHTML = '<tr><td colspan="4" class="empty">読み込みに失敗しました</td></tr>';
+      body.innerHTML = '<tr><td colspan="7" class="empty">読み込みに失敗しました</td></tr>';
     });
 }
 
