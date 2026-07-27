@@ -99,6 +99,13 @@ table.history{min-width:520px}
         <div class="time-item" style="flex:1"><div class="t-label">退勤地</div><div class="t-val" id="t-loc-out" style="font-size:12px">--</div></div>
       </div>
     </div>
+    <div style="margin-top:10px">
+      <label style="font-size:11px;color:#999">区分</label>
+      <select class="note-input" id="daytype-select" style="margin-top:4px">
+        <option value="weekday">平日</option>
+        <option value="holiday">休日</option>
+      </select>
+    </div>
     <input type="text" class="note-input" id="note-input" placeholder="備考（任意）">
     <div class="btn-row">
       <button class="btn-clock in" id="btn-in" onclick="doClock('clockIn')"><span class="ic">🟢</span>出勤</button>
@@ -124,6 +131,13 @@ table.history{min-width:520px}
         <label style="font-size:11px;color:#999">退勤時刻</label>
         <input type="time" class="note-input" id="correct-out" style="margin-top:4px">
       </div>
+    </div>
+    <div style="margin-top:10px">
+      <label style="font-size:11px;color:#999">区分</label>
+      <select class="note-input" id="correct-daytype" style="margin-top:4px">
+        <option value="weekday">平日</option>
+        <option value="holiday">休日</option>
+      </select>
     </div>
     <button class="save-btn" id="save-correct-btn" onclick="saveCorrection()">💾 修正を保存</button>
   </div>
@@ -247,13 +261,15 @@ function saveCorrection(){
   if(!date){ alert('日付を選択してください'); return; }
   const clockIn = $('correct-in').value;
   const clockOut = $('correct-out').value;
+  const dayType = $('correct-daytype').value;
   const btn = $('save-correct-btn');
   btn.disabled = true;
   btn.textContent = '保存中...';
   fetch(GAS_URL + '?action=correctTime&name=' + encodeURIComponent(name)
     + '&date=' + encodeURIComponent(date)
     + '&clockIn=' + encodeURIComponent(clockIn)
-    + '&clockOut=' + encodeURIComponent(clockOut))
+    + '&clockOut=' + encodeURIComponent(clockOut)
+    + '&dayType=' + encodeURIComponent(dayType))
     .then(r=>r.json())
     .then(res=>{
       btn.disabled = false;
@@ -311,6 +327,7 @@ function renderStatus(clockIn, clockOut, workMinutes, overtimeMinutes, nightMinu
   $('t-loc-out').textContent = locationOut || '--';
   $('t-late').textContent = lateMinutes>0 ? fmtWorkMinutes(lateMinutes) : 'なし';
   $('t-early').textContent = earlyMinutes>0 ? fmtWorkMinutes(earlyMinutes) : 'なし';
+  $('daytype-select').value = holiday ? 'holiday' : 'weekday';
 
   const statusEl = $('status-value');
   const btnIn = $('btn-in');
@@ -352,8 +369,9 @@ async function doClock(action){
     return;
   }
 
+  const dayType = $('daytype-select').value;
   fetch(GAS_URL + '?action=' + action + '&name=' + encodeURIComponent(name) + '&note=' + encodeURIComponent(note)
-    + '&lat=' + loc.lat + '&lon=' + loc.lon)
+    + '&lat=' + loc.lat + '&lon=' + loc.lon + '&dayType=' + encodeURIComponent(dayType))
     .then(r=>r.json())
     .then(res=>{
       if(res.status!=='ok'){
