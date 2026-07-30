@@ -715,7 +715,14 @@ function deleteSite(name){
   if(!confirm('「'+name+'」を削除しますか？\n（日報データは残ります）')) return;
   fetch(GAS_URL + '?action=deleteSite&name=' + encodeURIComponent(name))
     .then(r => r.json())
-    .then(() => { showToast('🗑️ 削除しました'); loadSites(); })
+    .then(res => {
+      if(res.status !== 'ok'){
+        showToast('❌ ' + (res.message || '削除に失敗しました'));
+        return;
+      }
+      showToast('🗑️ 削除しました');
+      loadSites();
+    })
     .catch(() => {
       const cached = JSON.parse(localStorage.getItem('genba-sites')||'[]');
       localStorage.setItem('genba-sites',
