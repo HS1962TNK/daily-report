@@ -444,13 +444,34 @@ async function addDocsFromInput(input){
 async function loadPhotoFiles(files){
   for(const file of files){
     try {
-      const data = await readFileAsDataURL(file);
+      const raw  = await readFileAsDataURL(file);
+      const data = await resizeImage(raw, 1280, 0.75);
       photoSlots.push({ id: uid(), data, caption: '' });
     } catch(e) {
       showToast('⚠️ ' + file.name + ' の読み込みに失敗しました');
     }
   }
   renderPhotoGrid();
+}
+
+// 画像を縮小・圧縮してdataURLを返す（Driveの容量節約・送信失敗防止のため。index.htmlと同じ基準）
+function resizeImage(dataUrl, maxSize, quality){
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      let w = img.width, h = img.height;
+      if(w > maxSize || h > maxSize){
+        if(w > h){ h = Math.round(h * maxSize / w); w = maxSize; }
+        else{ w = Math.round(w * maxSize / h); h = maxSize; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(dataUrl); // 失敗時は元データを使用
+    img.src = dataUrl;
+  });
 }
 
 function renderPhotoGrid(){
