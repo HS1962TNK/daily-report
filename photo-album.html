@@ -112,6 +112,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
     <button class="tb-btn ghost" onclick="location.href='genba.html'">🏗️ 現場情報</button>
     <button class="tb-btn ghost" onclick="location.href='index.html'">📋 日報</button>
     <button class="tb-btn ghost" onclick="addPage()">＋ 写真ページ追加</button>
+    <button class="tb-btn ghost" onclick="openAlbumList()">📂 アルバム一覧</button>
     <button class="tb-btn green" onclick="saveData()">💾 保存</button>
     <button class="tb-btn orange" onclick="exportExcel()">📊 Excel出力</button>
     <button class="tb-btn primary" onclick="window.print()">🖨️ 印刷・PDF</button>
@@ -154,6 +155,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
       <button onclick="closeCompletedPicker()">✕</button>
     </div>
     <div class="pp-modal-body" id="completed-picker-body" style="padding:0"></div>
+  </div>
+</div>
+
+<div class="pp-modal no-print" id="album-list-modal">
+  <div class="pp-modal-inner">
+    <div class="pp-modal-header">
+      <span>📂 保存済みの写真台帳から開く</span>
+      <button onclick="closeAlbumList()">✕</button>
+    </div>
+    <div class="pp-modal-body" id="album-list-body" style="padding:0"></div>
   </div>
 </div>
 
@@ -261,6 +272,49 @@ function renderCompletedSites(year){
     const idx = sites.indexOf(s);
     return '<div class="cp-site-item" onclick="selectSiteFromSearch('+idx+');closeCompletedPicker();">'+esc(s.name)+'</div>';
   }).join('');
+}
+
+// 保存済み写真台帳の一覧（現場フォルダに台帳データ.jsonがある現場のみ）
+function openAlbumList(){
+  $('album-list-modal').classList.add('show');
+  renderAlbumList();
+}
+function closeAlbumList(){
+  $('album-list-modal').classList.remove('show');
+}
+function renderAlbumList(){
+  const body = $('album-list-body');
+  const list = (window._sites||[]).filter(s=>s.hasAlbum);
+  if(!list.length){
+    body.innerHTML = '<div class="pp-empty">保存済みの写真台帳はまだありません<br>（「💾 保存」で現場名を入力して保存すると、ここに表示されます）</div>';
+    return;
+  }
+  body.innerHTML = list.map(s=>{
+    const badge = s.completed ? '<span class="ssi-badge">完了</span>' : '';
+    return '<div class="cp-site-item" style="display:flex;justify-content:space-between;align-items:center" onclick="openAlbumForSite(\''+esc(s.name)+'\')"><span>'+esc(s.name)+'</span>'+badge+'</div>';
+  }).join('');
+}
+function openAlbumForSite(siteName){
+  if(!confirm('「'+siteName+'」の保存済み台帳を開きます。\n現在編集中の内容は破棄されますが、よろしいですか？')) return;
+  const body = $('album-list-body');
+  const before = body.innerHTML;
+  body.innerHTML = '<div class="pp-empty">読み込み中...</div>';
+  fetch(GAS_URL + '?action=loadAlbum&site=' + encodeURIComponent(siteName))
+    .then(r=>r.json())
+    .then(res=>{
+      if(res.status!=='ok' || !res.album){
+        alert('⚠️ 台帳データの読み込みに失敗しました');
+        body.innerHTML = before;
+        return;
+      }
+      restoreAlbum(res.album);
+      $('site-search').value = siteName;
+      closeAlbumList();
+    })
+    .catch(()=>{
+      alert('⚠️ 通信エラーのため読み込みに失敗しました');
+      body.innerHTML = before;
+    });
 }
 
 function buildCover(){
@@ -473,12 +527,49 @@ function syncHeader(){
 function saveData(){
   const fields={};
   document.querySelectorAll('[data-k]').forEach(el=>{fields[el.dataset.k]=el.value;});
+  const albumObj = {pageCount,header,photoData,fields};
   try{
-    localStorage.setItem('photo-album',JSON.stringify({pageCount,header,photoData,fields}));
-    alert('✅ 保存しました');
-  }catch(e){
-    alert('⚠️ 写真が多すぎて保存できません。印刷・PDF出力をお使いください。');
+    localStorage.setItem('photo-album',JSON.stringify(albumObj));
+  }catch(e){/* ブラウザ内の一時保存に失敗しても、Driveへの保存は試みる */}
+
+  const siteName = (header.genba || header.koji || '').trim();
+  if(!siteName){
+    alert('⚠️ 現場名が未入力のため、このブラウザ内にのみ一時保存しました。\nGoogleドライブに保存して後から一覧で開けるようにするには、上部で現場名を入力・選択してください。');
+    return;
   }
+  fetch(GAS_URL, {method:'POST', body: JSON.stringify({action:'saveAlbum', site:siteName, album:albumObj})})
+    .then(r=>r.json())
+    .then(res=>{
+      if(res.status==='ok'){
+        alert('✅ 保存しました（この現場の台帳としてGoogleドライブにも保存されました）');
+      }else{
+        alert('⚠️ ブラウザには保存しましたが、Googleドライブへの保存に失敗しました\n'+(res.message||''));
+      }
+    })
+    .catch(()=>{
+      alert('⚠️ ブラウザには保存しましたが、通信エラーのためGoogleドライブへの保存に失敗しました');
+    });
+}
+
+// 保存データ（{pageCount,header,photoData,fields}）から画面を復元
+function restoreAlbum(data){
+  document.querySelectorAll('.page:not(.cover)').forEach(p=>p.remove());
+  pageCount = 0;
+  header=data.header||{koji:'',genba:'',addr:'',gyosha:''};
+  photoData=data.photoData||{};
+  $('h-koji').value=header.koji||'';
+  $('h-genba').value=header.genba||'';
+  $('h-addr').value=header.addr||'';
+  $('h-gyosha').value=header.gyosha||'';
+  const pc=data.pageCount||1;
+  for(let i=0;i<pc;i++) addPage();
+  if(data.fields){
+    Object.entries(data.fields).forEach(([k,v])=>{
+      const el=document.querySelector(`[data-k="${k}"]`);
+      if(el) el.value=v;
+    });
+  }
+  syncHeader();
 }
 
 function loadData(){
@@ -487,22 +578,7 @@ function loadData(){
   const saved=localStorage.getItem('photo-album');
   if(!saved){addPage();return;}
   try{
-    const data=JSON.parse(saved);
-    header=data.header||{koji:'',genba:'',addr:'',gyosha:''};
-    photoData=data.photoData||{};
-    $('h-koji').value=header.koji||'';
-    $('h-genba').value=header.genba||'';
-    $('h-addr').value=header.addr||'';
-    $('h-gyosha').value=header.gyosha||'';
-    const pc=data.pageCount||1;
-    for(let i=0;i<pc;i++) addPage();
-    if(data.fields){
-      Object.entries(data.fields).forEach(([k,v])=>{
-        const el=document.querySelector(`[data-k="${k}"]`);
-        if(el) el.value=v;
-      });
-    }
-    syncHeader();
+    restoreAlbum(JSON.parse(saved));
   }catch(e){addPage();}
 }
 
