@@ -1440,17 +1440,28 @@
     return '0\nTEXT\n8\nTEXT\n10\n'+pos.x.toFixed(2)+'\n20\n'+pos.y.toFixed(2)+'\n30\n0.0\n40\n'+height.toFixed(2)+'\n1\n'+t+'\n';
   }
 
+  // ベクター抽出結果には、寸法数値や室名などの文字が輪郭線(ごく小さいポリライン)として
+  // 大量に混ざることが多い。実寸(mm)でのバウンディングボックスがこの値未満のパスは
+  // 「文字などのノイズ」とみなしてDXF書き出しから除外する(壁・線などの実用的な線は残す)。
+  const VECTOR_MIN_SIZE_MM = 30;
+
   function exportDXF(){
     const hasVectors = vectorPaths && vectorPaths.length>0;
     if(!calibration || (!hasVectors && measurements.length===0)) return;
     const TEXT_HEIGHT_MM = 100; // 注記文字の高さ(mm)。一般的な建築図面の注記サイズを想定した既定値
     let entities = '';
+    let includedVectorCount = 0, skippedVectorCount = 0;
 
-    // ベクターPDFから抽出した実際の図面線(あれば): そのままDXFのポリラインとして書き出す
+    // ベクターPDFから抽出した実際の図面線(あれば): 小さすぎるもの(文字の輪郭など)を除外してポリラインとして書き出す
     if(hasVectors){
       vectorPaths.forEach(vp=>{
         const pts = vp.points.map(toDxfPoint);
+        const xs = pts.map(p=>p.x), ys = pts.map(p=>p.y);
+        const w = Math.max(...xs) - Math.min(...xs);
+        const h = Math.max(...ys) - Math.min(...ys);
+        if(Math.max(w,h) < VECTOR_MIN_SIZE_MM){ skippedVectorCount++; return; }
         entities += dxfPolyline(pts, vp.closed);
+        includedVectorCount++;
       });
     }
 
@@ -1474,7 +1485,19 @@
         entities += dxfText({x:cx,y:cy}, '#'+num+' '+formatArea(m.sqMeters), TEXT_HEIGHT_MM);
       }
     });
-    const dxf = '0\nSECTION\n2\nENTITIES\n' + entities + '0\nENDSEC\n0\nEOF\n';
+    // HEADER($ACADVER,$INSUNITS)とTABLES(LAYER)を付与し、CADソフト側での読み込み互換性を高める(JW_CAD等)
+    const header =
+      '0\nSECTION\n2\nHEADER\n'+
+      '9\n$ACADVER\n1\nAC1009\n'+
+      '9\n$INSUNITS\n70\n4\n'+ // 4 = ミリメートル
+      '0\nENDSEC\n';
+    const tables =
+      '0\nSECTION\n2\nTABLES\n'+
+      '0\nTABLE\n2\nLAYER\n70\n2\n'+
+      '0\nLAYER\n2\n0\n70\n0\n62\n7\n6\nCONTINUOUS\n'+
+      '0\nLAYER\n2\nTEXT\n70\n0\n62\n7\n6\nCONTINUOUS\n'+
+      '0\nENDTAB\n0\nENDSEC\n';
+    const dxf = header + tables + '0\nSECTION\n2\nENTITIES\n' + entities + '0\nENDSEC\n0\nEOF\n';
     const blob = new Blob([dxf], {type:'application/dxf'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1482,6 +1505,11 @@
     a.href = url; a.download = base + (hasVectors ? '_ベクター変換' : '_計測') + '.dxf';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
+
+    if(hasVectors){
+      hintBar.hidden = false;
+      hintText.textContent = 'DXF書き出し完了: 線 '+includedVectorCount+'本を出力(文字などの微小な図形 '+skippedVectorCount+'件は除外)';
+    }
   }
 
   /* ---------------- Events: toolbar ---------------- */
