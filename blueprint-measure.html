@@ -503,6 +503,8 @@
   let vectorPaths = [];         // ベクターPDFから抽出した線データ {points:[{x,y}...], closed} (画像ピクセル座標系)
   let textItems = [];           // PDFに埋め込まれた文字(寸法数値・室名など) {text,x,y,heightPx} (画像ピクセル座標系)
   let dxfRegion = null;         // DXF書き出し対象の範囲(指定時){x1,y1,x2,y2}(画像ピクセル座標系)。縮尺の異なる詳細図等を除外するために使う
+  let snapTarget = null;        // クリック位置に一番近いベクター線の端点(吸着先)。ベクターPDFの場合のみ有効
+  const SNAP_RADIUS_SCREEN_PX = 14; // 吸着の判定半径(画面ピクセル基準。ズームレベルに応じて画像ピクセルに換算する)
   let hoveredId = null;
   let lengthUnit = 'mm';
   let areaUnit = 'm2';
@@ -688,6 +690,36 @@
     ctx.restore();
   }
 
+  // クリック位置(画像ピクセル座標)から最も近いベクター線の端点を探す。
+  // ラスター画像上の手クリックだけに頼るとピクセル単位の誤差が実寸換算で拡大してしまうため、
+  // PDFから抽出した正確な座標に吸着させることで校正・計測の精度を上げる。
+  function findSnapPoint(imgPt){
+    if(!vectorPaths || vectorPaths.length===0) return null;
+    const radiusImg = SNAP_RADIUS_SCREEN_PX / view.scale;
+    let best = null, bestDist = radiusImg;
+    vectorPaths.forEach(vp=>{
+      vp.points.forEach(p=>{
+        const d = Math.hypot(p.x-imgPt.x, p.y-imgPt.y);
+        if(d < bestDist){ bestDist = d; best = p; }
+      });
+    });
+    return best;
+  }
+
+  function drawSnapIndicator(){
+    if(!snapTarget) return;
+    const p = imageToScreen(snapTarget);
+    ctx.save();
+    ctx.strokeStyle = COLORS.accent;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(p.x, p.y, 8, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(p.x-11,p.y); ctx.lineTo(p.x+11,p.y);
+    ctx.moveTo(p.x,p.y-11); ctx.lineTo(p.x,p.y+11);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function drawPending(){
     if(!sourceImage || pendingPoints.length===0) return;
     const pts = pendingPoints.map(imageToScreen);
@@ -754,6 +786,7 @@
     drawDxfRegion();
     measurements.forEach((m,i)=>drawMeasurement(m, i+1));
     drawPending();
+    drawSnapIndicator();
     updateScaleBarDisplay();
     updateZoomLabel();
   }
@@ -1331,7 +1364,7 @@
     const hasAny = (vectorPaths && vectorPaths.length>0) || (textItems && textItems.length>0);
     let html;
     if(hasAny){
-      html = '<span class="badge badge-on">ベクター図面を検出</span><span class="scale-detail">線 '+vectorPaths.length+'本・文字 '+textItems.length+'件(DXF書き出しに自動で含まれます)</span>';
+      html = '<span class="badge badge-on">ベクター図面を検出</span><span class="scale-detail">線 '+vectorPaths.length+'本・文字 '+textItems.length+'件(DXF書き出しに自動で含まれます)<br>クリック位置は近くの線の端点に自動で吸着します(精度向上)</span>';
     } else {
       html = '<span class="badge badge-off">ベクター図形なし</span><span class="scale-detail">画像として扱います(手動計測のみDXF化されます)</span>';
     }
@@ -1752,7 +1785,12 @@
         view.offsetY = dragOrigOffset.y+dy;
         draw();
       }
-    } else if(pendingPoints.length>0){
+    } else {
+      if(mode && mode!=='pan' && !spaceHeld){
+        snapTarget = findSnapPoint(screenToImage({x:mx,y:my}));
+      } else if(snapTarget){
+        snapTarget = null;
+      }
       draw();
     }
   });
@@ -1767,7 +1805,9 @@
     }
     const withinCanvas = mx>=0 && my>=0 && mx<=canvas.clientWidth && my<=canvas.clientHeight;
     if(!didDrag && withinCanvas && mode!=='pan' && !spaceHeld && e.button!==1){
-      const imgPt = screenToImage({x:mx,y:my});
+      let imgPt = screenToImage({x:mx,y:my});
+      const snapped = findSnapPoint(imgPt);
+      if(snapped) imgPt = snapped;
       handlePlacePoint(imgPt, {x:mx,y:my});
     }
     didDrag = false;
