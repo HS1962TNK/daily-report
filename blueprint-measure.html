@@ -326,6 +326,7 @@
       <button class="btn" id="btnLength" disabled>距離</button>
       <button class="btn" id="btnCurve" disabled>曲線</button>
       <button class="btn" id="btnArea" disabled>面積</button>
+      <button class="btn" id="btnDxfRegion" disabled>DXF範囲指定</button>
       <button class="btn" id="btnPan" disabled>パン</button>
     </div>
 
@@ -449,8 +450,9 @@
   const btnLength = document.getElementById('btnLength');
   const btnCurve = document.getElementById('btnCurve');
   const btnArea = document.getElementById('btnArea');
+  const btnDxfRegion = document.getElementById('btnDxfRegion');
   const btnPan = document.getElementById('btnPan');
-  const modeButtons = {scale:btnScale, length:btnLength, curve:btnCurve, area:btnArea, pan:btnPan};
+  const modeButtons = {scale:btnScale, length:btnLength, curve:btnCurve, area:btnArea, dxfregion:btnDxfRegion, pan:btnPan};
   const smoothToggleWrap = document.getElementById('smoothToggleWrap');
   const areaSmoothChk = document.getElementById('areaSmoothChk');
 
@@ -500,6 +502,7 @@
   let measurements = [];        // {id,type,points,meters|sqMeters+perimMeters}
   let vectorPaths = [];         // ベクターPDFから抽出した線データ {points:[{x,y}...], closed} (画像ピクセル座標系)
   let textItems = [];           // PDFに埋め込まれた文字(寸法数値・室名など) {text,x,y,heightPx} (画像ピクセル座標系)
+  let dxfRegion = null;         // DXF書き出し対象の範囲(指定時){x1,y1,x2,y2}(画像ピクセル座標系)。縮尺の異なる詳細図等を除外するために使う
   let hoveredId = null;
   let lengthUnit = 'mm';
   let areaUnit = 'm2';
@@ -748,10 +751,25 @@
     ctx.restore();
 
     drawCalibrationLine();
+    drawDxfRegion();
     measurements.forEach((m,i)=>drawMeasurement(m, i+1));
     drawPending();
     updateScaleBarDisplay();
     updateZoomLabel();
+  }
+
+  function drawDxfRegion(){
+    if(!dxfRegion) return;
+    const p1 = imageToScreen({x:dxfRegion.x1, y:dxfRegion.y1});
+    const p2 = imageToScreen({x:dxfRegion.x2, y:dxfRegion.y2});
+    ctx.save();
+    ctx.setLineDash([8,5]);
+    ctx.strokeStyle = COLORS.teal;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(p1.x, p1.y, p2.x-p1.x, p2.y-p1.y);
+    ctx.setLineDash([]);
+    drawLabel((p1.x+p2.x)/2, p1.y-14, 'DXF変換範囲', {border:COLORS.teal});
+    ctx.restore();
   }
 
   function updateScaleBarDisplay(){
@@ -857,6 +875,10 @@
       else if(pendingPoints.length===0) text = '多角形の頂点を順にクリック';
       else if(pendingPoints.length<3) text = '頂点をクリック(あと'+(3-pendingPoints.length)+'点で確定可能)';
       else text = '続けてクリック、始点に戻るかEnterで確定';
+    } else if(mode==='dxfregion'){
+      text = pendingPoints.length===0
+        ? 'DXFに変換したい範囲の左上(または一方の角)をクリック(縮尺の異なる詳細図等を除外できます)'
+        : '反対側の角をクリックして範囲を確定';
     }
     hintText.textContent = text;
     hintUndo.hidden = pendingPoints.length===0;
@@ -886,6 +908,18 @@
         if(dist<14){ finalizeArea(); draw(); updateHint(); return; }
       }
       pendingPoints.push(imgPt);
+      draw(); updateHint();
+    } else if(mode==='dxfregion'){
+      pendingPoints.push(imgPt);
+      if(pendingPoints.length===2){
+        const [p1,p2] = pendingPoints;
+        dxfRegion = {
+          x1: Math.min(p1.x,p2.x), y1: Math.min(p1.y,p2.y),
+          x2: Math.max(p1.x,p2.x), y2: Math.max(p1.y,p2.y)
+        };
+        pendingPoints = [];
+        updateVectorStatus();
+      }
       draw(); updateHint();
     }
   }
@@ -1048,9 +1082,10 @@
 
   /* ---------------- File loading ---------------- */
   function resetMeasurementsOnly(){
-    calibration = null; measurements = []; pendingPoints = []; hoveredId = null;
+    calibration = null; measurements = []; pendingPoints = []; hoveredId = null; dxfRegion = null;
     btnLength.disabled = true; btnCurve.disabled = true; btnArea.disabled = true;
     updateScaleStatus();
+    updateVectorStatus();
     renderList();
   }
   function resetAllState(){
@@ -1077,7 +1112,7 @@
       else { await loadImage(file); }
       emptyState.hidden = true;
       hintBar.hidden = false;
-      [btnScale, btnPan, zoomInBtn, zoomOutBtn, zoomResetBtn, saveImageBtn].forEach(b=>b.disabled=false);
+      [btnScale, btnPan, btnDxfRegion, zoomInBtn, zoomOutBtn, zoomResetBtn, saveImageBtn].forEach(b=>b.disabled=false);
       resizeCanvas();
       fitToView();
       setMode('scale');
@@ -1294,12 +1329,20 @@
   function updateVectorStatus(){
     if(!pdfInfo){ vectorStatusEl.innerHTML = ''; return; }
     const hasAny = (vectorPaths && vectorPaths.length>0) || (textItems && textItems.length>0);
+    let html;
     if(hasAny){
-      vectorStatusEl.innerHTML = '<span class="badge badge-on">ベクター図面を検出</span><span class="scale-detail">線 '+vectorPaths.length+'本・文字 '+textItems.length+'件(DXF書き出しに自動で含まれます)</span>';
+      html = '<span class="badge badge-on">ベクター図面を検出</span><span class="scale-detail">線 '+vectorPaths.length+'本・文字 '+textItems.length+'件(DXF書き出しに自動で含まれます)</span>';
     } else {
-      vectorStatusEl.innerHTML = '<span class="badge badge-off">ベクター図形なし</span><span class="scale-detail">画像として扱います(手動計測のみDXF化されます)</span>';
+      html = '<span class="badge badge-off">ベクター図形なし</span><span class="scale-detail">画像として扱います(手動計測のみDXF化されます)</span>';
     }
+    if(dxfRegion){
+      html += '<div style="margin-top:4px"><span class="badge badge-on">DXF範囲を指定中</span> <span class="completed-link" onclick="window.__clearDxfRegion()">解除</span></div>';
+    } else if(hasAny){
+      html += '<div style="margin-top:4px;font-size:11px;color:var(--bp-ink-dim)">縮尺の異なる詳細図等がある場合は「DXF範囲指定」で変換範囲を絞れます</div>';
+    }
+    vectorStatusEl.innerHTML = html;
   }
+  window.__clearDxfRegion = function(){ dxfRegion = null; updateVectorStatus(); draw(); };
 
   function updatePdfNav(){
     if(pdfInfo && pdfInfo.numPages>1){
@@ -1482,25 +1525,37 @@
   // 邪魔なときは非表示、というように使い分けられる。
   const VECTOR_SMALL_SIZE_MM = 30;
 
+  // dxfRegionが指定されている場合、その範囲内かどうかを判定(画像ピクセル座標系)。
+  // 縮尺の異なる詳細図などを除外するためのフィルター。
+  function inDxfRegion(x,y){
+    if(!dxfRegion) return true;
+    return x>=dxfRegion.x1 && x<=dxfRegion.x2 && y>=dxfRegion.y1 && y<=dxfRegion.y2;
+  }
+
   function exportDXF(){
     const hasVectors = (vectorPaths && vectorPaths.length>0) || (textItems && textItems.length>0);
     if(!calibration || (!hasVectors && measurements.length===0)) return;
     const TEXT_HEIGHT_MM = 100; // 計測の注記文字の高さ(mm)。一般的な建築図面の注記サイズを想定した既定値
     let entities = '';
-    let mainVectorCount = 0, smallVectorCount = 0;
+    let mainVectorCount = 0, smallVectorCount = 0, textIncludedCount = 0, regionExcludedCount = 0;
 
     // PDFに埋め込まれた文字(寸法数値・室名など): 実際の文字列をDXFのTEXTエンティティとして「TEXT」レイヤーに書き出す
     if(textItems && textItems.length){
       textItems.forEach(t=>{
+        if(!inDxfRegion(t.x,t.y)){ regionExcludedCount++; return; }
         const pos = toDxfPoint({x:t.x, y:t.y});
         const heightMm = t.heightPx * calibration.metersPerPixel * 1000;
         entities += dxfText(pos, t.text, Math.max(20, heightMm), t.angleDeg);
+        textIncludedCount++;
       });
     }
 
     // ベクターPDFから抽出した実際の図面線(あれば): 小さいもの(文字の輪郭など)は「TEXT」レイヤーに分けて書き出す
     if(hasVectors){
       vectorPaths.forEach(vp=>{
+        const cx = vp.points.reduce((s,p)=>s+p.x,0)/vp.points.length;
+        const cy = vp.points.reduce((s,p)=>s+p.y,0)/vp.points.length;
+        if(!inDxfRegion(cx,cy)){ regionExcludedCount++; return; }
         const pts = vp.points.map(toDxfPoint);
         const xs = pts.map(p=>p.x), ys = pts.map(p=>p.y);
         const w = Math.max(...xs) - Math.min(...xs);
@@ -1554,7 +1609,8 @@
 
     if(hasVectors){
       hintBar.hidden = false;
-      hintText.textContent = 'DXF書き出し完了: 線 '+mainVectorCount+'本(レイヤー0) + 文字 '+textItems.length+'件・微小図形 '+smallVectorCount+'件(レイヤーTEXT)を出力';
+      const regionNote = dxfRegion ? '(範囲外 '+regionExcludedCount+'件を除外)' : '';
+      hintText.textContent = 'DXF書き出し完了: 線 '+mainVectorCount+'本(レイヤー0) + 文字 '+textIncludedCount+'件・微小図形 '+smallVectorCount+'件(レイヤーTEXT)を出力 '+regionNote;
     }
   }
 
@@ -1570,6 +1626,7 @@
   btnLength.addEventListener('click', ()=>setMode('length'));
   btnCurve.addEventListener('click', ()=>setMode('curve'));
   btnArea.addEventListener('click', ()=>setMode('area'));
+  btnDxfRegion.addEventListener('click', ()=>setMode('dxfregion'));
   btnPan.addEventListener('click', ()=>setMode('pan'));
   areaSmoothChk.addEventListener('change', ()=>draw());
 
