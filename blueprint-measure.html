@@ -1429,9 +1429,10 @@
   function dxfLine(p1, p2){
     return '0\nLINE\n8\n0\n10\n'+p1.x.toFixed(2)+'\n20\n'+p1.y.toFixed(2)+'\n30\n0.0\n11\n'+p2.x.toFixed(2)+'\n21\n'+p2.y.toFixed(2)+'\n31\n0.0\n';
   }
-  function dxfPolyline(pts, closed){
-    let s = '0\nPOLYLINE\n8\n0\n66\n1\n10\n0.0\n20\n0.0\n30\n0.0\n70\n'+(closed?1:0)+'\n';
-    pts.forEach(p=>{ s += '0\nVERTEX\n8\n0\n10\n'+p.x.toFixed(2)+'\n20\n'+p.y.toFixed(2)+'\n30\n0.0\n'; });
+  function dxfPolyline(pts, closed, layer){
+    layer = layer || '0';
+    let s = '0\nPOLYLINE\n8\n'+layer+'\n66\n1\n10\n0.0\n20\n0.0\n30\n0.0\n70\n'+(closed?1:0)+'\n';
+    pts.forEach(p=>{ s += '0\nVERTEX\n8\n'+layer+'\n10\n'+p.x.toFixed(2)+'\n20\n'+p.y.toFixed(2)+'\n30\n0.0\n'; });
     s += '0\nSEQEND\n';
     return s;
   }
@@ -1442,26 +1443,28 @@
 
   // ベクター抽出結果には、寸法数値や室名などの文字が輪郭線(ごく小さいポリライン)として
   // 大量に混ざることが多い。実寸(mm)でのバウンディングボックスがこの値未満のパスは
-  // 「文字などのノイズ」とみなしてDXF書き出しから除外する(壁・線などの実用的な線は残す)。
-  const VECTOR_MIN_SIZE_MM = 30;
+  // 削除はせず「TEXT」レイヤーに分けて書き出す(壁などの線は既定の「0」レイヤーのまま)。
+  // CADソフト側でレイヤーの表示/非表示を切り替えられるので、寸法を見たいときは表示、
+  // 邪魔なときは非表示、というように使い分けられる。
+  const VECTOR_SMALL_SIZE_MM = 30;
 
   function exportDXF(){
     const hasVectors = vectorPaths && vectorPaths.length>0;
     if(!calibration || (!hasVectors && measurements.length===0)) return;
     const TEXT_HEIGHT_MM = 100; // 注記文字の高さ(mm)。一般的な建築図面の注記サイズを想定した既定値
     let entities = '';
-    let includedVectorCount = 0, skippedVectorCount = 0;
+    let mainVectorCount = 0, smallVectorCount = 0;
 
-    // ベクターPDFから抽出した実際の図面線(あれば): 小さすぎるもの(文字の輪郭など)を除外してポリラインとして書き出す
+    // ベクターPDFから抽出した実際の図面線(あれば): 小さいもの(文字の輪郭など)は「TEXT」レイヤーに分けて書き出す
     if(hasVectors){
       vectorPaths.forEach(vp=>{
         const pts = vp.points.map(toDxfPoint);
         const xs = pts.map(p=>p.x), ys = pts.map(p=>p.y);
         const w = Math.max(...xs) - Math.min(...xs);
         const h = Math.max(...ys) - Math.min(...ys);
-        if(Math.max(w,h) < VECTOR_MIN_SIZE_MM){ skippedVectorCount++; return; }
-        entities += dxfPolyline(pts, vp.closed);
-        includedVectorCount++;
+        const isSmall = Math.max(w,h) < VECTOR_SMALL_SIZE_MM;
+        entities += dxfPolyline(pts, vp.closed, isSmall ? 'TEXT' : '0');
+        if(isSmall) smallVectorCount++; else mainVectorCount++;
       });
     }
 
@@ -1508,7 +1511,7 @@
 
     if(hasVectors){
       hintBar.hidden = false;
-      hintText.textContent = 'DXF書き出し完了: 線 '+includedVectorCount+'本を出力(文字などの微小な図形 '+skippedVectorCount+'件は除外)';
+      hintText.textContent = 'DXF書き出し完了: 線 '+mainVectorCount+'本(レイヤー0) + 文字など '+smallVectorCount+'件(レイヤーTEXT)を出力';
     }
   }
 
