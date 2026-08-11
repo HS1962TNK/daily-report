@@ -499,6 +499,7 @@
   let calibration = null;       // {metersPerPixel, line:[p1,p2], label}
   let measurements = [];        // {id,type,points,meters|sqMeters+perimMeters}
   let vectorPaths = [];         // ベクターPDFから抽出した線データ {points:[{x,y}...], closed} (画像ピクセル座標系)
+  let textItems = [];           // PDFに埋め込まれた文字(寸法数値・室名など) {text,x,y,heightPx} (画像ピクセル座標系)
   let hoveredId = null;
   let lengthUnit = 'mm';
   let areaUnit = 'm2';
@@ -1054,7 +1055,7 @@
   }
   function resetAllState(){
     sourceImage = null; imgWidth = 0; imgHeight = 0; pdfInfo = null;
-    vectorPaths = []; vectorStatusEl.innerHTML = '';
+    vectorPaths = []; textItems = []; vectorStatusEl.innerHTML = '';
     view = {scale:1, offsetX:0, offsetY:0};
     resetMeasurementsOnly();
   }
@@ -1139,6 +1140,7 @@
     sourceImage = off; imgWidth = off.width; imgHeight = off.height;
     pdfInfo.pageNum = n;
     vectorPaths = await extractVectorPaths(page, viewport);
+    textItems = await extractTextItems(page, viewport);
     updateVectorStatus();
   }
 
@@ -1260,10 +1262,36 @@
     }
   }
 
+  /* ---------------- PDFテキスト抽出 ----------------
+     寸法数値・室名などは輪郭線ではなく通常のPDFテキスト(フォント)として埋め込まれていることが多く、
+     パス抽出では拾えない。pdf.jsのgetTextContent()で文字列そのものと位置を取得し、
+     DXFのTEXTエンティティとして書き出せるようにする。 */
+  async function extractTextItems(page, viewport){
+    try{
+      const Util = window.pdfjsLib.Util;
+      const content = await page.getTextContent();
+      const pxPerPageUnit = Math.hypot(viewport.transform[0], viewport.transform[1]);
+      const items = [];
+      content.items.forEach(item=>{
+        if(!item.str || !item.str.trim()) return;
+        const origin = Util.applyTransform([0,0], item.transform);
+        const pos = Util.applyTransform(origin, viewport.transform);
+        const fontSizePageUnits = Math.hypot(item.transform[2], item.transform[3]);
+        const heightPx = Math.max(4, fontSizePageUnits * pxPerPageUnit);
+        items.push({ text: item.str, x: pos[0], y: pos[1], heightPx });
+      });
+      return items;
+    }catch(err){
+      console.error('テキストの抽出に失敗しました', err);
+      return [];
+    }
+  }
+
   function updateVectorStatus(){
     if(!pdfInfo){ vectorStatusEl.innerHTML = ''; return; }
-    if(vectorPaths && vectorPaths.length>0){
-      vectorStatusEl.innerHTML = '<span class="badge badge-on">ベクター図面を検出</span><span class="scale-detail">線データ '+vectorPaths.length+'本(DXF書き出しに自動で含まれます)</span>';
+    const hasAny = (vectorPaths && vectorPaths.length>0) || (textItems && textItems.length>0);
+    if(hasAny){
+      vectorStatusEl.innerHTML = '<span class="badge badge-on">ベクター図面を検出</span><span class="scale-detail">線 '+vectorPaths.length+'本・文字 '+textItems.length+'件(DXF書き出しに自動で含まれます)</span>';
     } else {
       vectorStatusEl.innerHTML = '<span class="badge badge-off">ベクター図形なし</span><span class="scale-detail">画像として扱います(手動計測のみDXF化されます)</span>';
     }
@@ -1449,11 +1477,20 @@
   const VECTOR_SMALL_SIZE_MM = 30;
 
   function exportDXF(){
-    const hasVectors = vectorPaths && vectorPaths.length>0;
+    const hasVectors = (vectorPaths && vectorPaths.length>0) || (textItems && textItems.length>0);
     if(!calibration || (!hasVectors && measurements.length===0)) return;
-    const TEXT_HEIGHT_MM = 100; // 注記文字の高さ(mm)。一般的な建築図面の注記サイズを想定した既定値
+    const TEXT_HEIGHT_MM = 100; // 計測の注記文字の高さ(mm)。一般的な建築図面の注記サイズを想定した既定値
     let entities = '';
     let mainVectorCount = 0, smallVectorCount = 0;
+
+    // PDFに埋め込まれた文字(寸法数値・室名など): 実際の文字列をDXFのTEXTエンティティとして「TEXT」レイヤーに書き出す
+    if(textItems && textItems.length){
+      textItems.forEach(t=>{
+        const pos = toDxfPoint({x:t.x, y:t.y});
+        const heightMm = t.heightPx * calibration.metersPerPixel * 1000;
+        entities += dxfText(pos, t.text, Math.max(20, heightMm));
+      });
+    }
 
     // ベクターPDFから抽出した実際の図面線(あれば): 小さいもの(文字の輪郭など)は「TEXT」レイヤーに分けて書き出す
     if(hasVectors){
@@ -1511,7 +1548,7 @@
 
     if(hasVectors){
       hintBar.hidden = false;
-      hintText.textContent = 'DXF書き出し完了: 線 '+mainVectorCount+'本(レイヤー0) + 文字など '+smallVectorCount+'件(レイヤーTEXT)を出力';
+      hintText.textContent = 'DXF書き出し完了: 線 '+mainVectorCount+'本(レイヤー0) + 文字 '+textItems.length+'件・微小図形 '+smallVectorCount+'件(レイヤーTEXT)を出力';
     }
   }
 
