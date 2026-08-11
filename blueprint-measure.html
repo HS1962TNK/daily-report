@@ -394,6 +394,7 @@
       <div class="sidebar-section">
         <p class="sidebar-title">縮尺</p>
         <div id="scaleStatusEl"><span class="badge badge-off">縮尺 未設定</span></div>
+        <div id="vectorStatusEl" style="margin-top:6px"></div>
       </div>
       <div class="sidebar-section" style="flex:1;display:flex;flex-direction:column;min-height:0;padding-bottom:6px;">
         <p class="sidebar-title">計測結果</p>
@@ -469,6 +470,7 @@
   const scaleBarEl = document.getElementById('scaleBarEl');
 
   const scaleStatusEl = document.getElementById('scaleStatusEl');
+  const vectorStatusEl = document.getElementById('vectorStatusEl');
   const listEl = document.getElementById('listEl');
   const summaryEl = document.getElementById('summaryEl');
   const exportCsvBtn = document.getElementById('exportCsvBtn');
@@ -496,6 +498,7 @@
   let pendingPoints = [];
   let calibration = null;       // {metersPerPixel, line:[p1,p2], label}
   let measurements = [];        // {id,type,points,meters|sqMeters+perimMeters}
+  let vectorPaths = [];         // ベクターPDFから抽出した線データ {points:[{x,y}...], closed} (画像ピクセル座標系)
   let hoveredId = null;
   let lengthUnit = 'mm';
   let areaUnit = 'm2';
@@ -1051,6 +1054,7 @@
   }
   function resetAllState(){
     sourceImage = null; imgWidth = 0; imgHeight = 0; pdfInfo = null;
+    vectorPaths = []; vectorStatusEl.innerHTML = '';
     view = {scale:1, offsetX:0, offsetY:0};
     resetMeasurementsOnly();
   }
@@ -1134,6 +1138,135 @@
     await page.render({canvasContext:offCtx, viewport}).promise;
     sourceImage = off; imgWidth = off.width; imgHeight = off.height;
     pdfInfo.pageNum = n;
+    vectorPaths = await extractVectorPaths(page, viewport);
+    updateVectorStatus();
+  }
+
+  /* ---------------- PDFベクターパス抽出 ----------------
+     ベクターPDF(CAD/Excel等から書き出したもの)であれば、pdf.jsの描画命令から
+     実際の線データを画像ピクセル座標に変換して取り出す。スキャン画像PDFの場合は
+     線データが存在しないため、結果は空配列になる(=従来通りの手動計測のみの扱いになる)。 */
+  async function extractVectorPaths(page, viewport){
+    try{
+      const pdfjsLib = window.pdfjsLib;
+      const Util = pdfjsLib.Util;
+      const OPS = pdfjsLib.OPS;
+      const opList = await page.getOperatorList();
+      const result = [];
+      let ctmStack = [];
+      let ctm = [1,0,0,1,0,0];
+      let subpaths = []; // 現在のパス(まだペイントされていない)のサブパス一覧
+
+      function toPixel(x,y){
+        const u = Util.applyTransform([x,y], ctm);
+        const p = Util.applyTransform(u, viewport.transform);
+        return {x:p[0], y:p[1]};
+      }
+      function flush(forceClosed){
+        subpaths.forEach(sp=>{
+          if(sp.pts.length>=2){
+            result.push({ points: sp.pts.map(p=>toPixel(p.x,p.y)), closed: forceClosed || sp.closed });
+          }
+        });
+        subpaths = [];
+      }
+
+      // pdf.jsはmoveTo/lineTo/curveTo/closePath/rectangleを個別命令ではなく、
+      // 1つのOPS.constructPathにまとめて渡す({ops:[...], args:[...(x,y)の平坦配列]}相当)。
+      function handleConstructPath(args){
+        const ops = args[0], coords = args[1];
+        let j = 0;
+        let cur = null;
+        for(let k=0;k<ops.length;k++){
+          const op = ops[k];
+          if(op===OPS.moveTo){
+            cur = {pts:[{x:coords[j],y:coords[j+1]}], closed:false};
+            subpaths.push(cur);
+            j += 2;
+          } else if(op===OPS.lineTo){
+            if(!cur){ cur = {pts:[{x:coords[j],y:coords[j+1]}], closed:false}; subpaths.push(cur); }
+            else cur.pts.push({x:coords[j],y:coords[j+1]});
+            j += 2;
+          } else if(op===OPS.curveTo){
+            if(cur && cur.pts.length){
+              const p0 = cur.pts[cur.pts.length-1];
+              sampleBezier(cur.pts, p0, coords[j],coords[j+1], coords[j+2],coords[j+3], coords[j+4],coords[j+5]);
+            }
+            j += 6;
+          } else if(op===OPS.curveTo2){ // 'v': 第1制御点=現在点
+            if(cur && cur.pts.length){
+              const p0 = cur.pts[cur.pts.length-1];
+              sampleBezier(cur.pts, p0, p0.x,p0.y, coords[j],coords[j+1], coords[j+2],coords[j+3]);
+            }
+            j += 4;
+          } else if(op===OPS.curveTo3){ // 'y': 第2制御点=終点
+            if(cur && cur.pts.length){
+              const p0 = cur.pts[cur.pts.length-1];
+              sampleBezier(cur.pts, p0, coords[j],coords[j+1], coords[j+2],coords[j+3], coords[j+2],coords[j+3]);
+            }
+            j += 4;
+          } else if(op===OPS.closePath){
+            if(cur && cur.pts.length){ cur.pts.push({x:cur.pts[0].x,y:cur.pts[0].y}); cur.closed = true; }
+          } else if(op===OPS.rectangle){
+            const x=coords[j], y=coords[j+1], w=coords[j+2], h=coords[j+3];
+            subpaths.push({pts:[{x,y},{x:x+w,y},{x:x+w,y:y+h},{x,y:y+h},{x,y}], closed:true});
+            cur = null;
+            j += 4;
+          }
+        }
+      }
+      function sampleBezier(pts, p0, x1,y1, x2,y2, x3,y3){
+        const N = 8;
+        for(let t=1;t<=N;t++){
+          const tt=t/N, mt=1-tt;
+          pts.push({
+            x: mt*mt*mt*p0.x + 3*mt*mt*tt*x1 + 3*mt*tt*tt*x2 + tt*tt*tt*x3,
+            y: mt*mt*mt*p0.y + 3*mt*mt*tt*y1 + 3*mt*tt*tt*y2 + tt*tt*tt*y3
+          });
+        }
+      }
+
+      const {fnArray, argsArray} = opList;
+      for(let i=0;i<fnArray.length;i++){
+        const fn = fnArray[i], args = argsArray[i];
+        switch(fn){
+          case OPS.save: ctmStack.push(ctm.slice()); break;
+          case OPS.restore: ctm = ctmStack.pop() || ctm; break;
+          case OPS.transform: ctm = Util.transform(ctm, args); break;
+          case OPS.constructPath: handleConstructPath(args); break;
+          case OPS.stroke:
+          case OPS.closeStroke:
+            flush(false);
+            break;
+          case OPS.fill:
+          case OPS.eoFill:
+          case OPS.fillStroke:
+          case OPS.eoFillStroke:
+          case OPS.closeFillStroke:
+          case OPS.closeEOFillStroke:
+            flush(true);
+            break;
+          case OPS.endPath:
+            subpaths = [];
+            break;
+          default:
+            break;
+        }
+      }
+      return result;
+    }catch(err){
+      console.error('ベクターパスの抽出に失敗しました', err);
+      return [];
+    }
+  }
+
+  function updateVectorStatus(){
+    if(!pdfInfo){ vectorStatusEl.innerHTML = ''; return; }
+    if(vectorPaths && vectorPaths.length>0){
+      vectorStatusEl.innerHTML = '<span class="badge badge-on">ベクター図面を検出</span><span class="scale-detail">線データ '+vectorPaths.length+'本(DXF書き出しに自動で含まれます)</span>';
+    } else {
+      vectorStatusEl.innerHTML = '<span class="badge badge-off">ベクター図形なし</span><span class="scale-detail">画像として扱います(手動計測のみDXF化されます)</span>';
+    }
   }
 
   function updatePdfNav(){
@@ -1308,9 +1441,19 @@
   }
 
   function exportDXF(){
-    if(!calibration || measurements.length===0) return;
+    const hasVectors = vectorPaths && vectorPaths.length>0;
+    if(!calibration || (!hasVectors && measurements.length===0)) return;
     const TEXT_HEIGHT_MM = 100; // 注記文字の高さ(mm)。一般的な建築図面の注記サイズを想定した既定値
     let entities = '';
+
+    // ベクターPDFから抽出した実際の図面線(あれば): そのままDXFのポリラインとして書き出す
+    if(hasVectors){
+      vectorPaths.forEach(vp=>{
+        const pts = vp.points.map(toDxfPoint);
+        entities += dxfPolyline(pts, vp.closed);
+      });
+    }
+
     measurements.forEach((m, idx)=>{
       const num = idx+1;
       if(m.type==='length'){
@@ -1336,7 +1479,7 @@
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     const base = (filenameEl.textContent || '図面').replace(/\.[^.]+$/, '');
-    a.href = url; a.download = base + '_計測.dxf';
+    a.href = url; a.download = base + (hasVectors ? '_ベクター変換' : '_計測') + '.dxf';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
