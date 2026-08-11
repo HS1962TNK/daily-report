@@ -403,6 +403,7 @@
       <div class="sidebar-section">
         <div class="sidebar-actions">
           <button class="btn small" id="exportCsvBtn">CSV書き出し</button>
+          <button class="btn small" id="exportDxfBtn">DXF書き出し</button>
           <button class="btn small danger" id="clearAllBtn">全てクリア</button>
         </div>
         <p class="shortcuts" style="margin-top:10px;">
@@ -426,8 +427,8 @@
   "use strict";
 
   /* ===== 改定時はこの2行だけ変更してください ===== */
-  const APP_VERSION = 'v1.4';
-  const APP_UPDATED = '2026-07-16';
+  const APP_VERSION = 'v1.5';
+  const APP_UPDATED = '2026-08-11';
   /* ============================================ */
 
   /* ---------------- DOM refs ---------------- */
@@ -1286,6 +1287,60 @@
     URL.revokeObjectURL(url);
   }
 
+  /* ---------------- DXF export (JW_CADなどCADソフトへの取り込み用) ---------------- */
+  // 画像ピクセル座標 → 実寸mm。CADはY軸上向きが慣習のため反転する
+  function toDxfPoint(p){
+    const mmPerPixel = calibration.metersPerPixel * 1000;
+    return { x: p.x * mmPerPixel, y: -p.y * mmPerPixel };
+  }
+  function dxfLine(p1, p2){
+    return '0\nLINE\n8\n0\n10\n'+p1.x.toFixed(2)+'\n20\n'+p1.y.toFixed(2)+'\n30\n0.0\n11\n'+p2.x.toFixed(2)+'\n21\n'+p2.y.toFixed(2)+'\n31\n0.0\n';
+  }
+  function dxfPolyline(pts, closed){
+    let s = '0\nPOLYLINE\n8\n0\n66\n1\n10\n0.0\n20\n0.0\n30\n0.0\n70\n'+(closed?1:0)+'\n';
+    pts.forEach(p=>{ s += '0\nVERTEX\n8\n0\n10\n'+p.x.toFixed(2)+'\n20\n'+p.y.toFixed(2)+'\n30\n0.0\n'; });
+    s += '0\nSEQEND\n';
+    return s;
+  }
+  function dxfText(pos, text, height){
+    const t = String(text).replace(/[\r\n]/g,' ');
+    return '0\nTEXT\n8\nTEXT\n10\n'+pos.x.toFixed(2)+'\n20\n'+pos.y.toFixed(2)+'\n30\n0.0\n40\n'+height.toFixed(2)+'\n1\n'+t+'\n';
+  }
+
+  function exportDXF(){
+    if(!calibration || measurements.length===0) return;
+    const TEXT_HEIGHT_MM = 100; // 注記文字の高さ(mm)。一般的な建築図面の注記サイズを想定した既定値
+    let entities = '';
+    measurements.forEach((m, idx)=>{
+      const num = idx+1;
+      if(m.type==='length'){
+        const [p1,p2] = m.points.map(toDxfPoint);
+        entities += dxfLine(p1,p2);
+        entities += dxfText({x:(p1.x+p2.x)/2, y:(p1.y+p2.y)/2}, '#'+num+' '+formatLength(m.meters), TEXT_HEIGHT_MM);
+      } else if(m.type==='curve'){
+        const pts = m.points.map(toDxfPoint);
+        entities += dxfPolyline(pts, false);
+        const mid = pts[Math.floor(pts.length/2)];
+        entities += dxfText(mid, '#'+num+' '+formatLength(m.meters), TEXT_HEIGHT_MM);
+      } else {
+        const outlineImg = m.smooth ? catmullRomSample(m.points, true) : m.points;
+        const outline = outlineImg.map(toDxfPoint);
+        entities += dxfPolyline(outline, true);
+        const cx = outline.reduce((s,p)=>s+p.x,0)/outline.length;
+        const cy = outline.reduce((s,p)=>s+p.y,0)/outline.length;
+        entities += dxfText({x:cx,y:cy}, '#'+num+' '+formatArea(m.sqMeters), TEXT_HEIGHT_MM);
+      }
+    });
+    const dxf = '0\nSECTION\n2\nENTITIES\n' + entities + '0\nENDSEC\n0\nEOF\n';
+    const blob = new Blob([dxf], {type:'application/dxf'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const base = (filenameEl.textContent || '図面').replace(/\.[^.]+$/, '');
+    a.href = url; a.download = base + '_計測.dxf';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   /* ---------------- Events: toolbar ---------------- */
   fileInput.addEventListener('change', e=>{
     const file = e.target.files[0];
@@ -1310,6 +1365,7 @@
   areaUnitSel.addEventListener('change', ()=>{ areaUnit = areaUnitSel.value; renderList(); });
 
   exportCsvBtn.addEventListener('click', exportCSV);
+  document.getElementById('exportDxfBtn').addEventListener('click', exportDXF);
   clearAllBtn.addEventListener('click', ()=>{
     if(measurements.length===0 && !calibration) return;
     openConfirm('すべての計測結果と縮尺設定を削除します。よろしいですか?', ()=>{
