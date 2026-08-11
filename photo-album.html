@@ -582,25 +582,30 @@ function loadData(){
 }
 
 function exportExcel(){
-  const entries=[];
+  // 印刷版と同じく、写真ページ(1ページ=写真最大3枚)単位でまとめる。1ページ=Excelのシート1枚に対応させる
+  const pages=[];
   document.querySelectorAll('[data-photopage]').forEach(page=>{
     const pi=page.dataset.photopage;
+    const pageEntries=[];
+    let hasContent=false;
     for(let i=0;i<PHOTOS_PER_PAGE;i++){
       const key=`p${pi}-${i}`;
       const getV=k=>{const el=document.querySelector(`[data-k="${key}-${k}"]`);return el?el.value:'';};
       const ko=getV('kosyu'),pl=getV('place'),cm=getV('comment');
       const photo=photoData[key]||'';
-      if(ko||pl||cm||photo) entries.push({kosyu:ko,place:pl,comment:cm,photo:photo});
+      if(ko||pl||cm||photo) hasContent=true;
+      pageEntries.push({kosyu:ko,place:pl,comment:cm,photo:photo});
     }
+    if(hasContent) pages.push(pageEntries);
   });
-  if(!entries.length){alert('⚠️ 出力する写真・情報がありません');return;}
+  if(!pages.length){alert('⚠️ 出力する写真・情報がありません');return;}
 
   const btn = event ? event.target : null;
   const before = btn ? btn.innerHTML : null;
   if(btn){btn.disabled=true;btn.innerHTML='⏳ 変換中…';}
 
   const siteName = (header.genba || header.koji || '').trim();
-  fetch(GAS_URL, {method:'POST', body: JSON.stringify({action:'exportAlbumExcel', site:siteName, header:header, entries:entries})})
+  fetch(GAS_URL, {method:'POST', body: JSON.stringify({action:'exportAlbumExcel', site:siteName, header:header, pages:pages})})
     .then(r=>r.json())
     .then(res=>{
       if(res.status!=='ok'){
