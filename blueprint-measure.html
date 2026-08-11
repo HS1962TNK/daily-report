@@ -1528,6 +1528,10 @@
   // CADソフト側でレイヤーの表示/非表示を切り替えられるので、寸法を見たいときは表示、
   // 邪魔なときは非表示、というように使い分けられる。
   const VECTOR_SMALL_SIZE_MM = 30;
+  // 2点だけの直線のうち、これより短いものはハッチング(斜線の網掛け)や破線の断片である可能性が非常に高く、
+  // 実データを調査した結果、この種の微小な線が全体の大半(数万本)を占めてファイルを不必要に巨大化させ、
+  // CADソフトによっては読み込みが不完全になる原因になっていた。構造的な意味を持たないためDXFから除外する。
+  const VECTOR_NOISE_MIN_LENGTH_MM = 15;
 
   // dxfRegionが指定されている場合、その範囲内かどうかを判定(画像ピクセル座標系)。
   // 縮尺の異なる詳細図などを除外するためのフィルター。
@@ -1541,7 +1545,7 @@
     if(!calibration || (!hasVectors && measurements.length===0)) return;
     const TEXT_HEIGHT_MM = 100; // 計測の注記文字の高さ(mm)。一般的な建築図面の注記サイズを想定した既定値
     let entities = '';
-    let mainVectorCount = 0, smallVectorCount = 0, textIncludedCount = 0, regionExcludedCount = 0;
+    let mainVectorCount = 0, smallVectorCount = 0, textIncludedCount = 0, regionExcludedCount = 0, noiseExcludedCount = 0;
 
     // PDFに埋め込まれた文字(寸法数値・室名など): 実際の文字列をDXFのTEXTエンティティとして「TEXT」レイヤーに書き出す
     if(textItems && textItems.length){
@@ -1561,6 +1565,11 @@
         const cy = vp.points.reduce((s,p)=>s+p.y,0)/vp.points.length;
         if(!inDxfRegion(cx,cy)){ regionExcludedCount++; return; }
         const pts = vp.points.map(toDxfPoint);
+        // 2点だけの短い直線(ハッチング・破線の断片とみなせるもの)は構造的な意味を持たないため除外する
+        if(pts.length===2){
+          const segLen = Math.hypot(pts[1].x-pts[0].x, pts[1].y-pts[0].y);
+          if(segLen < VECTOR_NOISE_MIN_LENGTH_MM){ noiseExcludedCount++; return; }
+        }
         const xs = pts.map(p=>p.x), ys = pts.map(p=>p.y);
         const w = Math.max(...xs) - Math.min(...xs);
         const h = Math.max(...ys) - Math.min(...ys);
@@ -1614,7 +1623,7 @@
     if(hasVectors){
       hintBar.hidden = false;
       const regionNote = dxfRegion ? '(範囲外 '+regionExcludedCount+'件を除外)' : '';
-      hintText.textContent = 'DXF書き出し完了: 線 '+mainVectorCount+'本(レイヤー0) + 文字 '+textIncludedCount+'件・微小図形 '+smallVectorCount+'件(レイヤーTEXT)を出力 '+regionNote;
+      hintText.textContent = 'DXF書き出し完了: 線 '+mainVectorCount+'本(レイヤー0) + 文字 '+textIncludedCount+'件・微小図形 '+smallVectorCount+'件(レイヤーTEXT)を出力、ハッチング等の微小線 '+noiseExcludedCount+'件を除外 '+regionNote;
     }
   }
 
