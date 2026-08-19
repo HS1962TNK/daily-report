@@ -192,6 +192,7 @@
     padding-left:10px;cursor:pointer;white-space:nowrap;
   }
   .smooth-toggle input{accent-color:var(--bp-accent);cursor:pointer;}
+  input[type=range]{accent-color:var(--bp-accent);width:100%;}
   .hint-actions{display:flex;gap:6px;}
 
   .scale-bar{
@@ -327,6 +328,7 @@
       <button class="btn" id="btnCurve" disabled>曲線</button>
       <button class="btn" id="btnArea" disabled>面積</button>
       <button class="btn" id="btnDxfRegion" disabled>DXF範囲指定</button>
+      <button class="btn" id="btnTraceEdit" disabled>線を編集</button>
       <button class="btn" id="btnPan" disabled>パン</button>
     </div>
 
@@ -429,8 +431,8 @@
   "use strict";
 
   /* ===== 改定時はこの2行だけ変更してください ===== */
-  const APP_VERSION = 'v1.5';
-  const APP_UPDATED = '2026-08-11';
+  const APP_VERSION = 'v1.6';
+  const APP_UPDATED = '2026-08-19';
   /* ============================================ */
 
   /* ---------------- DOM refs ---------------- */
@@ -451,8 +453,9 @@
   const btnCurve = document.getElementById('btnCurve');
   const btnArea = document.getElementById('btnArea');
   const btnDxfRegion = document.getElementById('btnDxfRegion');
+  const btnTraceEdit = document.getElementById('btnTraceEdit');
   const btnPan = document.getElementById('btnPan');
-  const modeButtons = {scale:btnScale, length:btnLength, curve:btnCurve, area:btnArea, dxfregion:btnDxfRegion, pan:btnPan};
+  const modeButtons = {scale:btnScale, length:btnLength, curve:btnCurve, area:btnArea, dxfregion:btnDxfRegion, traceedit:btnTraceEdit, pan:btnPan};
   const smoothToggleWrap = document.getElementById('smoothToggleWrap');
   const areaSmoothChk = document.getElementById('areaSmoothChk');
 
@@ -505,6 +508,15 @@
   let dxfRegion = null;         // DXF書き出し対象の範囲(指定時){x1,y1,x2,y2}(画像ピクセル座標系)。縮尺の異なる詳細図等を除外するために使う
   let snapTarget = null;        // クリック位置に一番近いベクター線の端点(吸着先)。ベクターPDFの場合のみ有効
   const SNAP_RADIUS_SCREEN_PX = 14; // 吸着の判定半径(画面ピクセル基準。ズームレベルに応じて画像ピクセルに換算する)
+
+  // ラスター画像(スキャン・写真)/画像PDFの自動トレース(OpenCV.jsによる直線検出)関連の状態。
+  // 検出結果はvectorPathsにそのまま格納するため、DXF書き出し・吸着など既存のベクター処理をそのまま流用できる。
+  let autoTraceOrigin = null;   // null | 'trace'  (vectorPathsが自動トレース由来かどうか。PDFベクター抽出とは区別する)
+  let autoTraceBusy = false;
+  let manualEditsSinceTrace = false; // 「線を編集」モードでの追加・削除がある状態で再トレースすると失われるため、確認ダイアログの要否判定に使う
+  let hoveredVectorPathIndex = -1;   // 「線を編集」モードでのホバー中の線(削除プレビュー用)
+  let lastTraceParams = {sensitivity:50, minLen:18, maxGap:8, blur:true, mergeDist:6};
+  const OPENCV_JS_URL = 'https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.9.0-release.1/dist/opencv.js';
   let hoveredId = null;
   let lengthUnit = 'mm';
   let areaUnit = 'm2';
@@ -706,6 +718,33 @@
     return best;
   }
 
+  // 点pから線分a-bまでの距離の2乗(平方根を取らずに比較用に使う)
+  function distToSegmentSq(p, a, b){
+    const l2 = (b.x-a.x)*(b.x-a.x) + (b.y-a.y)*(b.y-a.y);
+    if(l2===0) return (p.x-a.x)*(p.x-a.x) + (p.y-a.y)*(p.y-a.y);
+    let t = ((p.x-a.x)*(b.x-a.x) + (p.y-a.y)*(b.y-a.y)) / l2;
+    t = Math.max(0, Math.min(1, t));
+    const projx = a.x + t*(b.x-a.x), projy = a.y + t*(b.y-a.y);
+    return (p.x-projx)*(p.x-projx) + (p.y-projy)*(p.y-projy);
+  }
+
+  // クリック/ホバー位置(画像ピクセル座標)に最も近いvectorPathsのインデックスを探す(「線を編集」モードでの削除対象判定用)。
+  // 見つからなければ-1。
+  function findVectorPathIndexNear(imgPt){
+    if(!vectorPaths || vectorPaths.length===0) return -1;
+    const radiusImg = SNAP_RADIUS_SCREEN_PX / view.scale;
+    const radiusSq = radiusImg*radiusImg;
+    let bestIdx = -1, bestDistSq = radiusSq;
+    vectorPaths.forEach((vp, idx)=>{
+      const pts = vp.points;
+      for(let i=0;i<pts.length-1;i++){
+        const d = distToSegmentSq(imgPt, pts[i], pts[i+1]);
+        if(d < bestDistSq){ bestDistSq = d; bestIdx = idx; }
+      }
+    });
+    return bestIdx;
+  }
+
   function drawSnapIndicator(){
     if(!snapTarget) return;
     const p = imageToScreen(snapTarget);
@@ -782,6 +821,7 @@
     ctx.drawImage(sourceImage, 0, 0, imgWidth, imgHeight);
     ctx.restore();
 
+    drawTraceOverlay();
     drawCalibrationLine();
     drawDxfRegion();
     measurements.forEach((m,i)=>drawMeasurement(m, i+1));
@@ -789,6 +829,27 @@
     drawSnapIndicator();
     updateScaleBarDisplay();
     updateZoomLabel();
+  }
+
+  // 自動トレース(OpenCV.jsの直線検出)で得た線をキャンバスに重ねて表示する。
+  // ベクターPDF由来のvectorPathsは元のPDF描画そのものが既に見えているため描画不要だが、
+  // 自動トレースは「検出結果」を検証してもらう必要があるため、専用色でオーバーレイする。
+  function drawTraceOverlay(){
+    if(!vectorPaths || vectorPaths.length===0) return;
+    // 自動トレース結果は常に表示する。ベクターPDF抽出の場合は元のPDF描画自体が既に見えているので
+    // 普段は重ねて描かないが、「線を編集」モード中はクリック対象を分かりやすくするため常に重ねて表示する。
+    if(autoTraceOrigin!=='trace' && mode!=='traceedit') return;
+    ctx.save();
+    vectorPaths.forEach((vp, idx)=>{
+      const isHovered = mode==='traceedit' && idx===hoveredVectorPathIndex;
+      ctx.strokeStyle = isHovered ? 'rgba(255,60,60,0.95)' : 'rgba(255,90,192,0.85)';
+      ctx.lineWidth = isHovered ? 3 : 1.5;
+      const pts = vp.points.map(imageToScreen);
+      ctx.beginPath();
+      pts.forEach((p,i)=> i===0 ? ctx.moveTo(p.x,p.y) : ctx.lineTo(p.x,p.y));
+      ctx.stroke();
+    });
+    ctx.restore();
   }
 
   function drawDxfRegion(){
@@ -912,6 +973,10 @@
       text = pendingPoints.length===0
         ? 'DXFに変換したい範囲の左上(または一方の角)をクリック(縮尺の異なる詳細図等を除外できます)'
         : '反対側の角をクリックして範囲を確定';
+    } else if(mode==='traceedit'){
+      text = pendingPoints.length===0
+        ? '線(ピンク色)をクリックで削除、何もない場所をクリックで新しい線の始点を指定'
+        : '終点をクリックして線を追加(Escでキャンセル)';
     }
     hintText.textContent = text;
     hintUndo.hidden = pendingPoints.length===0;
@@ -954,6 +1019,26 @@
         updateVectorStatus();
       }
       draw(); updateHint();
+    } else if(mode==='traceedit'){
+      if(pendingPoints.length===0){
+        const idx = findVectorPathIndexNear(imgPt);
+        if(idx>=0){
+          vectorPaths.splice(idx,1);
+          manualEditsSinceTrace = true;
+          hoveredVectorPathIndex = -1;
+          updateVectorStatus();
+          draw(); updateHint();
+          return;
+        }
+        pendingPoints.push(imgPt);
+        draw(); updateHint();
+      } else {
+        vectorPaths.push({points:[pendingPoints[0], imgPt], closed:false, manual:true});
+        manualEditsSinceTrace = true;
+        pendingPoints = [];
+        updateVectorStatus();
+        draw(); updateHint();
+      }
     }
   }
 
@@ -1033,7 +1118,7 @@
     valueInput.addEventListener('keydown', e=>{ if(e.key==='Enter'){ modalBox.querySelector('#calibOk').click(); }});
   }
 
-  function openConfirm(message, onYes){
+  function openConfirm(message, onYes, onNo){
     modalBox.innerHTML =
       '<h3>確認</h3>'+
       '<p class="modal-sub">'+message+'</p>'+
@@ -1042,7 +1127,7 @@
         '<button class="btn danger" id="confirmYes">実行</button>'+
       '</div>';
     modalOverlay.hidden = false;
-    modalBox.querySelector('#confirmNo').onclick = closeModal;
+    modalBox.querySelector('#confirmNo').onclick = ()=>{ closeModal(); if(onNo) onNo(); };
     modalBox.querySelector('#confirmYes').onclick = ()=>{ closeModal(); onYes(); };
   }
 
@@ -1131,6 +1216,7 @@
   function resetAllState(){
     sourceImage = null; imgWidth = 0; imgHeight = 0; pdfInfo = null;
     vectorPaths = []; textItems = []; vectorStatusEl.innerHTML = '';
+    autoTraceOrigin = null; autoTraceBusy = false; manualEditsSinceTrace = false; hoveredVectorPathIndex = -1;
     view = {scale:1, offsetX:0, offsetY:0};
     resetMeasurementsOnly();
   }
@@ -1152,7 +1238,8 @@
       else { await loadImage(file); }
       emptyState.hidden = true;
       hintBar.hidden = false;
-      [btnScale, btnPan, btnDxfRegion, zoomInBtn, zoomOutBtn, zoomResetBtn, saveImageBtn].forEach(b=>b.disabled=false);
+      [btnScale, btnPan, btnDxfRegion, btnTraceEdit, zoomInBtn, zoomOutBtn, zoomResetBtn, saveImageBtn].forEach(b=>b.disabled=false);
+      updateVectorStatus(); // 画像アップロード時は上のPDF処理内から呼ばれないため、ここで確実に呼ぶ(自動トレース欄の表示に必要)
       resizeCanvas();
       fitToView();
       setMode('scale');
@@ -1214,6 +1301,7 @@
     await page.render({canvasContext:offCtx, viewport}).promise;
     sourceImage = off; imgWidth = off.width; imgHeight = off.height;
     pdfInfo.pageNum = n;
+    autoTraceOrigin = null; manualEditsSinceTrace = false; hoveredVectorPathIndex = -1; // ページ切り替え時は自動トレース結果を引き継がない(ページごとに再実行が必要)
     vectorPaths = await extractVectorPaths(page, viewport);
     textItems = await extractTextItems(page, viewport);
     updateVectorStatus();
@@ -1366,15 +1454,53 @@
     }
   }
 
-  function updateVectorStatus(){
-    if(!pdfInfo){ vectorStatusEl.innerHTML = ''; return; }
-    const hasAny = (vectorPaths && vectorPaths.length>0) || (textItems && textItems.length>0);
-    let html;
-    if(hasAny){
-      html = '<span class="badge badge-on">ベクター図面を検出</span><span class="scale-detail">線 '+vectorPaths.length+'本・文字 '+textItems.length+'件(DXF書き出しに自動で含まれます)<br>クリック位置は近くの線の端点に自動で吸着します(精度向上)</span>';
-    } else {
-      html = '<span class="badge badge-off">ベクター図形なし</span><span class="scale-detail">画像として扱います(手動計測のみDXF化されます)</span>';
+  // 自動トレース(OpenCV.jsの直線検出)の設定パネルHTML。
+  // isInitial=trueは「まだ一度もトレースしていない」状態(初回実行ボタンのみ)、
+  // falseは「トレース済み」状態(パラメータ調整スライダー+再トレース/消すボタン)。
+  function traceControlsHtml(isInitial){
+    const p = lastTraceParams;
+    const busyAttr = autoTraceBusy ? 'disabled' : '';
+    if(isInitial){
+      return '<div style="margin-top:8px">'+
+        '<button class="btn small primary" '+busyAttr+' onclick="window.__runAutoTrace()">'+(autoTraceBusy?'処理中…':'自動トレース')+'</button>'+
+        '<div style="font-size:11px;color:var(--bp-ink-dim);margin-top:5px;line-height:1.6">スキャン画像・写真から直線を自動検出してベクター化します(壁・柱・建具などの直線が対象。曲線やフリーハンドの線は精度が下がります)。初回はライブラリの読み込みに時間がかかることがあります。</div>'+
+        '</div>';
     }
+    return '<div style="margin-top:10px">'+
+      '<div style="font-size:10.5px;color:var(--bp-ink-dim);display:flex;justify-content:space-between"><span>検出感度</span><span id="traceSensVal">'+p.sensitivity+'</span></div>'+
+      '<input type="range" id="traceSensitivity" min="1" max="100" value="'+p.sensitivity+'" oninput="document.getElementById(\'traceSensVal\').textContent=this.value">'+
+      '<div style="font-size:10.5px;color:var(--bp-ink-dim);display:flex;justify-content:space-between;margin-top:6px"><span>最小線分長(px)</span><span id="traceMinLenVal">'+p.minLen+'</span></div>'+
+      '<input type="range" id="traceMinLen" min="5" max="200" value="'+p.minLen+'" oninput="document.getElementById(\'traceMinLenVal\').textContent=this.value">'+
+      '<div style="font-size:10.5px;color:var(--bp-ink-dim);display:flex;justify-content:space-between;margin-top:6px"><span>隙間許容(px)</span><span id="traceMaxGapVal">'+p.maxGap+'</span></div>'+
+      '<input type="range" id="traceMaxGap" min="0" max="50" value="'+p.maxGap+'" oninput="document.getElementById(\'traceMaxGapVal\').textContent=this.value">'+
+      '<div style="font-size:10.5px;color:var(--bp-ink-dim);display:flex;justify-content:space-between;margin-top:6px"><span>二重線の統合幅(px)</span><span id="traceMergeDistVal">'+p.mergeDist+'</span></div>'+
+      '<input type="range" id="traceMergeDist" min="0" max="20" value="'+p.mergeDist+'" oninput="document.getElementById(\'traceMergeDistVal\').textContent=this.value">'+
+      '<div style="font-size:10.5px;color:var(--bp-ink-dim);margin-top:2px;line-height:1.5">1本の線の両端が2本の線として検出される場合に、これを1本に統合します(0で無効)</div>'+
+      '<label style="display:flex;align-items:center;gap:5px;font-size:11px;margin-top:6px;cursor:pointer"><input type="checkbox" id="traceBlurChk" '+(p.blur?'checked':'')+'> ノイズ除去(軽くぼかす)</label>'+
+      '<div style="display:flex;gap:6px;margin-top:8px">'+
+        '<button class="btn small primary" style="flex:1" '+busyAttr+' onclick="window.__runAutoTrace()">'+(autoTraceBusy?'処理中…':'再トレース')+'</button>'+
+        '<button class="btn small danger" '+busyAttr+' onclick="window.__clearAutoTrace()">消す</button>'+
+      '</div>'+
+      '</div>';
+  }
+
+  function updateVectorStatus(){
+    if(!sourceImage){ vectorStatusEl.innerHTML = ''; return; }
+    // 実PDFからベクター線・文字が抽出できている場合を優先表示(自動トレースより情報として正確なため)
+    const pdfVectorHasData = pdfInfo && autoTraceOrigin!=='trace' && ((vectorPaths && vectorPaths.length>0) || (textItems && textItems.length>0));
+    let html;
+    if(pdfVectorHasData){
+      html = '<span class="badge badge-on">ベクター図面を検出</span><span class="scale-detail">線 '+vectorPaths.length+'本・文字 '+textItems.length+'件(DXF書き出しに自動で含まれます)<br>クリック位置は近くの線の端点に自動で吸着します(精度向上)</span>';
+    } else if(autoTraceOrigin==='trace' || (vectorPaths && vectorPaths.length>0)){
+      // autoTraceOrigin==='trace'でなくてもvectorPathsが存在する場合(「線を編集」モードで
+      // 自動トレースを一度も実行せず手動追加したケース)も同じ表示にする
+      html = '<span class="badge badge-on">自動トレース済み</span><span class="scale-detail">検出した線 '+vectorPaths.length+'本(画面にピンク色で表示・DXF書き出しに含まれます)<br>クリック位置は近くの線に自動で吸着します</span>'+
+        traceControlsHtml(false);
+    } else {
+      html = '<span class="badge badge-off">ベクター図形なし</span><span class="scale-detail">画像として扱います(手動計測のみDXF化されます)</span>'+
+        traceControlsHtml(true);
+    }
+    const hasAny = pdfVectorHasData || autoTraceOrigin==='trace' || (vectorPaths && vectorPaths.length>0);
     if(dxfRegion){
       html += '<div style="margin-top:4px"><span class="badge badge-on">DXF範囲を指定中</span> <span class="completed-link" onclick="window.__clearDxfRegion()">解除</span></div>';
     } else if(hasAny){
@@ -1383,6 +1509,231 @@
     vectorStatusEl.innerHTML = html;
   }
   window.__clearDxfRegion = function(){ dxfRegion = null; updateVectorStatus(); draw(); };
+
+  /* ---------------- 自動トレース(OpenCV.jsによるラスター画像からの直線検出) ----------------
+     スキャン画像・写真、および画像PDF(ベクターデータを持たないPDF)は従来、手動クリックでの
+     計測しかできなかった。OpenCV.js(WASM版OpenCV、約9MB)をCDNから遅延読み込みし、
+     グレースケール化→Canny エッジ検出→確率的ハフ変換(HoughLinesP)で直線分を検出、
+     結果をvectorPathsに格納することで、既存のDXF書き出し・スナップ機能をそのまま再利用する。
+     曲線・手書き線・複雑な交差の検出精度には限界があり、あくまで壁・柱・建具など直線中心の
+     図面向けの補助機能という位置づけ。
+
+     重要: OpenCV.js本体の読み込み(巨大な単一JSファイルのパース)およびCanny/Hough処理は
+     メインスレッドで行うと数秒〜数十秒にわたりUIスレッドを完全にブロックし、ブラウザに
+     「ページが応答しません」と表示される(実際に発生を確認した)。そのため全ての重い処理は
+     Web Workerの中で行い、メインスレッドは画像データの受け渡しと結果の反映だけを行う。 */
+  let traceWorker = null;
+  function getTraceWorker(){
+    if(traceWorker) return traceWorker;
+    const workerSrc = [
+      'self.onerror = function(e){ postMessage({error: "Worker内エラー: " + e.message}); };',
+      'importScripts(' + JSON.stringify(OPENCV_JS_URL) + ');',
+      'function waitCv(){',
+      // OpenCV.jsのModuleオブジェクト自身が.then()を持つ("thenable")ため、resolve()に
+      // 直接渡すとネイティブのPromise解決処理が「thenableとして中身を取り込もう」として
+      // Module側の.then()を呼び出そうとし、それが返ってこないままハングし続けることを実機で確認した。
+      // プレーンオブジェクトで包むことでその自動アダプションを回避する。
+      '  return new Promise(function(resolve){',
+      '    if(self.cv && self.cv.Mat){ resolve({cv:self.cv}); return; }',
+      '    self.cv["onRuntimeInitialized"] = function(){ resolve({cv:self.cv}); };',
+      '  });',
+      '}',
+      'var cvPromise = waitCv();',
+      'var MAX_TRACE_DIM = 3000;',
+      // Cannyは線の太さ分だけ両側の輪郭(2本)を検出してしまうため、HoughLinesPの生の出力には
+      // 実際には1本の壁・線であるものが、近接した2本の平行線として重複検出される。
+      // 角度がほぼ同じ・法線方向の距離(rho)が近い・線分としての範囲が重なっている セグメント同士を
+      // Union-Findでクラスタリングし、各クラスタを1本の中心線に統合する。
+      'function mergeParallelLines(lines, angleTolDeg, rhoTol){',
+      '  var segs = lines.map(function(l){',
+      '    var x1=l[0],y1=l[1],x2=l[2],y2=l[3];',
+      '    var angle = Math.atan2(y2-y1, x2-x1) * 180/Math.PI;',
+      '    angle = ((angle % 180) + 180) % 180;',
+      '    var midx=(x1+x2)/2, midy=(y1+y2)/2;',
+      '    var normalRad = (angle+90) * Math.PI/180;',
+      '    var rho = midx*Math.cos(normalRad) + midy*Math.sin(normalRad);',
+      '    var len = Math.hypot(x2-x1, y2-y1) || 1e-6;',
+      '    return {x1:x1,y1:y1,x2:x2,y2:y2,angle:angle,rho:rho,len:len,dirx:(x2-x1)/len,diry:(y2-y1)/len};',
+      '  });',
+      '  segs.sort(function(a,b){ return a.angle-b.angle; });',
+      '  var n = segs.length;',
+      '  var parent = []; for(var p=0;p<n;p++){ parent.push(p); }',
+      '  function find(i){ while(parent[i]!==i){ parent[i]=parent[parent[i]]; i=parent[i]; } return i; }',
+      '  function union(i,j){ var ri=find(i), rj=find(j); if(ri!==rj){ parent[ri]=rj; } }',
+      '  for(var i=0;i<n;i++){',
+      '    for(var j=i+1;j<n;j++){',
+      '      if(segs[j].angle - segs[i].angle > angleTolDeg) break;',
+      '      var dAngle = Math.abs(segs[i].angle - segs[j].angle);',
+      '      if(dAngle > 90) dAngle = 180-dAngle;',
+      '      if(dAngle > angleTolDeg) continue;',
+      '      if(Math.abs(segs[i].rho - segs[j].rho) > rhoTol) continue;',
+      '      var base={x:segs[i].x1,y:segs[i].y1}, dir={x:segs[i].dirx,y:segs[i].diry};',
+      '      function proj(x,y){ return (x-base.x)*dir.x + (y-base.y)*dir.y; }',
+      '      var iMin=Math.min(proj(segs[i].x1,segs[i].y1),proj(segs[i].x2,segs[i].y2));',
+      '      var iMax=Math.max(proj(segs[i].x1,segs[i].y1),proj(segs[i].x2,segs[i].y2));',
+      '      var jMin=Math.min(proj(segs[j].x1,segs[j].y1),proj(segs[j].x2,segs[j].y2));',
+      '      var jMax=Math.max(proj(segs[j].x1,segs[j].y1),proj(segs[j].x2,segs[j].y2));',
+      '      var overlap = Math.min(iMax,jMax) - Math.max(iMin,jMin);',
+      '      if(overlap < -(rhoTol*3)) continue;',
+      '      union(i,j);',
+      '    }',
+      '  }',
+      '  var groups = {};',
+      '  for(var k=0;k<n;k++){ var r=find(k); (groups[r]=groups[r]||[]).push(segs[k]); }',
+      '  var merged = [];',
+      '  Object.keys(groups).forEach(function(key){',
+      '    var group = groups[key];',
+      '    if(group.length===1){ merged.push([group[0].x1,group[0].y1,group[0].x2,group[0].y2]); return; }',
+      '    var ref = group.reduce(function(a,b){ return a.len>b.len?a:b; });',
+      '    var dir={x:ref.dirx,y:ref.diry}, base={x:ref.x1,y:ref.y1};',
+      '    var minP=Infinity, maxP=-Infinity, minPt=null, maxPt=null;',
+      '    group.forEach(function(s){',
+      '      [[s.x1,s.y1],[s.x2,s.y2]].forEach(function(pt){',
+      '        var p=(pt[0]-base.x)*dir.x+(pt[1]-base.y)*dir.y;',
+      '        if(p<minP){minP=p; minPt=pt;}',
+      '        if(p>maxP){maxP=p; maxPt=pt;}',
+      '      });',
+      '    });',
+      '    var avgRho = group.reduce(function(s,g){ return s+g.rho; },0)/group.length;',
+      '    var normalRad=(ref.angle+90)*Math.PI/180, normal={x:Math.cos(normalRad),y:Math.sin(normalRad)};',
+      '    var baseRho = base.x*normal.x + base.y*normal.y;',
+      '    var shift = avgRho - baseRho;',
+      '    merged.push([minPt[0]+shift*normal.x, minPt[1]+shift*normal.y, maxPt[0]+shift*normal.x, maxPt[1]+shift*normal.y]);',
+      '  });',
+      '  return merged;',
+      '}',
+      'self.onmessage = function(e){',
+      '  cvPromise.then(function(wrapped){',
+      '    var cv = wrapped.cv;',
+      '    try{',
+      '      var imageData = e.data.imageData, params = e.data.params, imgW = e.data.imgW, imgH = e.data.imgH;',
+      '      var src = cv.matFromImageData(imageData);',
+      '      var longSide = Math.max(imgW, imgH);',
+      '      var scaleFactor = longSide > MAX_TRACE_DIM ? MAX_TRACE_DIM/longSide : 1;',
+      '      if(scaleFactor < 1){',
+      '        var resized = new cv.Mat();',
+      '        cv.resize(src, resized, new cv.Size(Math.round(imgW*scaleFactor), Math.round(imgH*scaleFactor)), 0, 0, cv.INTER_AREA);',
+      '        src.delete(); src = resized;',
+      '      }',
+      '      var gray = new cv.Mat();',
+      '      cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);',
+      '      if(params.blur){ cv.GaussianBlur(gray, gray, new cv.Size(3,3), 0, 0, cv.BORDER_DEFAULT); }',
+      '      var edges = new cv.Mat();',
+      '      var hiThresh = Math.max(20, Math.round(260 - params.sensitivity*2.2));',
+      '      var loThresh = Math.round(hiThresh/2);',
+      '      cv.Canny(gray, edges, loThresh, hiThresh, 3, false);',
+      '      var linesMat = new cv.Mat();',
+      '      var minLenScaled = Math.max(1, params.minLen*scaleFactor);',
+      '      var maxGapScaled = Math.max(0, params.maxGap*scaleFactor);',
+      '      var houghThresh = Math.max(8, Math.round(minLenScaled*0.5));',
+      '      cv.HoughLinesP(edges, linesMat, 1, Math.PI/180, houghThresh, minLenScaled, maxGapScaled);',
+      '      var rawLines = [];',
+      '      for(var i=0;i<linesMat.rows;i++){',
+      '        rawLines.push([linesMat.data32S[i*4], linesMat.data32S[i*4+1], linesMat.data32S[i*4+2], linesMat.data32S[i*4+3]]);',
+      '      }',
+      '      var mergeDistScaled = Math.max(0, (params.mergeDist||0)*scaleFactor);',
+      '      var mergedLines = mergeDistScaled>0 ? mergeParallelLines(rawLines, 5, mergeDistScaled) : rawLines;',
+      '      var inv = 1/scaleFactor;',
+      '      var lines = mergedLines.map(function(l){ return [l[0]*inv, l[1]*inv, l[2]*inv, l[3]*inv]; });',
+      '      src.delete(); gray.delete(); edges.delete(); linesMat.delete();',
+      '      postMessage({lines: lines});',
+      '    }catch(err){',
+      '      postMessage({error: (err && err.message) ? err.message : String(err)});',
+      '    }',
+      '  });',
+      '};'
+    ].join('\n');
+    const blob = new Blob([workerSrc], {type:'application/javascript'});
+    traceWorker = new Worker(URL.createObjectURL(blob));
+    return traceWorker;
+  }
+
+  // sourceImage(<img>要素、またはPDFページ描画済みの<canvas>)を、Workerに渡せる
+  // 生のImageDataに変換する。一旦オフスクリーンcanvasに描画することでどちらの型も統一的に扱う。
+  function getImageDataFromSource(){
+    const off = document.createElement('canvas');
+    off.width = imgWidth; off.height = imgHeight;
+    const octx = off.getContext('2d');
+    octx.drawImage(sourceImage, 0, 0, imgWidth, imgHeight);
+    return octx.getImageData(0, 0, imgWidth, imgHeight);
+  }
+
+  function runAutoTrace(){
+    if(!sourceImage || autoTraceBusy) return;
+    // 「線を編集」モードでの手動追加・削除がある状態で再トレースすると、結果が丸ごと
+    // 上書きされて手動編集分が失われる。事前に確認を挟む。「キャンセル」やEscで閉じた場合は
+    // 何もしない(=doAutoTrace()を呼ばない)だけでよいので、Promiseで待ち受ける必要はない。
+    if(manualEditsSinceTrace){
+      openConfirm('手動で追加・削除した線は、再トレースを実行すると失われます。よろしいですか?', doAutoTrace);
+      return;
+    }
+    doAutoTrace();
+  }
+
+  async function doAutoTrace(){
+    // busy状態にしてvectorStatusEl(スライダーを含む)を再描画する前に、必ず今のスライダー値を
+    // 読み取ってlastTraceParamsへ確定させておく。再描画はlastTraceParamsの値でスライダーを
+    // 再構築するため、順序を逆にすると「変更した値がその場でリセットされて反映されない」
+    // という不具合になる(実際に発生を確認した)。
+    const sensEl = document.getElementById('traceSensitivity');
+    const minLenEl = document.getElementById('traceMinLen');
+    const maxGapEl = document.getElementById('traceMaxGap');
+    const mergeDistEl = document.getElementById('traceMergeDist');
+    const blurEl = document.getElementById('traceBlurChk');
+    const params = {
+      sensitivity: sensEl ? Number(sensEl.value) : lastTraceParams.sensitivity,
+      minLen: minLenEl ? Number(minLenEl.value) : lastTraceParams.minLen,
+      maxGap: maxGapEl ? Number(maxGapEl.value) : lastTraceParams.maxGap,
+      mergeDist: mergeDistEl ? Number(mergeDistEl.value) : lastTraceParams.mergeDist,
+      blur: blurEl ? blurEl.checked : lastTraceParams.blur
+    };
+    lastTraceParams = params;
+
+    autoTraceBusy = true;
+    updateVectorStatus();
+    hintBar.hidden = false;
+    hintText.textContent = '自動トレースの準備中です(初回はOpenCV.jsの読み込みに数十秒かかることがあります)…';
+    try{
+      const imageData = getImageDataFromSource();
+      const worker = getTraceWorker();
+      const lines = await new Promise((resolve, reject)=>{
+        const timer = setTimeout(()=>reject(new Error('自動トレースがタイムアウトしました(画像が大きすぎるか、通信環境をご確認ください)')), 180000);
+        worker.onmessage = (e)=>{
+          clearTimeout(timer);
+          if(e.data && e.data.error){ reject(new Error(e.data.error)); return; }
+          resolve((e.data && e.data.lines) || []);
+        };
+        worker.onerror = (e)=>{ clearTimeout(timer); reject(new Error('Workerエラー: '+e.message)); };
+        hintText.textContent = '自動トレース処理中です(バックグラウンドで実行中、画面は操作できます)…';
+        worker.postMessage({imageData, params, imgW:imgWidth, imgH:imgHeight}, [imageData.data.buffer]);
+      });
+
+      vectorPaths = lines.map(l=>({points:[{x:l[0],y:l[1]},{x:l[2],y:l[3]}], closed:false}));
+      autoTraceOrigin = 'trace';
+      manualEditsSinceTrace = false;
+      autoTraceBusy = false;
+      updateVectorStatus();
+      draw();
+      hintText.textContent = '自動トレース完了: 線 '+vectorPaths.length+'本を検出しました(下の設定を調整して「再トレース」で結果を変えられます)';
+    }catch(err){
+      autoTraceBusy = false;
+      console.error(err);
+      updateVectorStatus();
+      hintBar.hidden = false;
+      hintText.textContent = '自動トレースに失敗しました: '+(err && err.message ? err.message : '不明なエラー');
+    }
+  }
+  window.__runAutoTrace = runAutoTrace;
+
+  function clearAutoTrace(){
+    vectorPaths = [];
+    autoTraceOrigin = null;
+    manualEditsSinceTrace = false;
+    hoveredVectorPathIndex = -1;
+    updateVectorStatus();
+    draw();
+  }
+  window.__clearAutoTrace = clearAutoTrace;
 
   function updatePdfNav(){
     if(pdfInfo && pdfInfo.numPages>1){
@@ -1605,15 +1956,17 @@
         const cy = vp.points.reduce((s,p)=>s+p.y,0)/vp.points.length;
         if(!inDxfRegion(cx,cy)){ regionExcludedCount++; return; }
         const pts = vp.points.map(toDxfPoint);
-        // 2点だけの短い直線(ハッチング・破線の断片とみなせるもの)は構造的な意味を持たないため除外する
-        if(pts.length===2){
+        // 2点だけの短い直線(ハッチング・破線の断片とみなせるもの)は構造的な意味を持たないため除外する。
+        // ただし「線を編集」モードでユーザーが意図的に追加した線(vp.manual)は、短くても
+        // ノイズ扱いせず必ず含める(短い線を追加したのに消えると分かりにくいため)。
+        if(pts.length===2 && !vp.manual){
           const segLen = Math.hypot(pts[1].x-pts[0].x, pts[1].y-pts[0].y);
           if(segLen < VECTOR_NOISE_MIN_LENGTH_MM){ noiseExcludedCount++; return; }
         }
         const xs = pts.map(p=>p.x), ys = pts.map(p=>p.y);
         const w = Math.max(...xs) - Math.min(...xs);
         const h = Math.max(...ys) - Math.min(...ys);
-        const isSmall = Math.max(w,h) < VECTOR_SMALL_SIZE_MM;
+        const isSmall = !vp.manual && Math.max(w,h) < VECTOR_SMALL_SIZE_MM;
         entities += dxfPolyline(pts, vp.closed, isSmall ? 'TEXT' : '0');
         if(isSmall) smallVectorCount++; else mainVectorCount++;
       });
@@ -1656,7 +2009,8 @@
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     const base = (filenameEl.textContent || '図面').replace(/\.[^.]+$/, '');
-    a.href = url; a.download = base + (hasVectors ? '_ベクター変換' : '_計測') + '.dxf';
+    const suffix = !hasVectors ? '_計測' : (autoTraceOrigin==='trace' ? '_自動トレース' : '_ベクター変換');
+    a.href = url; a.download = base + suffix + '.dxf';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
@@ -1680,6 +2034,7 @@
   btnCurve.addEventListener('click', ()=>setMode('curve'));
   btnArea.addEventListener('click', ()=>setMode('area'));
   btnDxfRegion.addEventListener('click', ()=>setMode('dxfregion'));
+  btnTraceEdit.addEventListener('click', ()=>setMode('traceedit'));
   btnPan.addEventListener('click', ()=>setMode('pan'));
   areaSmoothChk.addEventListener('change', ()=>draw());
 
@@ -1778,6 +2133,7 @@
 
   window.addEventListener('pointermove', e=>{
     if(!sourceImage) return;
+    if(!modalOverlay.hidden) return; // モーダル表示中の座標はキャンバス上のホバーとして扱わない
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX-rect.left, my = e.clientY-rect.top;
     lastMouseScreen = {x:mx,y:my};
@@ -1798,12 +2154,23 @@
       } else if(snapTarget){
         snapTarget = null;
       }
+      if(mode==='traceedit' && pendingPoints.length===0){
+        hoveredVectorPathIndex = findVectorPathIndexNear(screenToImage({x:mx,y:my}));
+      } else if(hoveredVectorPathIndex!==-1){
+        hoveredVectorPathIndex = -1;
+      }
       draw();
     }
   });
 
   window.addEventListener('pointerup', e=>{
     if(!sourceImage){ isDragging=false; return; }
+    // pointerup/pointermoveはwindow全体にバインドされているため、クリック位置がたまたま
+    // キャンバスの座標範囲と重なるモーダルダイアログのボタン(確認ダイアログ等)をクリックした場合にも
+    // 誤ってキャンバスへのクリックとして処理されてしまう不具合があった(「線を編集」モードで
+    // 確認ダイアログの「キャンセル」を押しただけで検出線が1本消える、という形で実際に発生を確認)。
+    // モーダル表示中はここで早期リターンして、この誤爆を防ぐ。
+    if(!modalOverlay.hidden){ isDragging=false; didDrag=false; return; }
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX-rect.left, my = e.clientY-rect.top;
     if(isDragging){
