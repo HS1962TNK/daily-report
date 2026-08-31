@@ -162,7 +162,7 @@ input[type=range]{width:100%;accent-color:#185FA5}
 </div>
 </div>
 <div class="toast" id="toast"></div>
-<div class="sending-banner" id="sendingBanner" hidden>📤 送信中です。この表示が消えるまで画面を閉じたりアプリを切り替えたりしないでください</div>
+<div class="sending-banner" id="sendingBanner" hidden>📤 写真をバックグラウンドで送信中です。画面ロック・他アプリへの切替はOKですが、この表示が消えるまではこのアプリ(ブラウザ)を完全に閉じないでください</div>
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
@@ -352,26 +352,49 @@ async function saveR(){
   stored.unshift(rep);
   localStorage.setItem('dr_v2',JSON.stringify(stored));
 
-  // 二重送信防止＆送信中であることを明示
+  // 二重送信防止(テキスト保存が終わるまでの短い間だけ)
   const btn=document.querySelector('.btn-save');
-  const banner=$('sendingBanner');
-  if(btn){btn.disabled=true;btn.textContent='📤 送信中…（このままお待ちください）';}
-  if(banner) banner.hidden=false;
+  if(btn){btn.disabled=true;btn.textContent='📤 保存中…';}
 
-  // ①テキストデータを先に送信し、完了を待つ（スプレッドシートに行を作る）
+  // ①テキストデータを先に送信し、完了を待つ（スプレッドシートに行を作る。写真枚数もここで確定）
   const textPayload={...rep,photos:[]};
   await fetch(GAS_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(textPayload)}).catch(()=>{});
 
-  // ②①の行が出来てから写真を送信（行がまだ無い状態で枚数更新が空振りするのを防ぐ）
+  if(btn){btn.disabled=false;btn.textContent='💾 日報を保存';}
+  toast('✅ 日報を保存しました！');
+
+  // ②写真は①の行が出来た後、バックグラウンドで送信する(ここでawaitしないことで
+  // 画面をすぐ次の入力に戻せるようにする。写真が多いと数十秒〜数分かかることがあるが、
+  // その間も画面ロック・アプリ切替はして構わない。ただしブラウザ/アプリを完全に終了すると
+  // 送信中の写真は届かないため、送信完了バナーが消えるまではブラウザは閉じないよう案内する)
   if(photoCount>0){
-    const photoPayload={date,site,photos:photos.filter(p=>p.data).map(p=>({data:p.data,label:p.label})),photoOnly:true};
-    await fetch(GAS_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(photoPayload)}).catch(()=>{});
+    const photosData=photos.filter(p=>p.data).map(p=>({data:p.data,label:p.label}));
+    sendPhotosInBackground(date,site,photosData);
   }
 
-  if(btn){btn.disabled=false;btn.textContent='💾 日報を保存';}
-  if(banner) banner.hidden=true;
-  toast('✅ 日報を保存しました！');
   resetForm();
+}
+
+let pendingPhotoUploads=0;
+function sendPhotosInBackground(date,site,photosData){
+  pendingPhotoUploads++;
+  updateSendingBanner();
+  const photoPayload={date,site,photos:photosData,photoOnly:true};
+  fetch(GAS_URL,{method:'POST',mode:'no-cors',keepalive:true,body:JSON.stringify(photoPayload)})
+    .catch(()=>{})
+    .finally(()=>{
+      pendingPhotoUploads--;
+      updateSendingBanner();
+    });
+}
+function updateSendingBanner(){
+  const banner=$('sendingBanner');
+  if(!banner) return;
+  if(pendingPhotoUploads>0){
+    banner.hidden=false;
+  } else {
+    banner.hidden=true;
+  }
 }
 
 function resetForm(){
