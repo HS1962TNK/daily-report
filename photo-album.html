@@ -70,6 +70,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .pp-modal-header{padding:14px 16px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:14px;color:#1B3A6B}
 .pp-modal-header button{background:none;border:none;font-size:20px;cursor:pointer;color:#888;line-height:1}
 .pp-modal-body{padding:14px 16px;overflow-y:auto}
+.pp-folder-bar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.pp-folder-chip{padding:5px 12px;border-radius:14px;border:1.5px solid #ddd;background:#fff;color:#555;font-size:12px;cursor:pointer;white-space:nowrap;font-family:inherit}
+.pp-folder-chip.active{background:#1B3A6B;border-color:#1B3A6B;color:#fff;font-weight:700}
 .pp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px}
 .pp-item{position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;cursor:pointer;border:2px solid transparent;background:#f0f0f0}
 .pp-item:hover{border-color:#1B3A6B}
@@ -147,7 +150,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
         <button onclick="closePhotoPicker()">✕</button>
       </span>
     </div>
-    <div class="pp-modal-body" id="pp-grid"></div>
+    <div class="pp-modal-body">
+      <div class="pp-folder-bar" id="pp-folder-bar"></div>
+      <div class="pp-grid" id="pp-grid"></div>
+    </div>
   </div>
 </div>
 
@@ -479,36 +485,74 @@ function onCellDrop(e,key){
 }
 
 // 現場の写真ピッカー（日報アプリでGoogle Driveに保存済みの写真から選ぶ）
-let sitePhotosCache = {}; // 現場名 -> 写真一覧(このページを開いている間、同じ現場を再取得しないためのキャッシュ)
+let sitePhotosCache = {}; // "現場名|フォルダ名" -> 写真一覧(このページを開いている間、同じ組み合わせを再取得しないためのキャッシュ)
+let pickerFoldersCache = {}; // 現場名 -> フォルダ名一覧のキャッシュ
+let pickerCurrentFolder = ''; // ''=すべて、'__ROOT__'=未分類、それ以外=フォルダ名
 
 function openPhotoPicker(key){
   pickerTargetKey = key;
+  pickerCurrentFolder = '';
   $('photo-picker-modal').classList.add('show');
-  const grid = $('pp-grid');
   const siteName = (header.genba || header.koji || '').trim();
+  $('pp-folder-bar').innerHTML = '';
   if(!siteName){
-    grid.innerHTML = '<div class="pp-empty">先に上の「現場名」を入力するか、現場情報から選択してください</div>';
+    $('pp-grid').innerHTML = '<div class="pp-empty">先に上の「現場名」を入力するか、現場情報から選択してください</div>';
     return;
   }
-  if(sitePhotosCache[siteName]){
-    const cached = sitePhotosCache[siteName];
+  loadPickerFolders(siteName);
+  loadSitePhotos(siteName, pickerCurrentFolder);
+}
+// 現場のDriveフォルダ内にある作業内容別サブフォルダ(作業日報アプリで作られたもの)の一覧を
+// 取得し、フォルダ選択チップとして表示する。サブフォルダが増えると1度に取得できる写真が
+// 60件までに絞られる関係で、他フォルダの写真に押し出されて目当ての写真が出てこないことが
+// あったため、フォルダを選んでから絞り込んで探せるようにした。
+function loadPickerFolders(siteName){
+  if(pickerFoldersCache[siteName]){
+    renderFolderBar(pickerFoldersCache[siteName]);
+    return;
+  }
+  fetch(GAS_URL + '?action=getSitePhotoFolders&site=' + encodeURIComponent(siteName), {cache:'no-store'})
+    .then(r=>r.json())
+    .then(res=>{
+      pickerFoldersCache[siteName] = (res && res.folders) || [];
+      renderFolderBar(pickerFoldersCache[siteName]);
+    })
+    .catch(()=>{ renderFolderBar([]); });
+}
+function renderFolderBar(folders){
+  const bar = $('pp-folder-bar');
+  if(!bar) return;
+  const chip = (value, label) => `<button type="button" class="pp-folder-chip${pickerCurrentFolder===value?' active':''}" onclick="selectPickerFolder('${value}')">${label}</button>`;
+  bar.innerHTML = chip('', 'すべて') + chip('__ROOT__', '未分類') + folders.map(f=>chip(f, esc(f))).join('');
+}
+function selectPickerFolder(folder){
+  pickerCurrentFolder = folder;
+  const siteName = (header.genba || header.koji || '').trim();
+  if(!siteName) return;
+  renderFolderBar(pickerFoldersCache[siteName] || []);
+  loadSitePhotos(siteName, folder);
+}
+function loadSitePhotos(siteName, folder){
+  folder = folder || '';
+  const cacheKey = siteName + '|' + folder;
+  const grid = $('pp-grid');
+  if(sitePhotosCache[cacheKey]){
+    const cached = sitePhotosCache[cacheKey];
     pickerPhotosCache = cached.photos;
     renderPickerGrid(cached.photos, cached.totalCount);
     return;
   }
-  loadSitePhotos(siteName);
-}
-function loadSitePhotos(siteName){
-  const grid = $('pp-grid');
   grid.innerHTML = '<div class="pp-empty">読み込み中...</div>';
-  fetch(GAS_URL + '?action=getSitePhotos&site=' + encodeURIComponent(siteName))
+  let url = GAS_URL + '?action=getSitePhotos&site=' + encodeURIComponent(siteName);
+  if(folder) url += '&folder=' + encodeURIComponent(folder);
+  fetch(url)
     .then(r=>r.json())
     .then(res=>{
       if(res.status!=='ok' || !res.photos || !res.photos.length){
         grid.innerHTML = '<div class="pp-empty">この現場の写真はまだ見つかりませんでした<br>（日報アプリで撮影・保存した写真がここに表示されます）</div>';
         return;
       }
-      sitePhotosCache[siteName] = {photos: res.photos, totalCount: res.totalCount || res.photos.length};
+      sitePhotosCache[cacheKey] = {photos: res.photos, totalCount: res.totalCount || res.photos.length};
       pickerPhotosCache = res.photos;
       renderPickerGrid(res.photos, res.totalCount);
     })
@@ -519,8 +563,10 @@ function loadSitePhotos(siteName){
 function refreshPhotoPicker(){
   const siteName = (header.genba || header.koji || '').trim();
   if(!siteName) return;
-  delete sitePhotosCache[siteName];
-  loadSitePhotos(siteName);
+  delete pickerFoldersCache[siteName];
+  delete sitePhotosCache[siteName + '|' + pickerCurrentFolder];
+  loadPickerFolders(siteName);
+  loadSitePhotos(siteName, pickerCurrentFolder);
 }
 function renderPickerGrid(photos, totalCount){
   const grid = $('pp-grid');
