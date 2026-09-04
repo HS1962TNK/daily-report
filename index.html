@@ -142,6 +142,14 @@ input[type=range]{width:100%;accent-color:#185FA5}
 </div>
 <div class="section">
 <div class="sec-title">📷 工事写真</div>
+<div class="fl">
+<label>送り先フォルダ(作業内容・撮影場所ごとに分けたい場合)</label>
+<select id="f-folder" onchange="onFolderSelect(this.value)">
+<option value="">フォルダ分けしない</option>
+<option value="__NEW__">＋ 新しいフォルダを作成</option>
+</select>
+<input type="text" id="f-folder-new" placeholder="新しいフォルダ名（例：外壁、屋根）" style="margin-top:6px;display:none">
+</div>
 <div class="photo-grid" id="pgrid"></div>
 <button class="add-btn" onclick="addPhoto()" style="margin-top:8px">＋ 写真を追加</button>
 </div>
@@ -352,9 +360,9 @@ async function postToGas(payload){
   }
 }
 
-async function sendPhotosWithRetry(date,site,photoList,attempts=3){
+async function sendPhotosWithRetry(date,site,folder,photoList,attempts=3){
   for(let i=0;i<attempts;i++){
-    const ok=await postToGas({date,site,photos:photoList.map(p=>({data:p.data,label:p.label})),photoOnly:true});
+    const ok=await postToGas({date,site,folder,photos:photoList.map(p=>({data:p.data,label:p.label})),photoOnly:true});
     if(ok) return true;
     if(i<attempts-1) await new Promise(r=>setTimeout(r,2000));
   }
@@ -408,8 +416,9 @@ async function saveR(){
   // 検証済みのため、送信結果を確認し、失敗時は自動リトライ、それでもダメなら送信者本人が
   // その場で気づけるよう画面上部にバナーを出す方式に変更した。
   if(photoCount>0){
+    const folder=getSelectedFolder();
     const photosData=photos.filter(p=>p.data).map(p=>({data:p.data,label:p.label}));
-    sendPhotosInBackground(date,site,photosData);
+    sendPhotosInBackground(date,site,folder,photosData);
   }
 
   resetForm();
@@ -418,14 +427,14 @@ async function saveR(){
 let pendingPhotoUploads=0;
 let pendingPhotoRetries=[]; // 自動リトライも尽きて失敗したものを保持(複数件の日報が同時に失敗している場合もあるため配列)
 
-async function sendPhotosInBackground(date,site,photosData){
+async function sendPhotosInBackground(date,site,folder,photosData){
   pendingPhotoUploads++;
   updateSendingBanner();
-  const ok=await sendPhotosWithRetry(date,site,photosData);
+  const ok=await sendPhotosWithRetry(date,site,folder,photosData);
   pendingPhotoUploads--;
   updateSendingBanner();
   if(!ok){
-    pendingPhotoRetries.push({date,site,photos:photosData});
+    pendingPhotoRetries.push({date,site,folder,photos:photosData});
     updatePhotoFailBanner();
   }
 }
@@ -451,7 +460,7 @@ async function retryPhotoSend(){
   pendingPhotoRetries=[];
   updatePhotoFailBanner();
   for(const item of items){
-    await sendPhotosInBackground(item.date,item.site,item.photos);
+    await sendPhotosInBackground(item.date,item.site,item.folder,item.photos);
   }
 }
 
@@ -459,7 +468,7 @@ function resetForm(){
   $('f-site').value='';$('f-rep').value='';$('f-wx').value='';$('f-tmp').value='';
   $('f-work').value='';$('f-note').value='';$('f-prog').value=50;$('pv').textContent='50%';
   workers=[];materials=[];photos=[];
-  renderW();renderM();initSafety();renderPhotos();initDate();loadSiteList();
+  renderW();renderM();initSafety();renderPhotos();initDate();loadSiteList();loadPhotoFolders('');
 }
 
 function renderHist(){
@@ -523,6 +532,7 @@ function editR(id){
   });
   // 写真クリア
   photos=[];renderPhotos();
+  loadPhotoFolders(r.site||'');
   // 古いデータを削除してフォームタブへ
   const newData=data.filter(x=>x.id!==id);
   localStorage.setItem('dr_v2',JSON.stringify(newData));
@@ -634,10 +644,50 @@ function fillSiteOptions(sites){
   const params=new URLSearchParams(location.search);
   const site=params.get('site');
   if(site) sel.value=site;
+  if(sel.value) loadPhotoFolders(sel.value);
 }
 
 function onSiteSelect(val){
-  // 現場選択時に現場情報アプリへのリンクを更新
+  loadPhotoFolders(val);
+}
+
+// 現場のDriveフォルダ内にある作業内容別サブフォルダ(例:外壁、屋根)の一覧を取得し、
+// 送り先フォルダの選択肢に反映する。他の作業員が既に作ったフォルダにも追加で送れるように、
+// 毎回サーバーから最新の一覧を取得し直す。
+async function loadPhotoFolders(site){
+  const sel=$('f-folder');
+  if(!sel) return;
+  sel.innerHTML='<option value="">フォルダ分けしない</option><option value="__NEW__">＋ 新しいフォルダを作成</option>';
+  const newInput=$('f-folder-new');
+  if(newInput){newInput.style.display='none';newInput.value='';}
+  if(!site) return;
+  try{
+    const res=await fetch(GAS_URL+'?action=getSitePhotoFolders&site='+encodeURIComponent(site));
+    const j=await res.json();
+    if(j && j.folders && j.folders.length){
+      const newOpt=sel.querySelector('option[value="__NEW__"]');
+      j.folders.forEach(name=>{
+        const opt=document.createElement('option');
+        opt.value=name; opt.textContent=name;
+        sel.insertBefore(opt,newOpt);
+      });
+    }
+  }catch(err){}
+}
+
+function onFolderSelect(val){
+  const newInput=$('f-folder-new');
+  if(newInput) newInput.style.display=(val==='__NEW__')?'block':'none';
+}
+
+function getSelectedFolder(){
+  const sel=$('f-folder');
+  if(!sel) return '';
+  if(sel.value==='__NEW__'){
+    const newInput=$('f-folder-new');
+    return newInput ? newInput.value.trim() : '';
+  }
+  return sel.value;
 }
 
 initDate();loadSiteList();addW();addM();initSafety();renderPhotos();
