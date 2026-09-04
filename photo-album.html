@@ -347,8 +347,7 @@ function buildPhotoPage(pageIdx){
           ondrop="onCellDrop(event,'${key}')">
           ${photoData[key]
             ? photoFilledHtml(key, photoData[key])
-            : `<div class="ph-placeholder"><div class="ph-icon">📷</div>クリック または<br>ドラッグ＆ドロップ<br><button type="button" class="ph-pick-btn" onclick="event.stopPropagation();openPhotoPicker('${key}')">📂 現場の写真から選ぶ</button></div>`}
-          <input type="file" accept="image/*" onchange="loadPhoto('${key}',this)">
+            : photoEmptyHtml(key)}
         </div>
         <div class="info-cell">
           <div class="info-row"><div class="info-label">工種</div><div class="info-val"><input type="text" data-k="${key}-kosyu"></div></div>
@@ -393,6 +392,16 @@ function loadPhoto(key,inp){
 }
 function photoFilledHtml(key, src){
   return `<img src="${src}"><button class="photo-del" onclick="delPhoto('${key}')">✕</button><button class="photo-rotate" onclick="event.stopPropagation();rotatePhoto('${key}')" title="90度回転">↻</button><input type="file" accept="image/*" onchange="loadPhoto('${key}',this)">`;
+}
+function photoEmptyHtml(key){
+  return `<div class="ph-placeholder"><div class="ph-icon">📷</div>クリック または<br>ドラッグ＆ドロップ<br><button type="button" class="ph-pick-btn" onclick="event.stopPropagation();openPhotoPicker('${key}')">📂 現場の写真から選ぶ</button></div><input type="file" accept="image/*" onchange="loadPhoto('${key}',this)">`;
+}
+// ✕ボタンで写真を削除し、そのマス目を未選択の状態(クリック/ドラッグ&ドロップで
+// 再度写真を追加できる状態)に戻す。
+function delPhoto(key){
+  delete photoData[key];
+  const cell=$('cell-'+key);
+  if(cell) cell.innerHTML=photoEmptyHtml(key);
 }
 function setPhoto(key,file){
   if(!file||!file.type.startsWith('image/')){alert('⚠️ 画像ファイルを選択してください');return;}
