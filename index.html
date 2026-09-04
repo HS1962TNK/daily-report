@@ -70,6 +70,8 @@ input[type=range]{width:100%;accent-color:#185FA5}
 .dl-btn{padding:7px 13px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;font-weight:600}
 .xl-all{width:calc(100% - 20px);margin:0 10px;padding:12px;background:#fff;border:1.5px solid #185FA5;border-radius:12px;font-size:14px;font-weight:600;cursor:pointer;color:#185FA5;display:flex;align-items:center;justify-content:center;gap:7px;font-family:inherit}
 .sending-banner{position:fixed;top:0;left:0;right:0;background:#e8590c;color:#fff;text-align:center;padding:11px 16px;font-size:13px;font-weight:700;z-index:200;box-shadow:0 2px 8px rgba(0,0,0,.2);line-height:1.5}
+.photo-fail-banner{position:fixed;top:0;left:0;right:0;background:#c0392b;color:#fff;text-align:center;padding:12px 16px;font-size:13px;font-weight:700;z-index:210;box-shadow:0 2px 8px rgba(0,0,0,.25);line-height:1.6}
+.photo-fail-banner button{display:block;margin:8px auto 0;padding:8px 20px;background:#fff;color:#c0392b;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
 </style>
 </head>
 <body>
@@ -163,6 +165,10 @@ input[type=range]{width:100%;accent-color:#185FA5}
 </div>
 <div class="toast" id="toast"></div>
 <div class="sending-banner" id="sendingBanner" hidden>📤 送信中です。この表示が消えるまで画面を閉じたりアプリを切り替えたりしないでください</div>
+<div class="photo-fail-banner" id="photoFailBanner" hidden>
+  ⚠️ 写真の送信に失敗しました(日報本体は保存済みです)<br>電波の良い場所で下のボタンを押してもう一度お試しください
+  <button onclick="retryPhotoSend()">🔁 写真だけ再送信</button>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
@@ -329,6 +335,32 @@ function toast(msg){
   setTimeout(()=>t.classList.remove('show'),2800);
 }
 
+let pendingPhotoRetry=null; // 写真送信が失敗した場合、再送信ボタン用にdate/site/photosを保持しておく
+
+// GASへPOSTし、実際のJSONレスポンス({status:'ok'|'error',...})を読んで返す。
+// 以前はmode:'no-cors'で送りっぱなしにしていたため、GAS側や通信の失敗が一切分からなかった
+// (作業員が送信直後にその場を離れてしまい、後でスプレッドシートの枚数だけを見た事務員側も
+// 「枚数はあるのに写真が無い」としか気づけなかった)。実際にこのGAS Web Appは通常のfetch
+// (no-corsを外した状態)でもCORSエラーにならず読み取れることを検証済みのため、この方式に変更した。
+async function postToGas(payload){
+  try{
+    const res=await fetch(GAS_URL,{method:'POST',body:JSON.stringify(payload)});
+    const j=await res.json();
+    return j && j.status==='ok';
+  }catch(err){
+    return false;
+  }
+}
+
+async function sendPhotosWithRetry(date,site,photoList,attempts=3){
+  for(let i=0;i<attempts;i++){
+    const ok=await postToGas({date,site,photos:photoList.map(p=>({data:p.data,label:p.label})),photoOnly:true});
+    if(ok) return true;
+    if(i<attempts-1) await new Promise(r=>setTimeout(r,2000));
+  }
+  return false;
+}
+
 async function saveR(){
   const date=$('f-date').value,site=$('f-site').value.trim();
   if(!date||!site){toast('⚠️ 日付と現場名を入力してください');return;}
@@ -360,17 +392,57 @@ async function saveR(){
 
   // ①テキストデータを先に送信し、完了を待つ（スプレッドシートに行を作る）
   const textPayload={...rep,photos:[]};
-  await fetch(GAS_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(textPayload)}).catch(()=>{});
+  const textOk=await postToGas(textPayload);
 
-  // ②①の行が出来てから写真を送信（行がまだ無い状態で枚数更新が空振りするのを防ぐ）
+  if(!textOk){
+    if(btn){btn.disabled=false;btn.textContent='💾 日報を保存';}
+    if(banner) banner.hidden=true;
+    toast('⚠️ 送信に失敗しました。電波の良い場所でもう一度「日報を保存」を押してください');
+    return; // フォーム・写真は保持したまま(ローカル保存は既に完了しているので、再度保存ボタンを押せば良い)
+  }
+
+  // ②①の行が出来てから写真を送信（行がまだ無い状態で枚数更新が空振りするのを防ぐ）。
+  // 失敗しても行(テキスト情報)は既に保存済みなので、写真だけをリトライできるようにする。
+  let photoOk=true;
   if(photoCount>0){
-    const photoPayload={date,site,photos:photos.filter(p=>p.data).map(p=>({data:p.data,label:p.label})),photoOnly:true};
-    await fetch(GAS_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(photoPayload)}).catch(()=>{});
+    photoOk=await sendPhotosWithRetry(date,site,photos.filter(p=>p.data));
   }
 
   if(btn){btn.disabled=false;btn.textContent='💾 日報を保存';}
   if(banner) banner.hidden=true;
+
+  if(!photoOk){
+    // 写真データはクリアしない(フォームもリセットしない)。「写真だけ再送信」ボタンで
+    // 何度でもやり直せるようにし、送信した本人がその場で失敗に気づけるようにする。
+    pendingPhotoRetry={date,site,photos:photos.filter(p=>p.data)};
+    const failBanner=$('photoFailBanner');
+    if(failBanner) failBanner.hidden=false;
+    toast('⚠️ 写真の送信に失敗しました');
+    return;
+  }
+
   toast('✅ 日報を保存しました！');
+  resetForm();
+}
+
+async function retryPhotoSend(){
+  if(!pendingPhotoRetry) return;
+  const failBanner=$('photoFailBanner');
+  const {date,site,photos:photoList}=pendingPhotoRetry;
+  const banner=$('sendingBanner');
+  if(failBanner) failBanner.hidden=true;
+  if(banner) banner.hidden=false;
+
+  const ok=await sendPhotosWithRetry(date,site,photoList);
+
+  if(banner) banner.hidden=true;
+  if(!ok){
+    if(failBanner) failBanner.hidden=false;
+    toast('⚠️ 再送信も失敗しました。電波の良い場所でもう一度お試しください');
+    return;
+  }
+  pendingPhotoRetry=null;
+  toast('✅ 写真を送信しました！');
   resetForm();
 }
 
