@@ -205,7 +205,8 @@ const SAFETY=['ヘルメット','安全帯','安全靴','防塵マスク','保�
 const UNITS=['個','枚','本','m','缶','袋','セット','kg','L'];
 let workers=[],materials=[],safety={},photos=[];
 let availableFolders=[]; // 選択中の現場で使える送り先フォルダ名一覧(サーバーから取得)
-let lastUsedFolder=''; // 直前に選んだフォルダ名。次に追加する写真の初期値にして入力の手間を減らす
+let lastUsedFolder=''; // 直前に選んだフォルダ名(または'__NEW__')。次に追加する写真の初期値にして入力の手間を減らす
+let lastUsedNewFolderName=''; // lastUsedFolderが'__NEW__'のときの、直前に入力していた新規フォルダ名
 
 function $(id){return document.getElementById(id)}
 
@@ -259,7 +260,7 @@ function togS(n,v){safety[n]=v;const el=$('si-'+n);v?el.classList.add('on'):el.c
 
 function addPhoto(){
   const id='p'+Date.now();
-  photos.push({id,data:null,label:'',folder:lastUsedFolder});
+  photos.push({id,data:null,label:'',folder:lastUsedFolder,newFolderName:lastUsedNewFolderName});
   renderPhotos();
 }
 // 写真タイル内で使うフォルダ選択UI(既存フォルダ一覧+新規作成入力)を生成する。
@@ -310,22 +311,36 @@ function updatePhotoFolder(id,val){
   const p=photos.find(x=>x.id===id);
   if(!p) return;
   p.folder=val;
-  if(val && val!=='__NEW__') lastUsedFolder=val;
+  // 「未分類」への変更では直前の選択を上書きしない(1枚だけ未分類に戻しても、
+  // 次に追加する写真の初期値は直前に使っていたフォルダのままにするため)。
+  if(val==='__NEW__'){
+    lastUsedFolder='__NEW__';
+  } else if(val){
+    lastUsedFolder=val;
+    lastUsedNewFolderName='';
+  }
   renderPhotos();
 }
 function updatePhotoNewFolderName(id,val){
   const p=photos.find(x=>x.id===id);
   if(p) p.newFolderName=val;
+  // 新規フォルダ名を入力した場合もlastUsedFolderの仕組みに反映しないと、
+  // 同じ操作でライブラリから複数枚選んだ時に2枚目以降が未分類になってしまう。
+  if(p && p.folder==='__NEW__') lastUsedNewFolderName=val;
 }
 function loadPhoto(id,inp){
   const files=Array.from(inp.files).filter(f=>f.type.startsWith('image/'));
   if(!files.length)return;
   // 1枚目は選択したスロットへ
   readPhotoInto(id,files[0]);
-  // 2枚目以降は新しいスロットを自動追加して配置
+  // 2枚目以降は新しいスロットを自動追加して配置。フォルダは元のスロット(1枚目)と
+  // 同じ指定を引き継ぐ(以前はlastUsedFolderだけを見ていたため、新規フォルダ名を
+  // その場で入力したケースで2枚目以降が未分類になってしまう不具合があった)。
+  const srcFolder=(photos.find(x=>x.id===id)||{}).folder||'';
+  const srcNewFolderName=(photos.find(x=>x.id===id)||{}).newFolderName||'';
   for(let i=1;i<files.length;i++){
     const newId='p'+Date.now()+'_'+i;
-    photos.push({id:newId,data:null,label:'',folder:lastUsedFolder});
+    photos.push({id:newId,data:null,label:'',folder:srcFolder,newFolderName:srcNewFolderName});
     readPhotoInto(newId,files[i]);
   }
   if(files.length>1) toast('✅ '+files.length+'枚の写真を追加しました');
