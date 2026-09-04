@@ -705,7 +705,10 @@ async function loadPhotoFolders(site){
   lastUsedFolder='';
   if(site){
     try{
-      const res=await fetch(GAS_URL+'?action=getSitePhotoFolders&site='+encodeURIComponent(site));
+      // cache:'no-store'を付けないと、ブラウザがこのURL(現場名込み)へのGET応答をキャッシュしてしまい、
+      // 新しくフォルダを作った後に開き直しても「前回(フォルダがまだ無かった時)の空の結果」が
+      // 返り続けてしまうことがあるため明示的に無効化する。
+      const res=await fetch(GAS_URL+'?action=getSitePhotoFolders&site='+encodeURIComponent(site),{cache:'no-store'});
       const j=await res.json();
       if(j && j.folders) availableFolders=j.folders;
     }catch(err){}
@@ -714,6 +717,17 @@ async function loadPhotoFolders(site){
 }
 
 initDate();loadSiteList();addW();addM();initSafety();renderPhotos();
+
+// スマホでアプリ切替→復帰した場合、ブラウザがページをそのまま(JS実行し直さずに)復元する
+// 「bfcache」が働くことがある。この場合、前回作ったフォルダの一覧を取得し直さないまま
+// 古い状態が表示され続けてしまうため、bfcacheからの復元を検知したら選択中の現場のフォルダ
+// 一覧を明示的に取得し直す。
+window.addEventListener('pageshow', (ev) => {
+  if (ev.persisted) {
+    const site = $('f-site').value;
+    if (site) loadPhotoFolders(site);
+  }
+});
 </script>
 </body>
 </html>
