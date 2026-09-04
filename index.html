@@ -81,9 +81,9 @@ input[type=range]{width:100%;accent-color:#185FA5}
 <div class="header-title">📋 作業日報</div>
 <div class="header-sub" id="hdate"></div>
 </div>
-<button onclick="location.href='genba.html'" style="padding:7px 12px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:8px;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:center;gap:2px">
-<span style="font-size:18px">🏗️</span>
-<span style="font-size:10px">現場情報</span>
+<button onclick="location.href='genba.html'" style="padding:7px 12px;background:#1B3A6B;border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:5px;white-space:nowrap">
+<span style="font-size:16px">🏗️</span>
+<span>現場情報ページへ</span>
 </button>
 </div>
 <div class="nav">
@@ -164,10 +164,10 @@ input[type=range]{width:100%;accent-color:#185FA5}
 </div>
 </div>
 <div class="toast" id="toast"></div>
-<div class="sending-banner" id="sendingBanner" hidden>📤 送信中です。この表示が消えるまで画面を閉じたりアプリを切り替えたりしないでください</div>
+<div class="sending-banner" id="sendingBanner" hidden>📤 写真をバックグラウンドで送信中です。画面ロック・他アプリへの切替はOKですが、この表示が消えるまではこのアプリ(ブラウザ)を完全に閉じないでください</div>
 <div class="photo-fail-banner" id="photoFailBanner" hidden>
-  ⚠️ 写真の送信に失敗しました(日報本体は保存済みです)<br>電波の良い場所で下のボタンを押してもう一度お試しください
-  <button onclick="retryPhotoSend()">🔁 写真だけ再送信</button>
+  <span class="pf-label">⚠️ 写真の送信に失敗しました(日報本体は保存済みです)</span><br>電波の良い場所で下のボタンを押してもう一度お試しください
+  <button onclick="retryPhotoSend()">🔁 写真を再送信</button>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -384,66 +384,75 @@ async function saveR(){
   stored.unshift(rep);
   localStorage.setItem('dr_v2',JSON.stringify(stored));
 
-  // 二重送信防止＆送信中であることを明示
+  // 二重送信防止(テキスト保存が終わるまでの短い間だけ)
   const btn=document.querySelector('.btn-save');
-  const banner=$('sendingBanner');
-  if(btn){btn.disabled=true;btn.textContent='📤 送信中…（このままお待ちください）';}
-  if(banner) banner.hidden=false;
+  if(btn){btn.disabled=true;btn.textContent='📤 保存中…';}
 
-  // ①テキストデータを先に送信し、完了を待つ（スプレッドシートに行を作る）
+  // ①テキストデータを先に送信し、完了を待つ（スプレッドシートに行を作る。写真枚数もここで確定）
   const textPayload={...rep,photos:[]};
   const textOk=await postToGas(textPayload);
 
   if(!textOk){
-    if(btn){btn.disabled=false;btn.textContent='💾 日報を保存';}
-    if(banner) banner.hidden=true;
     toast('⚠️ 送信に失敗しました。電波の良い場所でもう一度「日報を保存」を押してください');
     return; // フォーム・写真は保持したまま(ローカル保存は既に完了しているので、再度保存ボタンを押せば良い)
   }
 
-  // ②①の行が出来てから写真を送信（行がまだ無い状態で枚数更新が空振りするのを防ぐ）。
-  // 失敗しても行(テキスト情報)は既に保存済みなので、写真だけをリトライできるようにする。
-  let photoOk=true;
-  if(photoCount>0){
-    photoOk=await sendPhotosWithRetry(date,site,photos.filter(p=>p.data));
-  }
-
   if(btn){btn.disabled=false;btn.textContent='💾 日報を保存';}
-  if(banner) banner.hidden=true;
+  toast('✅ 日報を保存しました！');
 
-  if(!photoOk){
-    // 写真データはクリアしない(フォームもリセットしない)。「写真だけ再送信」ボタンで
-    // 何度でもやり直せるようにし、送信した本人がその場で失敗に気づけるようにする。
-    pendingPhotoRetry={date,site,photos:photos.filter(p=>p.data)};
-    const failBanner=$('photoFailBanner');
-    if(failBanner) failBanner.hidden=false;
-    toast('⚠️ 写真の送信に失敗しました');
-    return;
+  // ②写真は①の行が出来た後、バックグラウンドで送信する(ここでawaitしないことで
+  // 画面をすぐ次の入力に戻せるようにする)。以前はno-corsで送りっぱなしにしていたため、
+  // 実際に写真が保存できたかどうかを一切検知できなかった(スプレッドシート上の枚数だけが
+  // 更新され、写真本体がDriveに保存されないまま気づかれないケースがあった)。実際にこの
+  // GAS Web Appは通常のfetch(no-corsを外した状態)でもCORSエラーにならず読み取れることを
+  // 検証済みのため、送信結果を確認し、失敗時は自動リトライ、それでもダメなら送信者本人が
+  // その場で気づけるよう画面上部にバナーを出す方式に変更した。
+  if(photoCount>0){
+    const photosData=photos.filter(p=>p.data).map(p=>({data:p.data,label:p.label}));
+    sendPhotosInBackground(date,site,photosData);
   }
 
-  toast('✅ 日報を保存しました！');
   resetForm();
 }
 
-async function retryPhotoSend(){
-  if(!pendingPhotoRetry) return;
-  const failBanner=$('photoFailBanner');
-  const {date,site,photos:photoList}=pendingPhotoRetry;
-  const banner=$('sendingBanner');
-  if(failBanner) failBanner.hidden=true;
-  if(banner) banner.hidden=false;
+let pendingPhotoUploads=0;
+let pendingPhotoRetries=[]; // 自動リトライも尽きて失敗したものを保持(複数件の日報が同時に失敗している場合もあるため配列)
 
-  const ok=await sendPhotosWithRetry(date,site,photoList);
-
-  if(banner) banner.hidden=true;
+async function sendPhotosInBackground(date,site,photosData){
+  pendingPhotoUploads++;
+  updateSendingBanner();
+  const ok=await sendPhotosWithRetry(date,site,photosData);
+  pendingPhotoUploads--;
+  updateSendingBanner();
   if(!ok){
-    if(failBanner) failBanner.hidden=false;
-    toast('⚠️ 再送信も失敗しました。電波の良い場所でもう一度お試しください');
-    return;
+    pendingPhotoRetries.push({date,site,photos:photosData});
+    updatePhotoFailBanner();
   }
-  pendingPhotoRetry=null;
-  toast('✅ 写真を送信しました！');
-  resetForm();
+}
+
+function updateSendingBanner(){
+  const banner=$('sendingBanner');
+  if(!banner) return;
+  banner.hidden = pendingPhotoUploads<=0;
+}
+
+function updatePhotoFailBanner(){
+  const failBanner=$('photoFailBanner');
+  if(!failBanner) return;
+  if(pendingPhotoRetries.length===0){ failBanner.hidden=true; return; }
+  failBanner.hidden=false;
+  const label=failBanner.querySelector('.pf-label');
+  if(label) label.textContent='⚠️ 写真の送信に失敗しました('+pendingPhotoRetries.length+'件、日報本体は保存済みです)';
+}
+
+async function retryPhotoSend(){
+  if(pendingPhotoRetries.length===0) return;
+  const items=pendingPhotoRetries;
+  pendingPhotoRetries=[];
+  updatePhotoFailBanner();
+  for(const item of items){
+    await sendPhotosInBackground(item.date,item.site,item.photos);
+  }
 }
 
 function resetForm(){

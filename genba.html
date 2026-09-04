@@ -11,7 +11,8 @@
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;color:#1a1a1a;min-height:100vh}
 
 /* ヘッダー */
-.header{background:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 1px 4px rgba(0,0,0,.1);position:sticky;top:0;z-index:100}
+.header{background:#fff;padding:12px 16px;display:flex;flex-direction:column;gap:10px;box-shadow:0 1px 4px rgba(0,0,0,.1);position:sticky;top:0;z-index:100}
+.header-nav{display:flex;gap:6px;flex-wrap:wrap}
 .header-left .title{font-size:17px;font-weight:700;display:flex;align-items:center;gap:6px}
 .header-left .sub{font-size:11px;color:#888;margin-top:2px}
 .report-nav-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:6px 10px;border:1.5px solid #d0d5dd;border-radius:8px;background:#fff;cursor:pointer;text-decoration:none;color:#344054;min-width:52px}
@@ -148,16 +149,32 @@ textarea{min-height:60px;resize:vertical;line-height:1.5}
     <div class="title">🏗️ 現場情報</div>
     <div class="sub" id="sync-label">読み込み中…</div>
   </div>
-  <a href="index.html" class="report-nav-btn">
-    <span class="ico">📋</span>
-    <span class="lbl">作業日報</span>
-  </a>
+  <div class="header-nav">
+    <a href="index.html" class="report-nav-btn">
+      <span class="ico">📋</span>
+      <span class="lbl">作業日報</span>
+    </a>
+    <a href="現場情報管理システム_利用マニュアル.pdf" target="_blank" class="report-nav-btn" title="マニュアル">
+      <span class="ico">📖</span>
+      <span class="lbl">マニュアル</span>
+    </a>
+    <a href="https://1drv.ms/x/c/5e156fe3fa31756f/IQC0FnfaX-nSRpIQ19x7W3-hAWVM5J0mhb-q_WRWKDdvIrk?e=NLjzLm" target="_blank" class="report-nav-btn" title="掲示板用工程表（閲覧のみ）">
+      <span class="ico">📅</span>
+      <span class="lbl">工程表</span>
+    </a>
+  </div>
 </div>
 
 <div class="content">
   <button class="btn-new" onclick="openForm()">＋ 新しい現場を登録</button>
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-    <span id="site-count" style="font-size:12px;color:#6b7280"></span>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px">
+    <span id="site-count" style="font-size:12px;color:#6b7280;white-space:nowrap"></span>
+    <select id="sortSelect" onchange="onSortChange()" style="flex:1;max-width:160px;padding:7px 8px;border:1.5px solid #e5e7eb;border-radius:8px;font-size:12px;color:#374151;background:#fff">
+      <option value="default">登録順</option>
+      <option value="name">現場名順</option>
+      <option value="startDate">着工日が近い順</option>
+      <option value="status">進行状況順</option>
+    </select>
     <button class="btn-refresh" onclick="loadSites(true)">🔄 更新</button>
   </div>
   <div id="sites-list"><div class="loading">読み込み中…</div></div>
@@ -303,8 +320,42 @@ let docFiles     = [];  // [{id, name, size, type, data}]
 let chatSite       = null;
 let chatPollTimer  = null;
 let chatAuthorName = localStorage.getItem('genba-chat-author') || '';
+let sortMode       = localStorage.getItem('genba-sort-mode') || 'default';
 
-window.onload = () => loadSites();
+window.onload = () => {
+  const sel = document.getElementById('sortSelect');
+  if(sel) sel.value = sortMode;
+  loadSites();
+};
+
+function onSortChange(){
+  sortMode = document.getElementById('sortSelect').value;
+  localStorage.setItem('genba-sort-mode', sortMode);
+  renderSites();
+}
+
+function getSortedSites(){
+  const arr = sites.slice();
+  if(sortMode === 'name'){
+    arr.sort((a,b) => String(a.name||'').localeCompare(String(b.name||''), 'ja'));
+  }else if(sortMode === 'startDate'){
+    arr.sort((a,b) => {
+      if(!a.startDate && !b.startDate) return 0;
+      if(!a.startDate) return 1;
+      if(!b.startDate) return -1;
+      return a.startDate < b.startDate ? -1 : (a.startDate > b.startDate ? 1 : 0);
+    });
+  }else if(sortMode === 'status'){
+    const order = {'作業中':0, '作業前':1, '作業完了':2};
+    arr.sort((a,b) => {
+      const sa = getPeriodStatus(a), sb = getPeriodStatus(b);
+      const oa = sa ? (order[sa.label] ?? 3) : 3;
+      const ob = sb ? (order[sb.label] ?? 3) : 3;
+      return oa - ob;
+    });
+  }
+  return arr;
+}
 
 // ─────────────────────────────────────────
 // ユーティリティ
@@ -392,7 +443,7 @@ function renderSites(){
     return;
   }
 
-  el.innerHTML = sites.map(s => {
+  el.innerHTML = getSortedSites().map(s => {
     const photoCount = (s.photos||[]).length;
     const docCount   = (s.docs||[]).length;
     const hasFiles   = photoCount > 0 || docCount > 0;
