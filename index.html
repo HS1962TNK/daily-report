@@ -142,14 +142,7 @@ input[type=range]{width:100%;accent-color:#185FA5}
 </div>
 <div class="section">
 <div class="sec-title">📷 工事写真</div>
-<div class="fl">
-<label>送り先フォルダ(作業内容・撮影場所ごとに分けたい場合)</label>
-<select id="f-folder" onchange="onFolderSelect(this.value)">
-<option value="">フォルダ分けしない</option>
-<option value="__NEW__">＋ 新しいフォルダを作成</option>
-</select>
-<input type="text" id="f-folder-new" placeholder="新しいフォルダ名（例：外壁、屋根）" style="margin-top:6px;display:none">
-</div>
+<div style="font-size:11px;color:#999;margin-bottom:8px">写真ごとに送り先フォルダ(作業内容・撮影場所)を選べます</div>
 <div class="photo-grid" id="pgrid"></div>
 <button class="add-btn" onclick="addPhoto()" style="margin-top:8px">＋ 写真を追加</button>
 </div>
@@ -211,6 +204,8 @@ async function fetchWeather(){
 const SAFETY=['ヘルメット','安全帯','安全靴','防塵マスク','保護眼鏡','作業手袋(ゴム製)'];
 const UNITS=['個','枚','本','m','缶','袋','セット','kg','L'];
 let workers=[],materials=[],safety={},photos=[];
+let availableFolders=[]; // 選択中の現場で使える送り先フォルダ名一覧(サーバーから取得)
+let lastUsedFolder=''; // 直前に選んだフォルダ名。次に追加する写真の初期値にして入力の手間を減らす
 
 function $(id){return document.getElementById(id)}
 
@@ -264,7 +259,7 @@ function togS(n,v){safety[n]=v;const el=$('si-'+n);v?el.classList.add('on'):el.c
 
 function addPhoto(){
   const id='p'+Date.now();
-  photos.push({id,data:null,label:''});
+  photos.push({id,data:null,label:'',folder:lastUsedFolder});
   renderPhotos();
 }
 function renderPhotos(){
@@ -273,7 +268,15 @@ function renderPhotos(){
       ${p.data?`<img src="${p.data}">`:''}
       ${!p.data?`<span class="pico">📷</span><span class="pl">下のボタンで追加</span>`:''}
       ${p.data?`<button onclick="removePhoto('${p.id}')" style="position:absolute;top:4px;right:4px;z-index:3;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.5);color:#fff;border:none;cursor:pointer;font-size:13px;padding:0">✕</button>`:''}
-      ${p.data?`<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.45);z-index:3;padding:2px 4px"><input type="text" placeholder="メモ（任意）" value="${esc(p.label)}" oninput="updatePhotoLabel('${p.id}',this.value)" style="width:100%;background:transparent;border:none;color:#fff;font-size:11px;padding:0" onclick="event.stopPropagation()"></div>`:''}
+      ${p.data?`<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);z-index:3;padding:3px 4px;display:flex;flex-direction:column;gap:2px">
+        <input type="text" placeholder="メモ（任意）" value="${esc(p.label)}" oninput="updatePhotoLabel('${p.id}',this.value)" style="width:100%;background:transparent;border:none;color:#fff;font-size:11px;padding:0" onclick="event.stopPropagation()">
+        <select onchange="updatePhotoFolder('${p.id}',this.value)" onclick="event.stopPropagation()" style="width:100%;background:transparent;border:none;color:#fff;font-size:10px;padding:0">
+          <option value=""${!p.folder||p.folder==='__NEW__'?'':' selected'}>📁 未分類</option>
+          ${availableFolders.map(f=>`<option value="${esc(f)}"${p.folder===f?' selected':''}>📁 ${esc(f)}</option>`).join('')}
+          <option value="__NEW__"${p.folder==='__NEW__'?' selected':''}>＋ 新規フォルダ</option>
+        </select>
+        ${p.folder==='__NEW__'?`<input type="text" placeholder="新しいフォルダ名" value="${esc(p.newFolderName||'')}" oninput="updatePhotoNewFolderName('${p.id}',this.value)" onclick="event.stopPropagation()" style="width:100%;background:#fff;color:#111;border:none;border-radius:3px;font-size:10px;padding:2px 4px">`:''}
+      </div>`:''}
       ${!p.data?`
         <div style="display:flex;gap:6px;margin-top:6px;z-index:2">
           <label style="padding:5px 8px;background:#185FA5;color:#fff;border-radius:6px;font-size:11px;cursor:pointer;white-space:nowrap">
@@ -288,6 +291,17 @@ function renderPhotos(){
       `:''}
     </div>`).join('');
 }
+function updatePhotoFolder(id,val){
+  const p=photos.find(x=>x.id===id);
+  if(!p) return;
+  p.folder=val;
+  if(val && val!=='__NEW__') lastUsedFolder=val;
+  renderPhotos();
+}
+function updatePhotoNewFolderName(id,val){
+  const p=photos.find(x=>x.id===id);
+  if(p) p.newFolderName=val;
+}
 function loadPhoto(id,inp){
   const files=Array.from(inp.files).filter(f=>f.type.startsWith('image/'));
   if(!files.length)return;
@@ -296,7 +310,7 @@ function loadPhoto(id,inp){
   // 2枚目以降は新しいスロットを自動追加して配置
   for(let i=1;i<files.length;i++){
     const newId='p'+Date.now()+'_'+i;
-    photos.push({id:newId,data:null,label:''});
+    photos.push({id:newId,data:null,label:'',folder:lastUsedFolder});
     readPhotoInto(newId,files[i]);
   }
   if(files.length>1) toast('✅ '+files.length+'枚の写真を追加しました');
@@ -343,8 +357,6 @@ function toast(msg){
   setTimeout(()=>t.classList.remove('show'),2800);
 }
 
-let pendingPhotoRetry=null; // 写真送信が失敗した場合、再送信ボタン用にdate/site/photosを保持しておく
-
 // GASへPOSTし、実際のJSONレスポンス({status:'ok'|'error',...})を読んで返す。
 // 以前はmode:'no-cors'で送りっぱなしにしていたため、GAS側や通信の失敗が一切分からなかった
 // (作業員が送信直後にその場を離れてしまい、後でスプレッドシートの枚数だけを見た事務員側も
@@ -360,9 +372,9 @@ async function postToGas(payload){
   }
 }
 
-async function sendPhotosWithRetry(date,site,folder,photoList,attempts=3){
+async function sendPhotosWithRetry(date,site,photoList,attempts=3){
   for(let i=0;i<attempts;i++){
-    const ok=await postToGas({date,site,folder,photos:photoList.map(p=>({data:p.data,label:p.label})),photoOnly:true});
+    const ok=await postToGas({date,site,photos:photoList.map(p=>({data:p.data,label:p.label,folder:p.folder||''})),photoOnly:true});
     if(ok) return true;
     if(i<attempts-1) await new Promise(r=>setTimeout(r,2000));
   }
@@ -416,9 +428,13 @@ async function saveR(){
   // 検証済みのため、送信結果を確認し、失敗時は自動リトライ、それでもダメなら送信者本人が
   // その場で気づけるよう画面上部にバナーを出す方式に変更した。
   if(photoCount>0){
-    const folder=getSelectedFolder();
-    const photosData=photos.filter(p=>p.data).map(p=>({data:p.data,label:p.label}));
-    sendPhotosInBackground(date,site,folder,photosData);
+    // 「＋ 新規フォルダ」を選んだ写真は、その場で入力されたフォルダ名を実際の送信先にする
+    const photosData=photos.filter(p=>p.data).map(p=>({
+      data:p.data,
+      label:p.label,
+      folder: p.folder==='__NEW__' ? (p.newFolderName||'').trim() : (p.folder||'')
+    }));
+    sendPhotosInBackground(date,site,photosData);
   }
 
   resetForm();
@@ -427,14 +443,14 @@ async function saveR(){
 let pendingPhotoUploads=0;
 let pendingPhotoRetries=[]; // 自動リトライも尽きて失敗したものを保持(複数件の日報が同時に失敗している場合もあるため配列)
 
-async function sendPhotosInBackground(date,site,folder,photosData){
+async function sendPhotosInBackground(date,site,photosData){
   pendingPhotoUploads++;
   updateSendingBanner();
-  const ok=await sendPhotosWithRetry(date,site,folder,photosData);
+  const ok=await sendPhotosWithRetry(date,site,photosData);
   pendingPhotoUploads--;
   updateSendingBanner();
   if(!ok){
-    pendingPhotoRetries.push({date,site,folder,photos:photosData});
+    pendingPhotoRetries.push({date,site,photos:photosData});
     updatePhotoFailBanner();
   }
 }
@@ -460,7 +476,7 @@ async function retryPhotoSend(){
   pendingPhotoRetries=[];
   updatePhotoFailBanner();
   for(const item of items){
-    await sendPhotosInBackground(item.date,item.site,item.folder,item.photos);
+    await sendPhotosInBackground(item.date,item.site,item.photos);
   }
 }
 
@@ -655,39 +671,16 @@ function onSiteSelect(val){
 // 送り先フォルダの選択肢に反映する。他の作業員が既に作ったフォルダにも追加で送れるように、
 // 毎回サーバーから最新の一覧を取得し直す。
 async function loadPhotoFolders(site){
-  const sel=$('f-folder');
-  if(!sel) return;
-  sel.innerHTML='<option value="">フォルダ分けしない</option><option value="__NEW__">＋ 新しいフォルダを作成</option>';
-  const newInput=$('f-folder-new');
-  if(newInput){newInput.style.display='none';newInput.value='';}
-  if(!site) return;
-  try{
-    const res=await fetch(GAS_URL+'?action=getSitePhotoFolders&site='+encodeURIComponent(site));
-    const j=await res.json();
-    if(j && j.folders && j.folders.length){
-      const newOpt=sel.querySelector('option[value="__NEW__"]');
-      j.folders.forEach(name=>{
-        const opt=document.createElement('option');
-        opt.value=name; opt.textContent=name;
-        sel.insertBefore(opt,newOpt);
-      });
-    }
-  }catch(err){}
-}
-
-function onFolderSelect(val){
-  const newInput=$('f-folder-new');
-  if(newInput) newInput.style.display=(val==='__NEW__')?'block':'none';
-}
-
-function getSelectedFolder(){
-  const sel=$('f-folder');
-  if(!sel) return '';
-  if(sel.value==='__NEW__'){
-    const newInput=$('f-folder-new');
-    return newInput ? newInput.value.trim() : '';
+  availableFolders=[];
+  lastUsedFolder='';
+  if(site){
+    try{
+      const res=await fetch(GAS_URL+'?action=getSitePhotoFolders&site='+encodeURIComponent(site));
+      const j=await res.json();
+      if(j && j.folders) availableFolders=j.folders;
+    }catch(err){}
   }
-  return sel.value;
+  renderPhotos();
 }
 
 initDate();loadSiteList();addW();addM();initSafety();renderPhotos();
