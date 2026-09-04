@@ -458,12 +458,14 @@ async function saveR(){
   // 検証済みのため、送信結果を確認し、失敗時は自動リトライ、それでもダメなら送信者本人が
   // その場で気づけるよう画面上部にバナーを出す方式に変更した。
   if(photoCount>0){
-    // 「＋ 新規フォルダ」を選んだ写真は、その場で入力されたフォルダ名を実際の送信先にする
-    const photosData=photos.filter(p=>p.data).map(p=>({
-      data:p.data,
-      label:p.label,
-      folder: p.folder==='__NEW__' ? (p.newFolderName||'').trim() : (p.folder||'')
-    }));
+    // 「＋ 新規フォルダ」を選んだ写真は、その場で入力されたフォルダ名を実際の送信先にする。
+    // ここでこの端末に覚えさせておくことで、送信の成否やサーバーからの再取得を待たずに
+    // 次回このフォームを開いた時点でフォルダ名が選択肢に残っているようにする。
+    const photosData=photos.filter(p=>p.data).map(p=>{
+      const folder = p.folder==='__NEW__' ? (p.newFolderName||'').trim() : (p.folder||'');
+      if(folder) rememberFolder(site,folder);
+      return {data:p.data, label:p.label, folder};
+    });
     sendPhotosInBackground(date,site,photosData);
   }
 
@@ -697,12 +699,37 @@ function onSiteSelect(val){
   loadPhotoFolders(val);
 }
 
+// 現場ごとに使ったことのあるフォルダ名をこの端末(localStorage)に残しておく。サーバーからの
+// 取得を待たなくても・電波が悪くて取得に失敗しても、一度使ったフォルダ名は画面にすぐ表示される。
+function getCachedFolders(site){
+  try{
+    const all=JSON.parse(localStorage.getItem('photoFolders')||'{}');
+    return all[site]||[];
+  }catch(err){ return []; }
+}
+function rememberFolder(site,folderName){
+  if(!site||!folderName) return;
+  try{
+    const all=JSON.parse(localStorage.getItem('photoFolders')||'{}');
+    const list=all[site]||[];
+    if(!list.includes(folderName)){
+      list.push(folderName);
+      list.sort();
+      all[site]=list;
+      localStorage.setItem('photoFolders',JSON.stringify(all));
+    }
+  }catch(err){}
+}
+
 // 現場のDriveフォルダ内にある作業内容別サブフォルダ(例:外壁、屋根)の一覧を取得し、
 // 送り先フォルダの選択肢に反映する。他の作業員が既に作ったフォルダにも追加で送れるように、
-// 毎回サーバーから最新の一覧を取得し直す。
+// 毎回サーバーから最新の一覧を取得し直すが、まずはこの端末に残っている分を即座に表示し、
+// サーバーからの応答が届き次第、両方を合わせた一覧に更新する。
 async function loadPhotoFolders(site){
-  availableFolders=[];
+  site=(site||'').trim();
+  availableFolders=getCachedFolders(site);
   lastUsedFolder='';
+  renderPhotos();
   if(site){
     try{
       // cache:'no-store'を付けないと、ブラウザがこのURL(現場名込み)へのGET応答をキャッシュしてしまい、
@@ -710,7 +737,12 @@ async function loadPhotoFolders(site){
       // 返り続けてしまうことがあるため明示的に無効化する。
       const res=await fetch(GAS_URL+'?action=getSitePhotoFolders&site='+encodeURIComponent(site),{cache:'no-store'});
       const j=await res.json();
-      if(j && j.folders) availableFolders=j.folders;
+      if(j && j.folders){
+        // サーバー側の一覧とこの端末のローカル記録をマージ(他の作業員がこの端末以外で
+        // 作った分・自分がこの端末で過去に作った分の両方を取りこぼさないようにする)
+        availableFolders=Array.from(new Set([...availableFolders, ...j.folders])).sort();
+        availableFolders.forEach(f=>rememberFolder(site,f));
+      }
     }catch(err){}
   }
   renderPhotos();
