@@ -1,0 +1,8 @@
+# 改行コードをリポジトリ内では LF に統一する（Windows で編集しても差分が荒れないようにする）
+* text=auto eol=lf
+
+# バイナリは変換しない
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
