@@ -79,6 +79,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .pp-item img{width:100%;height:100%;object-fit:cover;display:block}
 .pp-item .pp-folder{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);color:#fff;font-size:10px;padding:2px 4px;text-align:center}
 .pp-empty{text-align:center;color:#999;font-size:13px;padding:30px 10px;line-height:1.7}
+.pp-note{grid-column:1/-1;font-size:11px;color:#888;margin-bottom:2px}
+.pp-more{grid-column:1/-1;margin-top:6px;padding:10px;border:1.5px solid #1B3A6B;border-radius:8px;background:#EBF4FF;color:#1B3A6B;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
+.pp-more:disabled{opacity:.6;cursor:default}
 
 .info-cell{display:flex;flex-direction:column}
 .info-cell .info-row:last-child{flex:1;align-items:stretch}
@@ -568,15 +571,70 @@ function refreshPhotoPicker(){
   loadPickerFolders(siteName);
   loadSitePhotos(siteName, pickerCurrentFolder);
 }
-function renderPickerGrid(photos, totalCount){
-  const grid = $('pp-grid');
-  const note = (totalCount && totalCount > photos.length)
-    ? `<div style="grid-column:1/-1;font-size:11px;color:#888;margin-bottom:2px">直近${photos.length}件を表示中（全${totalCount}件）</div>` : '';
-  grid.innerHTML = note + photos.map((p,i)=>`
-    <div class="pp-item" onclick="choosePickerPhoto(${i})">
+// 一度に取得するのは60件まで(GAS側getSitePhotosのLIMIT)。それより古い写真は一覧末尾の
+// 「さらに読み込む」でoffsetを進めて追加取得する(工期の長い現場で最初の頃の写真も台帳に載せられるように)。
+function pickerItemsHtml(photos, startIndex){
+  return photos.map((p,i)=>`
+    <div class="pp-item" onclick="choosePickerPhoto(${startIndex+i})">
       <img src="${p.url}" loading="lazy">
       ${p.folder?`<div class="pp-folder">${esc(p.folder)}</div>`:''}
     </div>`).join('');
+}
+function pickerNoteText(shown, totalCount){
+  return (totalCount && totalCount > shown) ? `新しい順に${shown}件を表示中（全${totalCount}件）` : '';
+}
+function pickerMoreHtml(shown, totalCount){
+  if(!(totalCount && totalCount > shown)) return '';
+  const rest = totalCount - shown;
+  return `<button type="button" class="pp-more" id="pp-more" onclick="loadMorePickerPhotos()">さらに古い写真を読み込む（残り${rest}件）</button>`;
+}
+function renderPickerGrid(photos, totalCount){
+  const grid = $('pp-grid');
+  const note = pickerNoteText(photos.length, totalCount);
+  grid.innerHTML = (note ? `<div class="pp-note" id="pp-note">${note}</div>` : '')
+    + pickerItemsHtml(photos, 0)
+    + pickerMoreHtml(photos.length, totalCount);
+}
+function loadMorePickerPhotos(){
+  const siteName = (header.genba || header.koji || '').trim();
+  const folder = pickerCurrentFolder || '';
+  const cacheKey = siteName + '|' + folder;
+  const cached = sitePhotosCache[cacheKey];
+  const btn = $('pp-more');
+  if(!siteName || !cached || !btn) return;
+  btn.disabled = true;
+  btn.textContent = '読み込み中...';
+  let url = GAS_URL + '?action=getSitePhotos&site=' + encodeURIComponent(siteName) + '&offset=' + cached.photos.length;
+  if(folder) url += '&folder=' + encodeURIComponent(folder);
+  fetch(url)
+    .then(r=>r.json())
+    .then(res=>{
+      if(res.status!=='ok' || !res.photos) throw new Error(res.message || 'error');
+      // 読み込みの間に写真が追加されると境目の写真が重複して返ることがあるため、IDで除く
+      const seen = {};
+      cached.photos.forEach(p=>{ seen[p.id] = true; });
+      const added = res.photos.filter(p=>!seen[p.id]);
+      const startIndex = cached.photos.length;
+      added.forEach(p=>cached.photos.push(p));
+      // 途中で写真が削除されて末尾まで届いた場合は、表示済みの件数を全件とみなす
+      cached.totalCount = res.photos.length ? (res.totalCount || cached.photos.length) : cached.photos.length;
+      // 読み込み中に別のフォルダへ切り替えた・閉じた場合は画面を触らない(キャッシュにだけ反映)
+      if(sitePhotosCache[siteName + '|' + (pickerCurrentFolder || '')] !== cached || !$('photo-picker-modal').classList.contains('show')) return;
+      const curBtn = $('pp-more');
+      if(curBtn) curBtn.remove();
+      $('pp-grid').insertAdjacentHTML('beforeend', pickerItemsHtml(added, startIndex) + pickerMoreHtml(cached.photos.length, cached.totalCount));
+      const noteEl = $('pp-note');
+      if(noteEl){
+        const text = pickerNoteText(cached.photos.length, cached.totalCount);
+        if(text) noteEl.textContent = text; else noteEl.textContent = `全${cached.photos.length}件を表示中`;
+      }
+    })
+    .catch(()=>{
+      const curBtn = $('pp-more');
+      if(!curBtn) return;
+      curBtn.disabled = false;
+      curBtn.textContent = '読み込みに失敗しました。押してもう一度読み込む';
+    });
 }
 function choosePickerPhoto(i){
   const p = pickerPhotosCache && pickerPhotosCache[i];
