@@ -520,6 +520,9 @@
   let hoveredVectorPathIndex = -1;   // 「線を編集」モードでのホバー中の線(削除プレビュー用)
   let lastTraceParams = {sensitivity:50, minLen:18, maxGap:8, blur:true, mergeDist:6};
   const OPENCV_JS_URL = 'https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.9.0-release.1/dist/opencv.js';
+  // DXFをShift_JIS(CP932)で書き出すための文字コード変換ライブラリ。JW_CADはShift_JISのDXFを前提にしており、
+  // UTF-8のまま出すと図面がほぼ読み込めない(理由はexportDXF()の直前のコメント参照)。DXF書き出し時に初めて読み込む。
+  const ENCODING_JS_URL = 'https://cdn.jsdelivr.net/npm/encoding-japanese@2.2.0/encoding.min.js';
   let hoveredId = null;
   let lengthUnit = 'mm';
   let areaUnit = 'm2';
@@ -1895,24 +1898,79 @@
     const mmPerPixel = calibration.metersPerPixel * 1000;
     return { x: p.x * mmPerPixel, y: -p.y * mmPerPixel };
   }
+  /* JW_CAD等の日本語CADはDXFをShift_JIS(CP932)として読む。UTF-8のまま書き出すと、
+     日本語のTEXT文字列のバイト列の末尾がShift_JISの2バイト文字の1バイト目(0x81-0x9F,0xE0-0xFC)に
+     なった場合に、CAD側が直後の改行コードを2バイト目として食べてしまい、それ以降のDXFの
+     「グループコード/値」の対応が1行ずつずれて、以降のエンティティ(=図面線のほぼ全て)が
+     読み捨てられる。2026-09-18にJW_CADで実際に再現・検証した現象。
+     そのため書き出しはShift_JISに変換して行う(変換ライブラリはCDNから遅延読み込み)。 */
+  let dxfSjisEncoder = null;   // 読み込み済みのEncodingオブジェクト(読み込めなければnull)
+  let dxfSjisLoading = null;   // 読み込み中のPromise(二重読み込み防止)
+  function ensureSjisEncoder(){
+    if(window.Encoding){ dxfSjisEncoder = window.Encoding; return Promise.resolve(dxfSjisEncoder); }
+    if(!dxfSjisLoading){
+      dxfSjisLoading = new Promise(resolve=>{
+        const el = document.createElement('script');
+        el.src = ENCODING_JS_URL;
+        el.onload = ()=>{ dxfSjisEncoder = window.Encoding || null; resolve(dxfSjisEncoder); };
+        el.onerror = ()=>{ dxfSjisEncoder = null; resolve(null); };
+        document.head.appendChild(el);
+      });
+    }
+    return dxfSjisLoading;
+  }
+  // オフライン等で変換ライブラリを読み込めなかったときの保険。UTF-8のまま出さざるを得ないので、
+  // せめて上記の「改行が食われる」現象だけは防ぐため、末尾が中途半端になる文字列に半角スペースを足す。
+  // (文字は文字化けするが、線は全て読み込まれる)
+  function dxfSafeString(str){
+    if(dxfSjisEncoder) return str;
+    const b = new TextEncoder().encode(str);
+    const isLead = x => (x>=0x81 && x<=0x9F) || (x>=0xE0 && x<=0xFC);
+    let i = 0, dangling = false;
+    while(i < b.length){
+      if(isLead(b[i])){ if(i+1 >= b.length){ dangling = true; break; } i += 2; }
+      else i++;
+    }
+    return dangling ? str + ' ' : str;
+  }
+  // DXF文字列をCADが期待する形(Shift_JIS・CRLF改行)のバイト列にする
+  function dxfToBytes(text){
+    const crlf = text.replace(/\n/g, '\r\n');
+    if(dxfSjisEncoder){
+      return new Uint8Array(dxfSjisEncoder.convert(crlf, {to:'SJIS', from:'UNICODE', type:'array'}));
+    }
+    return new TextEncoder().encode(crlf);
+  }
+
   function dxfLine(p1, p2){
+    dxfExtend(p1.x,p1.y); dxfExtend(p2.x,p2.y);
     return '0\nLINE\n8\n0\n10\n'+p1.x.toFixed(2)+'\n20\n'+p1.y.toFixed(2)+'\n30\n0.0\n11\n'+p2.x.toFixed(2)+'\n21\n'+p2.y.toFixed(2)+'\n31\n0.0\n';
   }
   function dxfPolyline(pts, closed, layer){
     layer = layer || '0';
     let s = '0\nPOLYLINE\n8\n'+layer+'\n66\n1\n10\n0.0\n20\n0.0\n30\n0.0\n70\n'+(closed?1:0)+'\n';
-    pts.forEach(p=>{ s += '0\nVERTEX\n8\n'+layer+'\n10\n'+p.x.toFixed(2)+'\n20\n'+p.y.toFixed(2)+'\n30\n0.0\n'; });
-    s += '0\nSEQEND\n';
+    pts.forEach(p=>{ dxfExtend(p.x,p.y); s += '0\nVERTEX\n8\n'+layer+'\n10\n'+p.x.toFixed(2)+'\n20\n'+p.y.toFixed(2)+'\n30\n0.0\n70\n0\n'; });
+    s += '0\nSEQEND\n8\n'+layer+'\n';
     return s;
   }
+  // 図面全体の座標範囲。HEADERの$EXTMIN/$EXTMAXに書き出すと、CADで開いた直後に図面全体が表示される。
+  // これが無いと原点付近(図面の隅)が表示され、線が読み込めていないように見えることがある。
+  let dxfExt = null;
+  function dxfExtend(x,y){
+    if(!dxfExt) dxfExt = {minx:x, maxx:x, miny:y, maxy:y};
+    else { dxfExt.minx=Math.min(dxfExt.minx,x); dxfExt.maxx=Math.max(dxfExt.maxx,x);
+           dxfExt.miny=Math.min(dxfExt.miny,y); dxfExt.maxy=Math.max(dxfExt.maxy,y); }
+  }
   function dxfText(pos, text, height, angleDeg){
-    const t = String(text).replace(/[\r\n]/g,' ');
+    dxfExtend(pos.x, pos.y);
+    const t = dxfSafeString(String(text).replace(/[\r\n]/g,' '));
     let s = '0\nTEXT\n8\nTEXT\n10\n'+pos.x.toFixed(2)+'\n20\n'+pos.y.toFixed(2)+'\n30\n0.0\n40\n'+height.toFixed(2)+'\n1\n'+t+'\n';
     if(angleDeg){
       // DXFの角度は0〜360度の範囲を期待するCADソフトがあり、マイナス値だと描画されないことがあるため正規化する
       const normalized = ((angleDeg % 360) + 360) % 360;
       s += '50\n'+normalized.toFixed(2)+'\n';
     }
+    s += '7\nSTANDARD\n'; // STYLEテーブルで定義した文字スタイルを参照させる
     return s;
   }
 
@@ -1934,9 +1992,13 @@
     return x>=dxfRegion.x1 && x<=dxfRegion.x2 && y>=dxfRegion.y1 && y<=dxfRegion.y2;
   }
 
-  function exportDXF(){
+  async function exportDXF(){
     const hasVectors = (vectorPaths && vectorPaths.length>0) || (textItems && textItems.length>0);
     if(!calibration || (!hasVectors && measurements.length===0)) return;
+    // 文字コード変換ライブラリを先に用意する(dxfSafeStringの挙動がこの結果で変わるため、線・文字を作る前に行う)
+    hintBar.hidden = false; hintText.textContent = 'DXFを作成中です…';
+    await ensureSjisEncoder();
+    dxfExt = null;
     const TEXT_HEIGHT_MM = 100; // 計測の注記文字の高さ(mm)。一般的な建築図面の注記サイズを想定した既定値
     let entities = '';
     let mainVectorCount = 0, smallVectorCount = 0, textIncludedCount = 0, regionExcludedCount = 0, noiseExcludedCount = 0;
@@ -1995,20 +2057,41 @@
         entities += dxfText({x:cx,y:cy}, '#'+num+' '+formatArea(m.sqMeters), TEXT_HEIGHT_MM);
       }
     });
-    // HEADER($ACADVER,$INSUNITS)とTABLES(LAYER)を付与し、CADソフト側での読み込み互換性を高める(JW_CAD等)
+    // HEADER・TABLES・BLOCKSを正式なR12(AC1009)の構成で付与し、CADソフト側での読み込み互換性を高める(JW_CAD等)。
+    // $EXTMIN/$EXTMAXを入れておくと、CADで開いた直後に図面全体が表示される。
+    const ext = dxfExt || {minx:0, maxx:0, miny:0, maxy:0};
     const header =
       '0\nSECTION\n2\nHEADER\n'+
       '9\n$ACADVER\n1\nAC1009\n'+
+      '9\n$DWGCODEPAGE\n3\nANSI_932\n'+ // 日本語Shift_JIS(CP932)で書かれていることを明示
+      '9\n$INSBASE\n10\n0.0\n20\n0.0\n30\n0.0\n'+
+      '9\n$EXTMIN\n10\n'+ext.minx.toFixed(2)+'\n20\n'+ext.miny.toFixed(2)+'\n30\n0.0\n'+
+      '9\n$EXTMAX\n10\n'+ext.maxx.toFixed(2)+'\n20\n'+ext.maxy.toFixed(2)+'\n30\n0.0\n'+
+      '9\n$LIMMIN\n10\n'+ext.minx.toFixed(2)+'\n20\n'+ext.miny.toFixed(2)+'\n'+
+      '9\n$LIMMAX\n10\n'+ext.maxx.toFixed(2)+'\n20\n'+ext.maxy.toFixed(2)+'\n'+
       '9\n$INSUNITS\n70\n4\n'+ // 4 = ミリメートル
+      '9\n$LTSCALE\n40\n1.0\n'+
+      '9\n$TEXTSTYLE\n7\nSTANDARD\n'+
+      '9\n$CLAYER\n8\n0\n'+
       '0\nENDSEC\n';
     const tables =
       '0\nSECTION\n2\nTABLES\n'+
+      // 線種テーブル。LAYERが参照するCONTINUOUSを実際に定義しておく
+      '0\nTABLE\n2\nLTYPE\n70\n1\n'+
+      '0\nLTYPE\n2\nCONTINUOUS\n70\n0\n3\nSolid line\n72\n65\n73\n0\n40\n0.0\n'+
+      '0\nENDTAB\n'+
       '0\nTABLE\n2\nLAYER\n70\n2\n'+
       '0\nLAYER\n2\n0\n70\n0\n62\n7\n6\nCONTINUOUS\n'+
       '0\nLAYER\n2\nTEXT\n70\n0\n62\n7\n6\nCONTINUOUS\n'+
+      '0\nENDTAB\n'+
+      // 文字スタイルテーブル。TEXTエンティティが参照するSTANDARDを定義しておく
+      '0\nTABLE\n2\nSTYLE\n70\n1\n'+
+      '0\nSTYLE\n2\nSTANDARD\n70\n0\n40\n0.0\n41\n1.0\n50\n0.0\n71\n0\n42\n2.5\n3\ntxt\n4\n\n'+
       '0\nENDTAB\n0\nENDSEC\n';
-    const dxf = header + tables + '0\nSECTION\n2\nENTITIES\n' + entities + '0\nENDSEC\n0\nEOF\n';
-    const blob = new Blob([dxf], {type:'application/dxf'});
+    // 中身は空でもBLOCKSセクションがあるほうが読み込みに厳しいCADとの相性が良い
+    const blocks = '0\nSECTION\n2\nBLOCKS\n0\nENDSEC\n';
+    const dxf = header + tables + blocks + '0\nSECTION\n2\nENTITIES\n' + entities + '0\nENDSEC\n0\nEOF\n';
+    const blob = new Blob([dxfToBytes(dxf)], {type:'application/dxf'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     const base = (filenameEl.textContent || '図面').replace(/\.[^.]+$/, '');
@@ -2017,10 +2100,13 @@
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
+    hintBar.hidden = false;
+    const encNote = dxfSjisEncoder ? '' : ' ※文字コード変換ライブラリを読み込めなかったためUTF-8で出力しました(CADで日本語が文字化けする場合があります。オンラインで再試行してください)';
     if(hasVectors){
-      hintBar.hidden = false;
       const regionNote = dxfRegion ? '(範囲外 '+regionExcludedCount+'件を除外)' : '';
-      hintText.textContent = 'DXF書き出し完了: 線 '+mainVectorCount+'本(レイヤー0) + 文字 '+textIncludedCount+'件・微小図形 '+smallVectorCount+'件(レイヤーTEXT)を出力、ハッチング等の微小線 '+noiseExcludedCount+'件を除外 '+regionNote;
+      hintText.textContent = 'DXF書き出し完了: 線 '+mainVectorCount+'本(レイヤー0) + 文字 '+textIncludedCount+'件・微小図形 '+smallVectorCount+'件(レイヤーTEXT)を出力、ハッチング等の微小線 '+noiseExcludedCount+'件を除外 '+regionNote+encNote;
+    } else {
+      hintText.textContent = 'DXF書き出し完了: 計測データ '+measurements.length+'件を出力しました'+encNote;
     }
   }
 
