@@ -294,24 +294,37 @@ function renderCompletedSites(year){
   }).join('');
 }
 
-// 保存済み写真台帳の一覧（現場フォルダに台帳データ.jsonがある現場のみ）
+// 保存済み写真台帳の一覧（写真台帳フォルダに台帳データ.jsonがある現場のみ）
+// 開くたびにサーバーから取り直す(保存直後の台帳も必ず出るように)。前回の一覧は取得中の仮表示に使う
 function openAlbumList(){
   $('album-list-modal').classList.add('show');
-  renderAlbumList();
+  let cached = [];
+  try{ cached = JSON.parse(localStorage.getItem('album-list')||'[]'); }catch(e){}
+  renderAlbumList(cached, true);
+  fetch(GAS_URL + '?action=listAlbums')
+    .then(r=>r.json())
+    .then(res=>{
+      if(res.status!=='ok') throw new Error(res.message||'');
+      try{ localStorage.setItem('album-list', JSON.stringify(res.albums)); }catch(e){}
+      if($('album-list-modal').classList.contains('show')) renderAlbumList(res.albums, false);
+    })
+    .catch(()=>{
+      if($('album-list-modal').classList.contains('show')) $('album-list-body').innerHTML = '<div class="pp-empty">⚠️ 一覧の取得に失敗しました。通信状態を確認して、もう一度開いてください</div>';
+    });
 }
 function closeAlbumList(){
   $('album-list-modal').classList.remove('show');
 }
-function renderAlbumList(){
+function renderAlbumList(list, loading){
   const body = $('album-list-body');
-  const list = (window._sites||[]).filter(s=>s.hasAlbum);
+  const note = loading ? '<div class="pp-note" style="padding:0 0 8px">⏳ 最新の一覧を読み込み中...</div>' : '';
   if(!list.length){
-    body.innerHTML = '<div class="pp-empty">保存済みの写真台帳はまだありません<br>（「💾 保存」で現場名を入力して保存すると、ここに表示されます）</div>';
+    body.innerHTML = note + (loading ? '' : '<div class="pp-empty">保存済みの写真台帳はまだありません<br>（「💾 保存」で現場名を入力して保存すると、ここに表示されます）</div>');
     return;
   }
-  body.innerHTML = list.map(s=>{
-    const badge = s.completed ? '<span class="ssi-badge">完了</span>' : '';
-    return '<div class="cp-site-item" style="display:flex;justify-content:space-between;align-items:center" onclick="openAlbumForSite(\''+esc(s.name)+'\')"><span>'+esc(s.name)+'</span>'+badge+'</div>';
+  body.innerHTML = note + list.map(s=>{
+    const upd = s.updated ? '<span style="font-size:11px;color:#888">'+esc(s.updated)+'</span>' : '';
+    return '<div class="cp-site-item" style="display:flex;justify-content:space-between;align-items:center" data-site="'+esc(s.name)+'" onclick="openAlbumForSite(this.dataset.site)"><span>'+esc(s.name)+'</span>'+upd+'</div>';
   }).join('');
 }
 function openAlbumForSite(siteName){
