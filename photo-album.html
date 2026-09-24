@@ -109,6 +109,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
   .photo-del,.photo-rotate{display:none!important}
   .photo-cell .ph-placeholder{display:none}
   .info-val input,.info-comment textarea{background:transparent!important}
+  /* 背景色(印刷時は白の塗りになる)や写真が枠線に接して上から描かれ、ビューア/プリンターによって罫線が消えるのを防ぐ */
+  .photo-cell,.info-label{background:none!important}
+  .photo-cell{padding:0.8mm}
   @page{size:A4 portrait;margin:0}
 }
 </style>
