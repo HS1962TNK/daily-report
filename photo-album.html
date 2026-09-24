@@ -95,6 +95,42 @@ body.move-mode .photo-cell:not(.move-source):hover{outline:2px dashed #1B3A6B;ou
 .pp-note{grid-column:1/-1;font-size:11px;color:#888;margin-bottom:2px}
 .pp-more{grid-column:1/-1;margin-top:6px;padding:10px;border:1.5px solid #1B3A6B;border-radius:8px;background:#EBF4FF;color:#1B3A6B;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
 .pp-more:disabled{opacity:.6;cursor:default}
+.pp-modal-inner{position:relative}
+#photo-picker-modal .pp-modal-inner{max-width:960px;max-height:90vh}
+.pp-grid.size-s{grid-template-columns:repeat(auto-fill,minmax(100px,1fr))}
+.pp-grid.size-m{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
+.pp-grid.size-l{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+.pp-tools{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:-4px 0 10px;font-size:12px;color:#555}
+.pp-tools .pp-size-chip{padding:3px 10px;border-radius:12px;border:1.5px solid #ddd;background:#fff;color:#555;font-size:12px;cursor:pointer;font-family:inherit}
+.pp-tools .pp-size-chip.active{background:#555;border-color:#555;color:#fff;font-weight:700}
+.pp-tools label{margin-left:auto;display:flex;align-items:center;gap:4px;cursor:pointer}
+.pp-item.selected{border-color:#2563eb;box-shadow:0 0 0 2px #2563eb}
+.pp-item.used{opacity:.45}
+.pp-item .pp-check{position:absolute;top:5px;left:5px;min-width:24px;height:24px;border-radius:12px;background:#2563eb;color:#fff;font-size:12px;font-weight:700;display:none;align-items:center;justify-content:center;padding:0 6px;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+.pp-item.selected .pp-check{display:flex}
+.pp-item .pp-used-badge{position:absolute;top:5px;left:5px;background:rgba(0,0,0,.65);color:#fff;font-size:10px;padding:2px 6px;border-radius:8px}
+.pp-item .pp-zoom{position:absolute;top:5px;right:5px;width:30px;height:30px;border-radius:50%;border:none;background:rgba(0,0,0,.55);color:#fff;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.pp-item .pp-zoom:hover{background:rgba(27,58,107,.95)}
+.pp-footer{display:none;border-top:1px solid #eee;padding:10px 16px;align-items:center;gap:10px;background:#f8fafc}
+.pp-footer.show{display:flex}
+.pp-footer .pp-count{font-size:13px;font-weight:700;color:#1B3A6B;margin-right:auto}
+.pp-footer button{padding:8px 14px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;border:1.5px solid #1B3A6B;background:#fff;color:#1B3A6B}
+.pp-footer button.primary{background:#1B3A6B;color:#fff}
+.pp-footer button:disabled{opacity:.45;cursor:default}
+.pp-preview{display:none;position:absolute;inset:0;background:#0f172a;z-index:20;flex-direction:column;border-radius:12px}
+.pp-preview.show{display:flex}
+.pp-pv-top{display:flex;align-items:center;gap:10px;padding:10px 14px;color:#fff;font-size:12px}
+.pp-pv-top .pp-pv-info{margin-right:auto;opacity:.85;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pp-pv-top button{background:none;border:none;color:#fff;font-size:22px;cursor:pointer;line-height:1}
+.pp-pv-main{flex:1;display:flex;align-items:center;justify-content:center;position:relative;min-height:0;padding:0 56px}
+.pp-pv-main img{max-width:100%;max-height:100%;object-fit:contain;background:#000}
+.pp-pv-nav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;border:none;background:rgba(255,255,255,.18);color:#fff;font-size:22px;cursor:pointer}
+.pp-pv-nav:hover{background:rgba(255,255,255,.35)}
+.pp-pv-nav.prev{left:6px}.pp-pv-nav.next{right:6px}
+.pp-pv-nav:disabled{opacity:.25;cursor:default}
+.pp-pv-bottom{display:flex;justify-content:center;gap:10px;padding:12px}
+.pp-pv-bottom button{padding:9px 18px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;border:none;background:#fff;color:#1B3A6B}
+.pp-pv-bottom button.on{background:#2563eb;color:#fff}
 
 /* 表の線は各マスの4辺の枠を1pxずつ重ねて描く(片側だけの線はPDFで「塗り」になり、Acrobat等で太さがばらついて見えるため) */
 .info-cell{display:flex;flex-direction:column;margin:-1px -1px -1px 0}
@@ -174,8 +210,11 @@ body.move-mode .photo-cell:not(.move-source):hover{outline:2px dashed #1B3A6B;ou
     </div>
     <div class="pp-modal-body">
       <div class="pp-folder-bar" id="pp-folder-bar"></div>
+      <div class="pp-tools" id="pp-tools"></div>
       <div class="pp-grid" id="pp-grid"></div>
     </div>
+    <div class="pp-footer" id="pp-footer"></div>
+    <div class="pp-preview" id="pp-preview" onclick="if(event.target===this)closePickerPreview()"></div>
   </div>
 </div>
 
@@ -205,8 +244,12 @@ const PHOTOS_PER_PAGE = 3;
 let pageCount = 0;
 let header = { koji:'', genba:'', addr:'', gyosha:'' };
 let photoData = {};
+let photoSrc = {}; // 枠 -> 元のDrive写真ID(「現場の写真から選ぶ」で入れた写真。回転後も元の写真として取り込み済み判定に使う)
 let pickerTargetKey = null;
 let pickerPhotosCache = null;
+let pickerSelected = []; // ピッカーで選んだ写真(選んだ順)
+let pickerShowUsed = false; // 取り込み済みの写真も一覧に出すか
+let pickerSize = (()=>{ try{ return localStorage.getItem('pickerSize')||'m'; }catch(e){ return 'm'; } })(); // 一覧の写真の大きさ s/m/l
 
 function $(id){return document.getElementById(id)}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
@@ -424,7 +467,7 @@ function delPage(idx){
   const page=$('page-'+idx);
   if(page) page.remove();
   // 写真データも削除
-  for(let i=0;i<PHOTOS_PER_PAGE;i++) delete photoData[`p${idx}-${i}`];
+  for(let i=0;i<PHOTOS_PER_PAGE;i++){ delete photoData[`p${idx}-${i}`]; delete photoSrc[`p${idx}-${i}`]; }
 }
 
 function loadPhoto(key,inp){
@@ -451,12 +494,13 @@ function slotKeys(){
   return keys;
 }
 function readSlot(key){
-  const s={photo:photoData[key]||''};
+  const s={photo:photoData[key]||'', src:photoSrc[key]||''};
   ['kosyu','place','comment'].forEach(k=>{const el=document.querySelector(`[data-k="${key}-${k}"]`);s[k]=el?el.value:'';});
   return s;
 }
 function writeSlot(key,s){
   if(s.photo) photoData[key]=s.photo; else delete photoData[key];
+  if(s.src) photoSrc[key]=s.src; else delete photoSrc[key];
   ['kosyu','place','comment'].forEach(k=>{const el=document.querySelector(`[data-k="${key}-${k}"]`);if(el) el.value=s[k]||'';});
   renderCell(key);
 }
@@ -553,6 +597,7 @@ function photoEmptyHtml(key){
 // 再度写真を追加できる状態)に戻す。
 function delPhoto(key){
   delete photoData[key];
+  delete photoSrc[key];
   const cell=$('cell-'+key);
   if(cell) cell.innerHTML=photoEmptyHtml(key);
 }
@@ -561,6 +606,7 @@ function setPhoto(key,file){
   const r=new FileReader();
   r.onload=e=>{
     photoData[key]=e.target.result;
+    delete photoSrc[key];
     $('cell-'+key).innerHTML=photoFilledHtml(key, e.target.result);
   };
   r.readAsDataURL(file);
@@ -584,6 +630,7 @@ function rotatePhoto(key){
           alert('⚠️ 写真データの取得に失敗し、回転できませんでした');
           return;
         }
+        photoSrc[key] = driveMatch[1];
         doRotate(key, res.dataUrl);
       })
       .catch(()=>{
@@ -643,7 +690,10 @@ function pickerCacheKey(siteName, folder){ return siteName + '|' + (folder || ''
 function openPhotoPicker(key){
   pickerTargetKey = key;
   pickerCurrentFolder = '';
+  pickerSelected = [];
   $('photo-picker-modal').classList.add('show');
+  renderPickerTools();
+  renderPickerFooter();
   const siteName = (header.genba || header.koji || '').trim();
   $('pp-folder-bar').innerHTML = '';
   if(!siteName){
@@ -735,11 +785,38 @@ function refreshPhotoPicker(){
 // 一度に取得するのは60件まで(GAS側getSitePhotosのLIMIT)。それより古い写真は一覧末尾の
 // 「さらに読み込む」でoffsetを進めて追加取得する(工期の長い現場で最初の頃の写真も台帳に載せられるように)。
 function pickerItemsHtml(photos, startIndex){
-  return photos.map((p,i)=>`
-    <div class="pp-item" onclick="choosePickerPhoto(${startIndex+i})">
+  const used = usedPhotoIds();
+  return photos.map((p,i)=>{
+    const idx = startIndex+i;
+    const isUsed = !!used[p.id];
+    if(isUsed && !pickerShowUsed) return '';
+    const selNo = pickerSelected.findIndex(s=>s.id===p.id);
+    return `
+    <div class="pp-item${selNo>=0?' selected':''}${isUsed?' used':''}" data-id="${esc(p.id)}" onclick="togglePickerSelect(${idx})">
       <img src="${p.url}" loading="lazy">
+      <span class="pp-check">${selNo>=0?selNo+1:''}</span>
+      ${isUsed?'<span class="pp-used-badge">取り込み済み</span>':''}
+      <button type="button" class="pp-zoom" title="拡大して見る" onclick="event.stopPropagation();openPickerPreview(${idx})">🔍</button>
       ${p.folder?`<div class="pp-folder">${esc(p.folder)}</div>`:''}
-    </div>`).join('');
+    </div>`;
+  }).join('');
+}
+// 台帳に取り込み済みの写真(Drive写真ID)。回転して画像データになった写真も元のIDで数える
+function usedPhotoIds(){
+  const used = {};
+  Object.values(photoData).forEach(v=>{
+    const s = String(v);
+    if(!s.startsWith('https://drive.google.com/')) return;
+    const m = /[?&]id=([^&]+)/.exec(s);
+    if(m) used[m[1]] = true;
+  });
+  Object.values(photoSrc).forEach(id=>{ if(id) used[id]=true; });
+  return used;
+}
+// 今の一覧で表示している写真(取り込み済みを隠しているときはそれを除く)の、pickerPhotosCache上の番号
+function pickerVisibleIndexes(){
+  const used = usedPhotoIds();
+  return (pickerPhotosCache||[]).map((p,i)=>(!used[p.id]||pickerShowUsed)?i:-1).filter(i=>i>=0);
 }
 function pickerNoteText(shown, totalCount){
   const label = pickerOrder === 'asc' ? '古い順' : '新しい順';
@@ -753,11 +830,130 @@ function pickerMoreHtml(shown, totalCount){
 }
 function renderPickerGrid(photos, totalCount){
   const grid = $('pp-grid');
+  grid.className = 'pp-grid size-' + pickerSize;
   const note = pickerNoteText(photos.length, totalCount);
+  const items = pickerItemsHtml(photos, 0);
+  const used = usedPhotoIds();
+  const hidden = pickerShowUsed ? 0 : photos.filter(p=>used[p.id]).length;
+  const hiddenNote = hidden ? `<div class="pp-note" id="pp-hidden-note">台帳に取り込み済みの${hidden}枚は表示していません</div>` : '';
   grid.innerHTML = (note ? `<div class="pp-note" id="pp-note">${note}</div>` : '')
-    + pickerItemsHtml(photos, 0)
+    + hiddenNote
+    + (items.trim() ? items : '<div class="pp-empty" style="grid-column:1/-1">表示できる写真がありません（すべて取り込み済みです）</div>')
     + pickerMoreHtml(photos.length, totalCount);
 }
+function rerenderPickerGrid(){
+  const siteName = (header.genba || header.koji || '').trim();
+  const cached = sitePhotosCache[pickerCacheKey(siteName, pickerCurrentFolder)];
+  if(cached) renderPickerGrid(cached.photos, cached.totalCount);
+}
+// 一覧の上の道具: 写真の大きさ(小/中/大)・取り込み済みも表示
+function renderPickerTools(){
+  const chip = (v,l)=>`<button type="button" class="pp-size-chip${pickerSize===v?' active':''}" onclick="setPickerSize('${v}')">${l}</button>`;
+  $('pp-tools').innerHTML = '写真の大きさ ' + chip('s','小') + chip('m','中') + chip('l','大')
+    + `<label><input type="checkbox" ${pickerShowUsed?'checked':''} onchange="pickerShowUsed=this.checked;rerenderPickerGrid()">取り込み済みも表示</label>`;
+}
+function setPickerSize(v){
+  pickerSize = v;
+  try{ localStorage.setItem('pickerSize', v); }catch(e){}
+  renderPickerTools();
+  $('pp-grid').className = 'pp-grid size-' + v;
+}
+// ── 複数選択 ──
+function togglePickerSelect(i){
+  const p = pickerPhotosCache && pickerPhotosCache[i];
+  if(!p) return;
+  const at = pickerSelected.findIndex(s=>s.id===p.id);
+  if(at>=0) pickerSelected.splice(at,1); else pickerSelected.push(p);
+  refreshPickerSelectionMarks();
+}
+function refreshPickerSelectionMarks(){
+  document.querySelectorAll('#pp-grid .pp-item').forEach(el=>{
+    const no = pickerSelected.findIndex(s=>s.id===el.dataset.id);
+    el.classList.toggle('selected', no>=0);
+    const c = el.querySelector('.pp-check'); if(c) c.textContent = no>=0 ? no+1 : '';
+  });
+  renderPickerFooter();
+  if($('pp-preview').classList.contains('show')) renderPickerPreview();
+}
+function renderPickerFooter(){
+  const n = pickerSelected.length;
+  const f = $('pp-footer');
+  f.classList.toggle('show', !!pickerTargetKey);
+  f.innerHTML = `<span class="pp-count">${n ? n+'枚 選択中（選んだ順に入ります）' : '写真をクリックして選択（複数可）。🔍で拡大表示'}</span>`
+    + `<button type="button" onclick="pickerSelected=[];refreshPickerSelectionMarks()" ${n?'':'disabled'}>選択を解除</button>`
+    + `<button type="button" class="primary" onclick="importPickerSelection()" ${n?'':'disabled'}>この枠から順に取り込む${n?'（'+n+'枚）':''}</button>`;
+}
+// 選んだ写真を、ピッカーを開いた枠から順に空いている枠へ入れる(写真が入っている枠は飛ばす。足りなければページを足す)
+function importPickerSelection(){
+  if(!pickerSelected.length || !pickerTargetKey) return;
+  const list = pickerSelected.slice();
+  let keys = slotKeys();
+  let pos = Math.max(0, keys.indexOf(pickerTargetKey));
+  const filled = [];
+  for(const p of list){
+    while(true){
+      if(pos >= keys.length){ addPage(); keys = slotKeys(); }
+      if(!photoData[keys[pos]]) break;
+      pos++;
+    }
+    const key = keys[pos++];
+    photoData[key] = p.url;
+    photoSrc[key] = p.id;
+    renderCell(key);
+    filled.push(key);
+  }
+  closePhotoPicker();
+  filled.forEach(k=>{ const c=$('cell-'+k); if(c){ c.classList.add('just-moved'); setTimeout(()=>c.classList.remove('just-moved'),1200); } });
+  const first = $('cell-'+filled[0]); if(first) first.scrollIntoView({block:'center',behavior:'smooth'});
+}
+// ── 拡大表示 ──
+let pickerPreviewIndex = -1;
+function openPickerPreview(i){
+  pickerPreviewIndex = i;
+  $('pp-preview').classList.add('show');
+  renderPickerPreview();
+}
+function closePickerPreview(){
+  $('pp-preview').classList.remove('show');
+  pickerPreviewIndex = -1;
+}
+function renderPickerPreview(){
+  const p = pickerPhotosCache && pickerPhotosCache[pickerPreviewIndex];
+  if(!p){ closePickerPreview(); return; }
+  const vis = pickerVisibleIndexes();
+  const at = vis.indexOf(pickerPreviewIndex);
+  const selNo = pickerSelected.findIndex(s=>s.id===p.id);
+  const big = String(p.url).replace(/sz=w\d+/, 'sz=w1600');
+  const d = p.dateAdded ? new Date(p.dateAdded) : null;
+  const dateText = d && !isNaN(d) ? `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}` : '';
+  const info = [at>=0 ? `${at+1} / ${vis.length}` : '', p.folder||'', dateText].filter(Boolean).map(esc).join('　');
+  $('pp-preview').innerHTML = `
+    <div class="pp-pv-top"><span class="pp-pv-info">${info}</span><button type="button" onclick="closePickerPreview()" title="閉じる(Esc)">✕</button></div>
+    <div class="pp-pv-main">
+      <button type="button" class="pp-pv-nav prev" onclick="stepPickerPreview(-1)" ${at>0?'':'disabled'} title="前の写真(←)">‹</button>
+      <img src="${big}" onerror="if(!this.dataset.f){this.dataset.f=1;this.src='${p.url}'}">
+      <button type="button" class="pp-pv-nav next" onclick="stepPickerPreview(1)" ${at>=0&&at<vis.length-1?'':'disabled'} title="次の写真(→)">›</button>
+    </div>
+    <div class="pp-pv-bottom">
+      <button type="button" class="${selNo>=0?'on':''}" onclick="togglePickerSelect(${pickerPreviewIndex})">${selNo>=0?'✓ 選択中（'+(selNo+1)+'番目）— 押すと外す':'この写真を選択する（Space）'}</button>
+      <button type="button" onclick="closePickerPreview()">一覧に戻る</button>
+    </div>`;
+}
+function stepPickerPreview(dir){
+  const vis = pickerVisibleIndexes();
+  const at = vis.indexOf(pickerPreviewIndex);
+  const next = vis[at+dir];
+  if(next===undefined) return;
+  pickerPreviewIndex = next;
+  renderPickerPreview();
+}
+document.addEventListener('keydown',e=>{
+  if(!$('pp-preview') || !$('pp-preview').classList.contains('show')) return;
+  if(e.key==='ArrowLeft'){ e.preventDefault(); stepPickerPreview(-1); }
+  else if(e.key==='ArrowRight'){ e.preventDefault(); stepPickerPreview(1); }
+  else if(e.key==='Escape'){ e.preventDefault(); closePickerPreview(); }
+  else if(e.key===' '){ e.preventDefault(); togglePickerSelect(pickerPreviewIndex); }
+});
 function loadMorePickerPhotos(){
   const siteName = (header.genba || header.koji || '').trim();
   const folder = pickerCurrentFolder || '';
@@ -785,11 +981,20 @@ function loadMorePickerPhotos(){
       if(sitePhotosCache[pickerCacheKey(siteName, pickerCurrentFolder)] !== cached || !$('photo-picker-modal').classList.contains('show')) return;
       const curBtn = $('pp-more');
       if(curBtn) curBtn.remove();
+      $('pp-grid').querySelector('.pp-empty')?.remove();
       $('pp-grid').insertAdjacentHTML('beforeend', pickerItemsHtml(added, startIndex) + pickerMoreHtml(cached.photos.length, cached.totalCount));
       const noteEl = $('pp-note');
       if(noteEl){
         const text = pickerNoteText(cached.photos.length, cached.totalCount);
         if(text) noteEl.textContent = text; else noteEl.textContent = `全${cached.photos.length}件を表示中`;
+      }
+      // 取り込み済みで隠した枚数の表示も更新する
+      const used = usedPhotoIds();
+      const hidden = pickerShowUsed ? 0 : cached.photos.filter(p=>used[p.id]).length;
+      let hn = $('pp-hidden-note');
+      if(hidden){
+        if(!hn){ $('pp-grid').insertAdjacentHTML('afterbegin','<div class="pp-note" id="pp-hidden-note"></div>'); hn=$('pp-hidden-note'); }
+        hn.textContent = `台帳に取り込み済みの${hidden}枚は表示していません`;
       }
     })
     .catch(()=>{
@@ -799,17 +1004,11 @@ function loadMorePickerPhotos(){
       curBtn.textContent = '読み込みに失敗しました。押してもう一度読み込む';
     });
 }
-function choosePickerPhoto(i){
-  const p = pickerPhotosCache && pickerPhotosCache[i];
-  if(!p || !pickerTargetKey) return;
-  const key = pickerTargetKey;
-  photoData[key] = p.url;
-  $('cell-'+key).innerHTML = photoFilledHtml(key, p.url);
-  closePhotoPicker();
-}
 function closePhotoPicker(){
+  closePickerPreview();
   $('photo-picker-modal').classList.remove('show');
   pickerTargetKey = null;
+  pickerSelected = [];
 }
 
 function syncHeader(){
@@ -826,7 +1025,7 @@ function syncHeader(){
 function saveData(){
   const fields={};
   document.querySelectorAll('[data-k]').forEach(el=>{fields[el.dataset.k]=el.value;});
-  const albumObj = {pageCount,header,photoData,fields};
+  const albumObj = {pageCount,header,photoData,photoSrc,fields};
   try{
     localStorage.setItem('photo-album',JSON.stringify(albumObj));
   }catch(e){/* ブラウザ内の一時保存に失敗しても、Driveへの保存は試みる */}
@@ -856,6 +1055,7 @@ function restoreAlbum(data){
   pageCount = 0;
   header=data.header||{koji:'',genba:'',addr:'',gyosha:''};
   photoData=data.photoData||{};
+  photoSrc=data.photoSrc||{};
   $('h-koji').value=header.koji||'';
   $('h-genba').value=header.genba||'';
   $('h-addr').value=header.addr||'';
