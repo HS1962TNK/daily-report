@@ -54,6 +54,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .photo-row{display:grid;grid-template-columns:120mm 1fr;border:1px solid #333;height:80mm}
 .photo-cell{position:relative;background:#f5f5f5;display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer}
 .photo-cell.drag-over{background:#EBF4FF;outline:2px dashed #1B3A6B;outline-offset:-4px}
+.photo-cell.just-moved{outline:3px solid #f59e0b;outline-offset:-3px}
+.photo-move{position:absolute;bottom:4px;left:4px;display:flex;gap:4px;z-index:5}
+.photo-move button,.photo-move .photo-drag{height:24px;min-width:24px;padding:0 7px;border-radius:12px;background:rgba(0,0,0,.55);color:#fff;border:none;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;font-family:inherit;user-select:none}
+.photo-move .photo-drag{cursor:grab}
+.photo-move button:hover,.photo-move .photo-drag:hover{background:rgba(27,58,107,.9)}
 .photo-cell img{width:100%;height:100%;object-fit:contain}
 .photo-cell .ph-placeholder{text-align:center;color:#bbb;font-size:12px;padding:10px}
 .photo-cell .ph-placeholder .ph-icon{font-size:32px;margin-bottom:6px}
@@ -109,7 +114,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
   .pages{padding:0}
   .page{box-shadow:none;margin:0;page-break-after:always}
   .page:last-child{page-break-after:auto}
-  .photo-del,.photo-rotate{display:none!important}
+  .photo-del,.photo-rotate,.photo-move{display:none!important}
   .photo-cell .ph-placeholder{display:none}
   .info-val input,.info-comment textarea{background:transparent!important}
   /* 背景色(印刷時は白の塗りになる)や写真が枠線に接して上から描かれ、ビューア/プリンターによって罫線が消えるのを防ぐ */
@@ -422,7 +427,68 @@ function loadPhoto(key,inp){
   setPhoto(key,f);
 }
 function photoFilledHtml(key, src){
-  return `<img src="${src}"><button class="photo-del" onclick="delPhoto('${key}')">✕</button><button class="photo-rotate" onclick="event.stopPropagation();rotatePhoto('${key}')" title="90度回転">↻</button><input type="file" accept="image/*" onchange="loadPhoto('${key}',this)">`;
+  return `<img src="${src}"><button class="photo-del" onclick="delPhoto('${key}')">✕</button><button class="photo-rotate" onclick="event.stopPropagation();rotatePhoto('${key}')" title="90度回転">↻</button><input type="file" accept="image/*" onchange="loadPhoto('${key}',this)">`
+    + `<div class="photo-move"><button type="button" onclick="event.stopPropagation();moveStep('${key}',-1)" title="1つ前へ移動">▲</button><span class="photo-drag" draggable="true" ondragstart="onPhotoDragStart(event,'${key}')" ondragend="onPhotoDragEnd()" title="つかんで移動したい写真の枠へドロップ">⇅ 移動</span><button type="button" onclick="event.stopPropagation();moveStep('${key}',1)" title="1つ後へ移動">▼</button></div>`;
+}
+function renderCell(key){
+  const cell=$('cell-'+key);
+  if(cell) cell.innerHTML = photoData[key] ? photoFilledHtml(key, photoData[key]) : photoEmptyHtml(key);
+}
+
+// ── 写真の並べ替え ──
+// 写真と、その写真の工種・撮影場所・施工内容を1セットとして移動する。
+// 並び順は画面上のページ順(削除したページは飛ばす)×ページ内の上から順。
+function slotKeys(){
+  const keys=[];
+  document.querySelectorAll('[data-photopage]').forEach(page=>{
+    for(let i=0;i<PHOTOS_PER_PAGE;i++) keys.push(`p${page.dataset.photopage}-${i}`);
+  });
+  return keys;
+}
+function readSlot(key){
+  const s={photo:photoData[key]||''};
+  ['kosyu','place','comment'].forEach(k=>{const el=document.querySelector(`[data-k="${key}-${k}"]`);s[k]=el?el.value:'';});
+  return s;
+}
+function writeSlot(key,s){
+  if(s.photo) photoData[key]=s.photo; else delete photoData[key];
+  ['kosyu','place','comment'].forEach(k=>{const el=document.querySelector(`[data-k="${key}-${k}"]`);if(el) el.value=s[k]||'';});
+  renderCell(key);
+}
+// fromKeyの写真をtoKeyの位置へ移動する(間の写真は1つずつずれる)
+function moveSlot(fromKey,toKey){
+  const keys=slotKeys();
+  const from=keys.indexOf(fromKey), to=keys.indexOf(toKey);
+  if(from<0||to<0||from===to) return;
+  const slots=keys.map(readSlot);
+  const [moving]=slots.splice(from,1);
+  slots.splice(to,0,moving);
+  const lo=Math.min(from,to), hi=Math.max(from,to);
+  for(let i=lo;i<=hi;i++) writeSlot(keys[i],slots[i]);
+  const cell=$('cell-'+toKey);
+  if(cell){
+    cell.classList.add('just-moved');
+    setTimeout(()=>cell.classList.remove('just-moved'),900);
+    if(cell.getBoundingClientRect().top<60||cell.getBoundingClientRect().bottom>innerHeight) cell.scrollIntoView({block:'center',behavior:'smooth'});
+  }
+}
+function moveStep(key,dir){
+  const keys=slotKeys();
+  const i=keys.indexOf(key)+dir;
+  if(i<0){alert('これより前には移動できません');return;}
+  if(i>=keys.length){alert('これより後に移動するには、先に「＋ 写真ページ追加」でページを増やしてください');return;}
+  moveSlot(key,keys[i]);
+}
+let draggingKey=null;
+function onPhotoDragStart(e,key){
+  draggingKey=key;
+  e.dataTransfer.effectAllowed='move';
+  e.dataTransfer.setData('application/x-photo-key',key); // text/plainだと入力欄にドロップされたとき文字として入ってしまうため独自の形式にする
+  e.stopPropagation();
+}
+function onPhotoDragEnd(){
+  draggingKey=null;
+  document.querySelectorAll('.photo-cell.drag-over').forEach(c=>c.classList.remove('drag-over'));
 }
 function photoEmptyHtml(key){
   return `<div class="ph-placeholder"><div class="ph-icon">📷</div>クリック または<br>ドラッグ＆ドロップ<br><button type="button" class="ph-pick-btn" onclick="event.stopPropagation();openPhotoPicker('${key}')">📂 現場の写真から選ぶ</button></div><input type="file" accept="image/*" onchange="loadPhoto('${key}',this)">`;
@@ -505,6 +571,7 @@ function onCellDragLeave(key){
 function onCellDrop(e,key){
   e.preventDefault();
   $('cell-'+key).classList.remove('drag-over');
+  if(draggingKey){ const from=draggingKey; draggingKey=null; moveSlot(from,key); return; }
   const f=e.dataTransfer.files[0];
   if(f) setPhoto(key,f);
 }
