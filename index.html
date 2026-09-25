@@ -60,6 +60,32 @@ input[type=range]{width:100%;accent-color:#185FA5}
 .pb{flex:1;height:5px;background:#eee;border-radius:3px}
 .pb div{height:100%;background:#185FA5;border-radius:3px}
 .empty{text-align:center;padding:40px 16px;color:#bbb;font-size:14px}
+.pv-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:300;display:none;align-items:center;justify-content:center;padding:12px}
+.pv-modal.show{display:flex}
+.pv-inner{background:#fff;border-radius:12px;width:100%;max-width:560px;max-height:85vh;display:flex;flex-direction:column;overflow:hidden}
+.pv-head{padding:12px 14px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;color:#2c2c2a}
+.pv-head .pv-site{margin-left:auto;font-size:12px;font-weight:600;color:#777;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:45%}
+.pv-head button{background:none;border:none;cursor:pointer;color:#888;line-height:1;padding:0 2px;font-size:18px;font-family:inherit}
+.pv-body{padding:12px 14px;overflow-y:auto}
+.pv-bar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.pv-chip{padding:5px 12px;border-radius:14px;border:1.5px solid #ddd;background:#fff;color:#555;font-size:12px;cursor:pointer;font-family:inherit;white-space:nowrap}
+.pv-chip.active{background:#185FA5;border-color:#185FA5;color:#fff;font-weight:700}
+.pv-order{margin-left:auto;display:flex;gap:4px}
+.pv-order-chip{padding:5px 10px;border-radius:14px;border:1.5px solid #ddd;background:#fff;color:#555;font-size:12px;cursor:pointer;font-family:inherit;white-space:nowrap}
+.pv-order-chip.active{background:#e8590c;border-color:#e8590c;color:#fff;font-weight:700}
+.pv-note{font-size:11px;color:#888;margin-bottom:6px}
+.pv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.pv-item{position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;background:#f0f0f0;cursor:pointer}
+.pv-item img{width:100%;height:100%;object-fit:cover;display:block}
+.pv-cap{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);color:#fff;font-size:10px;padding:2px 3px;text-align:center;line-height:1.3}
+.pv-empty{text-align:center;color:#999;font-size:13px;padding:26px 10px;line-height:1.7}
+.pv-more{width:100%;margin-top:8px;padding:10px;border:1.5px solid #185FA5;border-radius:8px;background:#f2f7fc;color:#185FA5;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
+.pv-more:disabled{opacity:.6;cursor:default}
+.pv-zoom{position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:310;display:none;flex-direction:column;align-items:center;justify-content:center;padding:14px;gap:10px}
+.pv-zoom.show{display:flex}
+.pv-zoom img{max-width:100%;max-height:76vh;object-fit:contain;border-radius:6px}
+.pv-zoom-info{color:#fff;font-size:12px;text-align:center;line-height:1.6;word-break:break-all}
+.pv-zoom-close{position:absolute;top:8px;right:14px;background:none;border:none;color:#fff;font-size:26px;cursor:pointer;font-family:inherit}
 .toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#2c2c2a;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
 .toast.show{opacity:1}
 .xl-section{background:#fff;border-radius:12px;margin:10px;padding:14px 15px}
@@ -145,6 +171,7 @@ input[type=range]{width:100%;accent-color:#185FA5}
 <div style="font-size:11px;color:#999;margin-bottom:8px">写真ごとに送り先フォルダ(作業内容・撮影場所)を選べます</div>
 <div class="photo-grid" id="pgrid"></div>
 <button class="add-btn" onclick="addPhoto()" style="margin-top:8px">＋ 写真を追加</button>
+<button class="add-btn" onclick="openPhotoViewer()" style="margin-top:6px">🔍 この現場に送った写真を見る</button>
 </div>
 <div class="btn-row">
 <button class="btn-save" onclick="saveR()">💾 日報を保存</button>
@@ -169,6 +196,26 @@ input[type=range]{width:100%;accent-color:#185FA5}
 <div class="photo-fail-banner" id="photoFailBanner" hidden>
   <span class="pf-label">⚠️ 写真の送信に失敗しました(日報本体は保存済みです)</span><br>電波の良い場所で下のボタンを押してもう一度お試しください
   <button onclick="retryPhotoSend()">🔁 写真を再送信</button>
+</div>
+
+<div class="pv-modal" id="pv-modal">
+  <div class="pv-inner">
+    <div class="pv-head">
+      <span>📷 送った写真</span>
+      <span class="pv-site" id="pv-site"></span>
+      <button onclick="refreshPhotoViewer()" title="最新に更新">🔄</button>
+      <button onclick="closePhotoViewer()" title="閉じる">✕</button>
+    </div>
+    <div class="pv-body" id="pv-body">
+      <div class="pv-bar" id="pv-bar"></div>
+      <div id="pv-content"></div>
+    </div>
+  </div>
+</div>
+<div class="pv-zoom" id="pv-zoom" onclick="closePhotoZoom()">
+  <button class="pv-zoom-close" onclick="closePhotoZoom()">✕</button>
+  <img id="pv-zoom-img" src="" alt="">
+  <div class="pv-zoom-info" id="pv-zoom-info"></div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -746,6 +793,160 @@ async function loadPhotoFolders(site){
     }catch(err){}
   }
   renderPhotos();
+}
+
+// ══════════════════════════════════════════
+//  送った写真の確認(過去にアップした写真をさかのぼって見る)
+// ══════════════════════════════════════════
+// 送信した写真が本当にDriveに入ったかを、送った本人がその場で確かめられるようにするための表示。
+// 写真の取得はGASの getSitePhotos を使う(1回60件・offsetで続きを取得・order=asc/descで並び順)。
+let pvSite='';           // 見ている現場
+let pvPhotos=[];         // 表示中の写真(並び順どおり)
+let pvTotal=0;           // 条件に合う全件数
+let pvFolder='';         // ''=すべて、'__ROOT__'=未分類、それ以外=フォルダ名
+let pvFolderList=[];     // フォルダチップの並び(onclickには添字を渡す。フォルダ名に引用符が入っても壊れないように)
+let pvOrder=(()=>{ try{ return localStorage.getItem('pvOrder')==='asc' ? 'asc' : 'desc'; }catch(e){ return 'desc'; } })();
+let pvReq=0;             // 取得の通し番号(途中で条件を変えたとき、古い応答で画面を上書きしないため)
+let pvLoading=false;
+
+function openPhotoViewer(){
+  const site=$('f-site').value.trim();
+  if(!site){ toast('⚠️ 先に現場を選択してください'); return; }
+  pvSite=site;
+  pvFolder='';
+  $('pv-site').textContent=site;
+  $('pv-modal').classList.add('show');
+  $('pv-body').scrollTop=0;
+  renderPvBar();
+  loadPvPhotos();
+  // 他の作業員が作ったフォルダも絞り込みに出せるよう、開いたタイミングで一覧を取り直す
+  loadPhotoFolders(site).then(()=>{ if($('pv-modal').classList.contains('show')) renderPvBar(); });
+}
+function closePhotoViewer(){ $('pv-modal').classList.remove('show'); }
+function refreshPhotoViewer(){
+  if(!pvSite) return;
+  loadPhotoFolders(pvSite).then(()=>{ if($('pv-modal').classList.contains('show')) renderPvBar(); });
+  loadPvPhotos();
+}
+function renderPvBar(){
+  pvFolderList=['','__ROOT__'].concat(availableFolders);
+  const label=v=> v==='' ? 'すべて' : (v==='__ROOT__' ? '未分類' : esc(v));
+  const chips=pvFolderList.map((v,i)=>`<button type="button" class="pv-chip${pvFolder===v?' active':''}" onclick="selectPvFolder(${i})">${label(v)}</button>`).join('');
+  const oc=(v,l)=>`<button type="button" class="pv-order-chip${pvOrder===v?' active':''}" onclick="selectPvOrder('${v}')">${l}</button>`;
+  $('pv-bar').innerHTML=chips+`<span class="pv-order">${oc('desc','新しい順')}${oc('asc','古い順')}</span>`;
+}
+function selectPvFolder(i){
+  const v=pvFolderList[i];
+  if(v===undefined || v===pvFolder) return;
+  pvFolder=v;
+  renderPvBar();
+  loadPvPhotos();
+}
+function selectPvOrder(o){
+  if(pvOrder===o) return;
+  pvOrder=o;
+  try{ localStorage.setItem('pvOrder',o); }catch(e){}
+  renderPvBar();
+  loadPvPhotos();
+}
+function pvFetchUrl(offset){
+  let u=GAS_URL+'?action=getSitePhotos&site='+encodeURIComponent(pvSite)+'&order='+pvOrder+'&offset='+offset;
+  if(pvFolder) u+='&folder='+encodeURIComponent(pvFolder);
+  return u;
+}
+async function loadPvPhotos(){
+  const req=++pvReq;
+  pvPhotos=[];pvTotal=0;
+  $('pv-content').innerHTML='<div class="pv-empty">読み込み中...</div>';
+  try{
+    const res=await fetch(pvFetchUrl(0),{cache:'no-store'});
+    const j=await res.json();
+    if(req!==pvReq) return;
+    if(j.status!=='ok'||!j.photos||!j.photos.length){
+      $('pv-content').innerHTML='<div class="pv-empty">写真が見つかりませんでした<br>（送った直後は反映に少し時間がかかることがあります）</div>';
+      return;
+    }
+    pvPhotos=j.photos;
+    pvTotal=j.totalCount||j.photos.length;
+    renderPvContent();
+  }catch(e){
+    if(req!==pvReq) return;
+    $('pv-content').innerHTML='<div class="pv-empty">読み込みに失敗しました<br>電波の良い場所で🔄を押してもう一度お試しください</div>';
+  }
+}
+async function loadMorePvPhotos(){
+  if(pvLoading) return;
+  const req=pvReq;
+  const btn=$('pv-more');
+  pvLoading=true;
+  if(btn){ btn.disabled=true; btn.textContent='読み込み中...'; }
+  try{
+    const res=await fetch(pvFetchUrl(pvPhotos.length),{cache:'no-store'});
+    const j=await res.json();
+    if(req!==pvReq) return;               // 読み込み中にフォルダ・並び順を変えていたら捨てる
+    if(j.status!=='ok'||!j.photos) throw new Error('error');
+    const seen={};
+    pvPhotos.forEach(p=>{ seen[p.id]=true; });
+    const added=j.photos.filter(p=>!seen[p.id]);   // 読み込み中に写真が増えると境目が重複するためIDで除く
+    const startIndex=pvPhotos.length;
+    pvPhotos=pvPhotos.concat(added);
+    pvTotal=j.photos.length ? (j.totalCount||pvPhotos.length) : pvPhotos.length;
+    appendPvItems(added,startIndex);      // 全部描き直さないので、見ていた位置がずれない
+  }catch(e){
+    if(req!==pvReq) return;
+    const b=$('pv-more');
+    if(b){ b.disabled=false; b.textContent='読み込みに失敗しました。押してもう一度読み込む'; }
+  }finally{
+    pvLoading=false;
+  }
+}
+function pvDateLabel(ms){
+  const d=new Date(ms);
+  const p2=n=>String(n).padStart(2,'0');
+  return (d.getMonth()+1)+'/'+d.getDate()+' '+p2(d.getHours())+':'+p2(d.getMinutes());
+}
+function pvNoteText(){
+  const label=pvOrder==='asc' ? '古い順' : '新しい順';
+  return pvTotal>pvPhotos.length
+    ? label+'に'+pvPhotos.length+'件を表示中（全'+pvTotal+'件）'
+    : label+'に全'+pvPhotos.length+'件を表示中';
+}
+function pvMoreHtml(){
+  if(pvTotal<=pvPhotos.length) return '';
+  const label=pvOrder==='asc' ? 'さらに新しい写真を読み込む' : 'さらに古い写真を読み込む';
+  return `<button type="button" class="pv-more" id="pv-more" onclick="loadMorePvPhotos()">${label}（残り${pvTotal-pvPhotos.length}件）</button>`;
+}
+function pvItemsHtml(list,startIndex){
+  return list.map((p,i)=>`
+    <div class="pv-item" onclick="openPhotoZoom(${startIndex+i})">
+      <img src="${p.url}" loading="lazy">
+      <div class="pv-cap">${pvDateLabel(p.dateAdded)}${p.folder?'<br>📁 '+esc(p.folder):''}</div>
+    </div>`).join('');
+}
+function renderPvContent(){
+  $('pv-content').innerHTML=`<div class="pv-note" id="pv-note">${pvNoteText()}</div>
+    <div class="pv-grid" id="pv-grid">${pvItemsHtml(pvPhotos,0)}</div>${pvMoreHtml()}`;
+}
+function appendPvItems(added,startIndex){
+  const grid=$('pv-grid');
+  if(!grid){ renderPvContent(); return; }
+  if(added.length) grid.insertAdjacentHTML('beforeend',pvItemsHtml(added,startIndex));
+  const btn=$('pv-more');
+  if(btn) btn.remove();
+  $('pv-content').insertAdjacentHTML('beforeend',pvMoreHtml());
+  const note=$('pv-note');
+  if(note) note.textContent=pvNoteText();
+}
+function openPhotoZoom(i){
+  const p=pvPhotos[i];
+  if(!p) return;
+  $('pv-zoom-img').src=p.url;
+  $('pv-zoom-info').innerHTML=esc(p.name||'')+'<br>'+pvDateLabel(p.dateAdded)+'　📁 '+(p.folder?esc(p.folder):'未分類');
+  $('pv-zoom').classList.add('show');
+}
+function closePhotoZoom(){
+  $('pv-zoom').classList.remove('show');
+  $('pv-zoom-img').src='';
 }
 
 initDate();loadSiteList();addW();addM();initSafety();renderPhotos();
