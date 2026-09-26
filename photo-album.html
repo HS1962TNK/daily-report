@@ -51,7 +51,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 
 /* 写真ページ */
 .photo-rows{display:flex;flex-direction:column;gap:8mm;flex:1;justify-content:space-evenly}
-.photo-row{display:grid;grid-template-columns:120mm 1fr;border:1px solid #333;height:80mm}
+.photo-row{display:grid;grid-template-columns:120mm 1fr;border:1px solid #333;height:80mm;position:relative}
+/* 空白欄(罫線・コメント欄なし。印刷しても何も出ない) */
+.photo-row.blank-row{border-color:transparent}
+.photo-row.blank-row>.photo-cell,.photo-row.blank-row>.info-cell{visibility:hidden}
+.blank-overlay{display:none}
+.photo-row.blank-row .blank-overlay{display:flex;position:absolute;inset:0;border:2px dashed #cbd5e1;border-radius:6px;align-items:center;justify-content:center;flex-direction:column;gap:8px;color:#94a3b8;font-size:13px;font-weight:700}
+.blank-overlay button{padding:5px 12px;border-radius:6px;border:1.5px solid #94a3b8;background:#fff;color:#475569;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
+.row-tools{position:absolute;left:-11mm;top:0;display:flex;flex-direction:column;gap:4px;z-index:6}
+.row-tools button{width:38px;padding:4px 0;border-radius:6px;border:1px solid #94a3b8;background:#fff;color:#334155;font-size:10px;font-weight:700;line-height:1.2;cursor:pointer;font-family:inherit}
+.row-tools button:hover{background:#EBF4FF;border-color:#1B3A6B;color:#1B3A6B}
+.photo-row.blank-row .row-tools{display:none}
 .photo-cell{position:relative;background:#f5f5f5;display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer}
 .photo-cell.drag-over{background:#EBF4FF;outline:2px dashed #1B3A6B;outline-offset:-4px}
 .photo-cell.just-moved{outline:3px solid #f59e0b;outline-offset:-3px}
@@ -181,7 +191,7 @@ body.move-mode .photo-cell:not(.move-source):hover{outline:2px dashed #1B3A6B;ou
   .pages{padding:0}
   .page{box-shadow:none;margin:0;page-break-after:always}
   .page:last-child{page-break-after:auto}
-  .photo-del,.photo-rotate,.photo-move,.photo-board,.photo-save{display:none!important}
+  .photo-del,.photo-rotate,.photo-move,.photo-board,.photo-save,.row-tools,.blank-overlay{display:none!important}
   .photo-cell .ph-placeholder{display:none}
   .info-val input,.info-comment textarea{background:transparent!important}
   /* 背景色(印刷時は白の塗りになる)や写真が枠線に接して上から描かれ、ビューア/プリンターによって罫線が消えるのを防ぐ */
@@ -306,6 +316,7 @@ let photoSrc = {}; // 枠 -> 元のDrive写真ID(「現場の写真から選ぶ�
 let photoOrig = {};  // 枠 -> 黒板を付ける前の写真(黒板の作り直し・取り外し用)
 let photoBoard = {}; // 枠 -> 黒板の内容 {koji,kosyu,bui,date,sekou,pos,size}
 let photoDate = {};  // 枠 -> 撮影日(YYYY-MM-DD)
+let slotBlank = {};  // 枠 -> true なら空白欄(罫線・コメント欄なし)
 let pickerTargetKey = null;
 let pickerPhotosCache = null;
 let pickerSelected = []; // ピッカーで選んだ写真(選んだ順)
@@ -388,6 +399,42 @@ const wrap = document.querySelector('.site-search-wrap');
 if(wrap && !wrap.contains(e.target)) $('site-search-results').classList.remove('show');
 });
 
+// ══════════ 空白欄・改ページ ══════════
+// 空白欄 = 罫線もコメント欄もない何も印刷されない欄。入れた位置から後ろの写真は1つずつ後ろへずれる
+function slotIsEmpty(s){ return !s.photo && !s.kosyu && !s.place && !s.comment && !s.blank; }
+// 並び(slots)を画面の枠に書き戻す。枠が足りなければページを増やし、末尾の余った空の枠は空欄にする
+function writeSlots(slots, from){
+  let keys = slotKeys();
+  while(slots.length && slotIsEmpty(slots[slots.length-1]) && slots.length > keys.length) slots.pop();
+  while(keys.length < slots.length){ addPage(); keys = slotKeys(); }
+  for(let i=from;i<keys.length;i++) writeSlot(keys[i], slots[i] || {photo:'',src:'',kosyu:'',place:'',comment:''});
+}
+function blankSlot(){ return {photo:'',src:'',kosyu:'',place:'',comment:'',blank:true}; }
+function insertBlanks(key, n){
+  if(moveModeKey) endMoveMode();
+  const keys = slotKeys(), i = keys.indexOf(key);
+  if(i<0 || n<=0) return;
+  const slots = keys.map(readSlot);
+  for(let k=0;k<n;k++) slots.splice(i,0,blankSlot());
+  writeSlots(slots, i);
+  const next = $('row-'+slotKeys()[i+n]);
+  if(next){ next.scrollIntoView({block:'center',behavior:'smooth'}); }
+}
+function insertBlank(key){ insertBlanks(key, 1); }
+// ここから後を次のページへ送る(このページの残りを空白欄で埋める)
+function pageBreakAt(key){
+  const i = slotKeys().indexOf(key), pos = i % PHOTOS_PER_PAGE;
+  if(pos===0){ alert('この写真はすでにページの先頭です'); return; }
+  insertBlanks(key, PHOTOS_PER_PAGE - pos);
+}
+function removeBlank(key){
+  const keys = slotKeys(), i = keys.indexOf(key);
+  if(i<0) return;
+  const slots = keys.map(readSlot);
+  slots.splice(i,1);
+  writeSlots(slots, i);
+}
+
 // ══════════ 新しい台帳 ══════════
 // 写真・入力内容があるか
 function albumHasContent(){
@@ -399,7 +446,7 @@ function clearAlbum(){
   if(typeof endMoveMode==='function' && moveModeKey) endMoveMode();
   document.querySelectorAll('.page:not(.cover)').forEach(p=>p.remove());
   pageCount = 0;
-  photoData = {}; photoSrc = {}; photoOrig = {}; photoBoard = {}; photoDate = {};
+  photoData = {}; photoSrc = {}; photoOrig = {}; photoBoard = {}; photoDate = {}; slotBlank = {};
   header = {koji:'', genba:'', addr:'', gyosha:''};
   ['h-koji','h-genba','h-addr','h-gyosha','site-search'].forEach(id=>{ if($(id)) $(id).value=''; });
   try{ localStorage.removeItem('photo-album'); }catch(e){}
@@ -527,7 +574,9 @@ function buildPhotoPage(pageIdx){
   for(let i=0;i<PHOTOS_PER_PAGE;i++){
     const key = `p${pageIdx}-${i}`;
     rows += `
-      <div class="photo-row">
+      <div class="photo-row${slotBlank[key]?' blank-row':''}" id="row-${key}">
+        <div class="row-tools no-print"><button type="button" onclick="insertBlank('${key}')" title="ここに空白欄を1つ入れ、ここから後の写真を1つずつ後ろへずらします">＋<br>空白</button><button type="button" onclick="pageBreakAt('${key}')" title="ここから後の写真を次のページへ送ります(このページの残りは空白欄になります)">⤓<br>改頁</button></div>
+        <div class="blank-overlay no-print">空白（印刷されません）<button type="button" onclick="removeBlank('${key}')">✕ 空白を削除して詰める</button></div>
         <div class="photo-cell" id="cell-${key}"
           ondragover="onCellDragOver(event,'${key}')"
           ondragleave="onCellDragLeave('${key}')"
@@ -570,7 +619,7 @@ function delPage(idx){
   const page=$('page-'+idx);
   if(page) page.remove();
   // 写真データも削除
-  for(let i=0;i<PHOTOS_PER_PAGE;i++){ clearPhotoState(`p${idx}-${i}`); }
+  for(let i=0;i<PHOTOS_PER_PAGE;i++){ clearPhotoState(`p${idx}-${i}`); delete slotBlank[`p${idx}-${i}`]; }
 }
 
 function loadPhoto(key,inp){
@@ -597,7 +646,7 @@ function slotKeys(){
   return keys;
 }
 function readSlot(key){
-  const s={photo:photoData[key]||'', src:photoSrc[key]||'', orig:photoOrig[key]||'', board:photoBoard[key]||null, date:photoDate[key]||''};
+  const s={photo:photoData[key]||'', src:photoSrc[key]||'', orig:photoOrig[key]||'', board:photoBoard[key]||null, date:photoDate[key]||'', blank:!!slotBlank[key]};
   ['kosyu','place','comment'].forEach(k=>{const el=document.querySelector(`[data-k="${key}-${k}"]`);s[k]=el?el.value:'';});
   return s;
 }
@@ -607,6 +656,8 @@ function writeSlot(key,s){
   if(s.orig) photoOrig[key]=s.orig; else delete photoOrig[key];
   if(s.board) photoBoard[key]=s.board; else delete photoBoard[key];
   if(s.date) photoDate[key]=s.date; else delete photoDate[key];
+  if(s.blank) slotBlank[key]=true; else delete slotBlank[key];
+  const row=$('row-'+key); if(row) row.classList.toggle('blank-row', !!s.blank);
   ['kosyu','place','comment'].forEach(k=>{const el=document.querySelector(`[data-k="${key}-${k}"]`);if(el) el.value=s[k]||'';});
   renderCell(key);
 }
@@ -1357,7 +1408,7 @@ function importPickerSelection(){
   for(const p of list){
     while(true){
       if(pos >= keys.length){ addPage(); keys = slotKeys(); }
-      if(!photoData[keys[pos]]) break;
+      if(!photoData[keys[pos]] && !slotBlank[keys[pos]]) break; // 空白欄には入れない
       pos++;
     }
     const key = keys[pos++];
@@ -1494,7 +1545,7 @@ function saveData(){
   // 黒板前の元写真は、Drive写真のURL(短い文字列)だけ保存する(画像データまで保存すると容量が倍になるため)
   const origToSave={};
   Object.entries(photoOrig).forEach(([k,v])=>{ if(v && !String(v).startsWith('data:')) origToSave[k]=v; });
-  const albumObj = {pageCount,header,photoData,photoSrc,photoOrig:origToSave,photoBoard,photoDate,fields};
+  const albumObj = {pageCount,header,photoData,photoSrc,photoOrig:origToSave,photoBoard,photoDate,slotBlank,fields};
   try{
     localStorage.setItem('photo-album',JSON.stringify(albumObj));
   }catch(e){/* ブラウザ内の一時保存に失敗しても、Driveへの保存は試みる */}
@@ -1528,6 +1579,7 @@ function restoreAlbum(data){
   photoOrig=data.photoOrig||{};
   photoBoard=data.photoBoard||{};
   photoDate=data.photoDate||{};
+  slotBlank=data.slotBlank||{};
   $('h-koji').value=header.koji||'';
   $('h-genba').value=header.genba||'';
   $('h-addr').value=header.addr||'';
