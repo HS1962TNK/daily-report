@@ -81,6 +81,7 @@ body.move-mode .photo-cell:not(.move-source):hover{outline:2px dashed #1B3A6B;ou
 #bd-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#64748b;font-size:13px;background:rgba(241,245,249,.85)}
 .bd-form{flex:1 1 260px;min-width:0;display:flex;flex-direction:column;gap:8px}
 .bd-form label{font-size:12px;font-weight:700;color:#1B3A6B;display:block;margin-bottom:2px}
+.bd-form textarea{width:100%;padding:7px 9px;border:1.5px solid #cbd5e1;border-radius:6px;font-size:14px;font-family:inherit;resize:vertical}
 .bd-form input[type=text],.bd-form input[type=date]{width:100%;padding:7px 9px;border:1.5px solid #cbd5e1;border-radius:6px;font-size:14px;font-family:inherit}
 .bd-chips{display:flex;gap:6px;flex-wrap:wrap}
 .bd-chips button{padding:5px 10px;border-radius:14px;border:1.5px solid #1B3A6B;background:#fff;color:#1B3A6B;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
@@ -264,11 +265,12 @@ body.move-mode .photo-cell:not(.move-source):hover{outline:2px dashed #1B3A6B;ou
         <div><label>工事名</label><input type="text" id="bd-koji" oninput="drawBoardPreview()"></div>
         <div><label>工種</label><input type="text" id="bd-kosyu" oninput="drawBoardPreview()"></div>
         <div><label>部位</label><input type="text" id="bd-bui" oninput="drawBoardPreview()"></div>
+        <div><label>作業内容</label><textarea id="bd-naiyo" rows="3" oninput="drawBoardPreview()" placeholder="例）既存防水層撤去後、下地処理（ケレン・清掃）完了"></textarea></div>
         <div><label>撮影日</label><input type="date" id="bd-date" oninput="drawBoardPreview()"></div>
         <div><label>施工者</label><input type="text" id="bd-sekou" oninput="drawBoardPreview()"></div>
         <div><label>黒板の位置</label><div class="bd-chips" id="bd-pos"></div></div>
         <div><label>黒板の大きさ</label><div class="bd-chips" id="bd-size"></div></div>
-        <div class="bd-all"><label style="display:inline;font-weight:400;color:inherit"><input type="checkbox" id="bd-all">この台帳の<b>すべての写真</b>に付ける</label><br>工事名・施工者は上の内容で統一し、工種・部位・撮影日は各写真の「工種」「撮影場所」と撮影日を使います。</div>
+        <div class="bd-all"><label style="display:inline;font-weight:400;color:inherit"><input type="checkbox" id="bd-all">この台帳の<b>すべての写真</b>に付ける</label><br>工事名・施工者は上の内容で統一し、工種・部位・作業内容・撮影日は各写真の「工種」「撮影場所」「施工内容」と撮影日を使います。</div>
       </div>
     </div>
     <div class="bd-footer">
@@ -766,13 +768,28 @@ function boardOriginal(key){
 function drawBoard(ctx, W, H, v, pos, size){
   const f = {s:.24, m:.30, l:.38}[size] || .30;
   const bw = Math.round(Math.min(W*0.62, Math.max(W,H)*f));
-  const rows = [['工事名',v.koji],['工　種',v.kosyu],['部　位',v.bui],['撮影日',boardDateText(v.date)],['施工者',v.sekou]];
-  const rowH = bw*0.13, bh = Math.round(rowH*rows.length);
+  const rowH = bw*0.13;
+  // [見出し, 内容, 行の高さ(倍)]。作業内容は大きめの欄にして複数行で書けるようにする
+  const rows = [['工事名',v.koji,1],['工　種',v.kosyu,1],['部　位',v.bui,1],['作業内容',v.naiyo,2.6],['撮影日',boardDateText(v.date),1],['施工者',v.sekou,1]];
+  const bh = Math.round(rowH*rows.reduce((t,r)=>t+r[2],0));
   const mg = Math.round(Math.min(W,H)*0.02);
   const x = pos[1]==='r' ? W-bw-mg : mg;
   const y = pos[0]==='b' ? H-bh-mg : mg;
   const lw = Math.max(1, bw*0.006), labW = bw*0.24;
   const font = "'Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic','Meiryo',sans-serif";
+  const setF = fs=>{ ctx.font = `bold ${fs}px ${font}`; };
+  // 文字を幅maxWで折り返して行の配列にする(改行も反映)
+  const wrap = (text, maxW)=>{
+    const out=[];
+    String(text||'').split(/\r?\n/).forEach(para=>{
+      let line='';
+      for(const ch of para){
+        if(line && ctx.measureText(line+ch).width > maxW){ out.push(line); line=ch; } else line+=ch;
+      }
+      out.push(line);
+    });
+    return out;
+  };
   ctx.save();
   ctx.fillStyle = '#245c3b';
   ctx.fillRect(x, y, bw, bh);
@@ -781,32 +798,47 @@ function drawBoard(ctx, W, H, v, pos, size){
   ctx.strokeRect(x+lw, y+lw, bw-lw*2, bh-lw*2);
   ctx.lineWidth = lw;
   ctx.beginPath();
-  for(let i=1;i<rows.length;i++){ ctx.moveTo(x, y+rowH*i); ctx.lineTo(x+bw, y+rowH*i); }
+  let yy = y;
+  rows.forEach((r,i)=>{ if(i){ ctx.moveTo(x, yy); ctx.lineTo(x+bw, yy); } yy += rowH*r[2]; });
   ctx.moveTo(x+labW, y); ctx.lineTo(x+labW, y+bh);
   ctx.stroke();
   ctx.fillStyle = '#ffffff';
   ctx.textBaseline = 'middle';
-  rows.forEach(([lab,val],i)=>{
-    const cy = y + rowH*i + rowH/2;
-    let fs = rowH*0.46;
-    ctx.font = `bold ${fs}px ${font}`;
-    ctx.textAlign = 'center';
-    ctx.fillText(lab, x+labW/2, cy);
-    const text = String(val||'');
-    const maxW = bw - labW - rowH*0.5;
-    const tx = x+labW+rowH*0.25;
+  const maxW = bw - labW - rowH*0.5, tx = x+labW+rowH*0.25;
+  yy = y;
+  rows.forEach(([lab,val,hMul])=>{
+    const h = rowH*hMul, cy = yy + h/2;
+    // 見出し(4文字の見出しは2行に)
+    let fs = rowH*0.46; setF(fs); ctx.textAlign = 'center';
+    if(lab.length>=4 && hMul>1){ const hl=lab.length/2; ctx.fillText(lab.slice(0,hl), x+labW/2, cy-fs*0.6); ctx.fillText(lab.slice(hl), x+labW/2, cy+fs*0.6); }
+    else { while(fs>rowH*0.3 && ctx.measureText(lab).width>labW*0.9){ fs*=0.94; setF(fs); } ctx.fillText(lab, x+labW/2, cy); }
     ctx.textAlign = 'left';
-    fs = rowH*0.5;
-    ctx.font = `bold ${fs}px ${font}`;
-    while(fs > rowH*0.42 && ctx.measureText(text).width > maxW){ fs *= 0.94; ctx.font = `bold ${fs}px ${font}`; }
-    if(ctx.measureText(text).width <= maxW){ ctx.fillText(text, tx, cy); return; }
-    // 長い文字は2行に折り返す
-    const half = Math.ceil(text.length/2), l1 = text.slice(0,half), l2 = text.slice(half);
-    fs = rowH*0.36;
-    ctx.font = `bold ${fs}px ${font}`;
-    while(fs > rowH*0.2 && Math.max(ctx.measureText(l1).width, ctx.measureText(l2).width) > maxW){ fs *= 0.94; ctx.font = `bold ${fs}px ${font}`; }
-    ctx.fillText(l1, tx, cy - fs*0.55, maxW);
-    ctx.fillText(l2, tx, cy + fs*0.55, maxW);
+    const text = String(val||'');
+    yy += h;
+    if(!text) return;
+    // 収まる最大の文字サイズで、欄の高さに入るだけ折り返す
+    let lines;
+    if(hMul===1){
+      // 1行欄：まず1行で。長すぎる時は同じ長さの2行に分ける
+      const t = text.replace(/\r?\n/g,' ');
+      fs = rowH*0.5; setF(fs);
+      while(fs > rowH*0.42 && ctx.measureText(t).width > maxW){ fs*=0.94; setF(fs); }
+      if(ctx.measureText(t).width <= maxW) lines=[t];
+      else{
+        const hl=Math.ceil(t.length/2); lines=[t.slice(0,hl), t.slice(hl)];
+        fs = rowH*0.36; setF(fs);
+        while(fs > rowH*0.18 && Math.max(ctx.measureText(lines[0]).width, ctx.measureText(lines[1]).width) > maxW){ fs*=0.94; setF(fs); }
+      }
+    }else{
+      fs = rowH*0.5;
+      while(true){
+        setF(fs); lines = wrap(text, maxW);
+        if(lines.length*fs*1.15 <= h*0.85 || fs <= rowH*0.18) break;
+        fs *= 0.94;
+      }
+    }
+    const lh = fs*1.15, top = (hMul>1 ? yy-h + rowH*0.2 + lh/2 : cy - (lines.length-1)*lh/2);
+    lines.forEach((ln,i)=>ctx.fillText(ln, tx, top + i*lh, maxW));
   });
   ctx.restore();
 }
@@ -823,7 +855,7 @@ function composeBoard(img, v, pos, size, maxSide){
 
 function slotVal(key,k){ const el=document.querySelector(`[data-k="${key}-${k}"]`); return el?el.value:''; }
 function boardFormValues(){
-  return { koji:$('bd-koji').value, kosyu:$('bd-kosyu').value, bui:$('bd-bui').value, date:$('bd-date').value, sekou:$('bd-sekou').value };
+  return { koji:$('bd-koji').value, kosyu:$('bd-kosyu').value, bui:$('bd-bui').value, naiyo:$('bd-naiyo').value, date:$('bd-date').value, sekou:$('bd-sekou').value };
 }
 function renderBoardChips(){
   $('bd-pos').innerHTML = BOARD_POS.map(([v,l])=>`<button type="button" class="${boardPos===v?'active':''}" onclick="setBoardOpt('pos','${v}')">${l}</button>`).join('');
@@ -855,6 +887,7 @@ function openBoard(key){
   $('bd-koji').value  = b ? b.koji  : header.koji;
   $('bd-kosyu').value = b ? b.kosyu : slotVal(key,'kosyu');
   $('bd-bui').value   = b ? b.bui   : slotVal(key,'place');
+  $('bd-naiyo').value = b ? (b.naiyo||'') : slotVal(key,'comment');
   $('bd-date').value  = b ? b.date  : (photoDate[key] || ymd(new Date()));
   $('bd-sekou').value = b ? b.sekou : header.gyosha;
   if(b){ boardPos=b.pos||boardPos; boardSize=b.size||boardSize; }
@@ -904,7 +937,7 @@ async function applyBoard(){
   const key = boardKey, v = boardFormValues();
   // 工種・部位が台帳側で空欄なら、黒板の内容を台帳にも入れる
   const setIfEmpty = (k,val)=>{ const el=document.querySelector(`[data-k="${key}-${k}"]`); if(el && !el.value && val) el.value=val; };
-  setIfEmpty('kosyu', v.kosyu); setIfEmpty('place', v.bui);
+  setIfEmpty('kosyu', v.kosyu); setIfEmpty('place', v.bui); setIfEmpty('comment', v.naiyo);
   const orig = boardOriginal(key) || photoData[key];
 
   if(!$('bd-all').checked){
@@ -922,7 +955,7 @@ async function applyBoard(){
     $('bd-msg').textContent = `黒板を付けています… ${i+1} / ${keys.length}`;
     const vk = k===key ? v : {
       koji: v.koji, sekou: v.sekou,
-      kosyu: slotVal(k,'kosyu'), bui: slotVal(k,'place'),
+      kosyu: slotVal(k,'kosyu'), bui: slotVal(k,'place'), naiyo: slotVal(k,'comment'),
       date: (photoBoard[k] && photoBoard[k].date) || photoDate[k] || v.date
     };
     if(k===key){ putBoard(k, boardImg, orig, vk); ok++; continue; }
