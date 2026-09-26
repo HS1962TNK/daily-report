@@ -196,6 +196,7 @@ body.move-mode .photo-cell:not(.move-source):hover{outline:2px dashed #1B3A6B;ou
   <div class="toolbar-actions">
     <button class="tb-btn ghost" onclick="location.href='genba.html'">🏗️ 現場情報</button>
     <button class="tb-btn ghost" onclick="location.href='index.html'">📋 日報</button>
+    <button class="tb-btn ghost" onclick="newAlbum()">🆕 新しい台帳</button>
     <button class="tb-btn ghost" onclick="addPage()">＋ 写真ページ追加</button>
     <button class="tb-btn ghost" onclick="openAlbumList()">📂 アルバム一覧</button>
     <button class="tb-btn ghost" onclick="saveBoardPhotosZip(event)">🪧 黒板写真をJPEG保存</button>
@@ -329,10 +330,18 @@ autoSelectFromUrl();
 function autoSelectFromUrl(){
 const params = new URLSearchParams(location.search);
 const siteName = params.get('site');
-if(siteName && !$('h-koji').value){
+if(!siteName || window._urlSiteDone) return;
+window._urlSiteDone = true;
 const idx = (window._sites||[]).findIndex(s=>s.name===siteName);
-if(idx>=0){ $('site-search').value = siteName; applySite(idx); }
+const cur = (header.genba || header.koji || '').trim();
+if(cur === siteName) return; // 同じ現場の台帳が開いている
+// 別の現場の台帳が開いていれば、新しい台帳に切り替える
+if(cur && albumHasContent()){
+  if(!confirm('前回の台帳（'+cur+'）が開いています。\n「'+siteName+'」の新しい台帳を作成しますか？\n\n※前回の台帳は「💾 保存」済みなら「📂 アルバム一覧」からいつでも開けます。')) return;
 }
+clearAlbum();
+if(idx>=0){ $('site-search').value = siteName; applySite(idx, true); }
+else { $('h-koji').value = siteName; $('h-genba').value = siteName; $('site-search').value = siteName; syncHeader(); }
 }
 function onSiteSearchInput(q){
 const box = $('site-search-results');
@@ -358,9 +367,15 @@ $('site-search').value = s.name;
 $('site-search-results').classList.remove('show');
 applySite(idx);
 }
-function applySite(idx){
+function applySite(idx, skipAsk){
 const s = (window._sites||[])[idx];
 if(!s) return;
+const cur = (header.genba || header.koji || '').trim();
+if(!skipAsk && cur && cur !== s.name && albumHasContent()){
+  if(confirm('今の台帳（'+cur+'）には写真や入力内容があります。\n「'+s.name+'」の新しい台帳にしますか？\n\nOK：新しい台帳にする（今の写真・入力は消えます）\nキャンセル：今の台帳の現場名だけ変更する')){
+    clearAlbum();
+  }
+}
 $('h-koji').value = s.name||'';
 $('h-genba').value = s.name||'';
 syncHeader();
@@ -369,6 +384,34 @@ document.addEventListener('click', function(e){
 const wrap = document.querySelector('.site-search-wrap');
 if(wrap && !wrap.contains(e.target)) $('site-search-results').classList.remove('show');
 });
+
+// ══════════ 新しい台帳 ══════════
+// 写真・入力内容があるか
+function albumHasContent(){
+  if(Object.keys(photoData).length) return true;
+  return Array.from(document.querySelectorAll('[data-k]')).some(el=>el.value);
+}
+// 画面を空の台帳(表紙+写真ページ1枚)に戻す
+function clearAlbum(){
+  if(typeof endMoveMode==='function' && moveModeKey) endMoveMode();
+  document.querySelectorAll('.page:not(.cover)').forEach(p=>p.remove());
+  pageCount = 0;
+  photoData = {}; photoSrc = {}; photoOrig = {}; photoBoard = {}; photoDate = {};
+  header = {koji:'', genba:'', addr:'', gyosha:''};
+  ['h-koji','h-genba','h-addr','h-gyosha','site-search'].forEach(id=>{ if($(id)) $(id).value=''; });
+  try{ localStorage.removeItem('photo-album'); }catch(e){}
+  addPage();
+  syncHeader();
+  window.scrollTo({top:0});
+}
+function newAlbum(){
+  if(albumHasContent() || (header.genba||header.koji)){
+    const cur = (header.genba || header.koji || '').trim();
+    if(!confirm('新しい台帳を作成します。\n今開いている台帳'+(cur?'（'+cur+'）':'')+'の写真・入力内容は画面から消えます。\n\n※「💾 保存」済みの台帳は「📂 アルバム一覧」からいつでも開けます。\n　まだ保存していない場合は、キャンセルして先に保存してください。')) return;
+  }
+  clearAlbum();
+  $('site-search').focus();
+}
 
 // 完了現場ピッカー（年→現場名の2段階選択）
 function openCompletedPicker(){
@@ -1473,13 +1516,13 @@ function restoreAlbum(data){
 }
 
 function loadData(){
-  loadSiteList();
   initCover();
   const saved=localStorage.getItem('photo-album');
-  if(!saved){addPage();return;}
-  try{
-    restoreAlbum(JSON.parse(saved));
-  }catch(e){addPage();}
+  if(!saved){ addPage(); }
+  else{
+    try{ restoreAlbum(JSON.parse(saved)); }catch(e){ addPage(); }
+  }
+  loadSiteList(); // 前回の台帳を復元してから(URLで現場が指定されていれば新しい台帳に切り替える)
 }
 
 function exportExcel(){
