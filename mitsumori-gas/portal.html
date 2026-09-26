@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+body{font-family:"Noto Sans JP","Hiragino Kaku Gothic ProN",sans-serif;margin:0;background:#f5f6f8;color:#222;}
+header{background:#2c3e50;color:#fff;padding:16px 24px;}
+header h1{margin:0;font-size:20px;}
+.tabs{display:flex;background:#fff;border-bottom:1px solid #ddd;}
+.tab{padding:14px 24px;cursor:pointer;font-weight:bold;color:#666;border-bottom:3px solid transparent;}
+.tab.active{color:#2c3e50;border-bottom-color:#2c3e50;}
+.toolbar{display:flex;gap:12px;align-items:center;padding:16px 24px;background:#fff;}
+.toolbar input[type=text]{flex:1;max-width:320px;padding:8px 12px;border:1px solid #ccc;border-radius:6px;}
+.btn{padding:8px 16px;border:none;border-radius:6px;background:#2c73d2;color:#fff;cursor:pointer;font-weight:bold;}
+.btn:hover{background:#1f5aa8;}
+.btn:disabled{background:#9db8d8;cursor:default;}
+.content{padding:0 24px 24px;}
+table{width:100%;border-collapse:collapse;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.1);}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid #eee;font-size:14px;}
+th{background:#f0f2f5;color:#444;}
+tr:hover{background:#fafbfc;}
+a.open-link{color:#2c73d2;text-decoration:none;font-weight:bold;}
+.empty{padding:40px;text-align:center;color:#999;}
+.modal-bg{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);align-items:center;justify-content:center;z-index:50;}
+.modal-bg.show{display:flex;}
+.modal{background:#fff;padding:24px;border-radius:8px;width:360px;}
+.modal h3{margin-top:0;}
+.modal input{width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box;margin:12px 0;}
+.modal .actions{display:flex;justify-content:flex-end;gap:8px;}
+.modal .field-msg{color:#c0392b;font-size:13px;min-height:18px;margin-top:-6px;}
+.btn.secondary{background:#ccc;color:#333;}
+.loading{padding:40px;text-align:center;color:#999;}
+.amount{text-align:right;}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#2c3e50;color:#fff;padding:12px 20px;border-radius:6px;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,0.2);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:100;max-width:80%;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.toast.error{background:#c0392b;}
+.toast a{color:#9fd3ff;margin-left:8px;}
+.quote-pick{border:1px solid #ddd;border-radius:6px;margin-bottom:10px;}
+.quote-pick input{width:100%;box-sizing:border-box;padding:8px 10px;border:none;border-bottom:1px solid #eee;font-size:14px;border-radius:6px 6px 0 0;}
+.quote-pick-list{max-height:200px;overflow-y:auto;}
+.quote-pick-item{padding:8px 10px;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:13px;}
+.quote-pick-item:hover{background:#f5f6f8;}
+.quote-pick-item .qp-sub{color:#888;font-size:12px;margin-top:2px;}
+.quote-pick-divider{padding:4px 2px 8px;color:#888;font-size:12px;}
+.row-actions{white-space:nowrap;}
+.btn.mini{padding:4px 10px;font-size:12px;margin-left:10px;}
+.dup-src{background:#f5f6f8;border-radius:6px;padding:8px 10px;font-size:13px;color:#555;line-height:1.5;}
+.btn.danger{background:#c0392b;}
+.btn.danger:hover{background:#a33025;}
+.modal.wide{width:min(720px,92vw);}
+.clean-note{font-size:13px;color:#555;line-height:1.7;}
+.clean-tools{font-size:12px;margin-top:10px;}
+.clean-tools a{color:#2c73d2;text-decoration:none;}
+.clean-list{max-height:320px;overflow-y:auto;border:1px solid #ddd;border-radius:6px;margin:10px 0;}
+.clean-item{padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:13px;display:flex;gap:8px;align-items:flex-start;cursor:pointer;}
+.clean-item:hover{background:#f5f6f8;}
+.clean-item .cl-sub{color:#888;font-size:12px;margin-top:2px;}
+.bundle-row{cursor:default;justify-content:space-between;align-items:center;}
+.bundle-date-label{font-size:12px;color:#555;display:flex;align-items:center;gap:6px;white-space:nowrap;}
+.bundle-date-label input[type=date]{padding:4px 6px;border:1px solid #ccc;border-radius:4px;font-size:13px;}
+</style>
+</head>
+<body>
+<header><h1>見積・請求ポータル</h1></header>
+<div class="tabs">
+<div class="tab active" data-tab="quotes" onclick="switchTab('quotes')">見積書</div>
+<div class="tab" data-tab="invoices" onclick="switchTab('invoices')">請求書</div>
+</div>
+<div class="toolbar">
+<input type="text" id="searchBox" placeholder="宛先・工事名などで検索" oninput="render()">
+<button class="btn secondary" id="aggBtn" onclick="toggleAggregate()" style="display:none">会社ごとに集計</button>
+<button class="btn" id="newBtn" onclick="openModal()">＋ 新規作成</button>
+<button class="btn" id="newBtn2" onclick="createBlankInvoice()" style="display:none">新規作成</button>
+<button class="btn secondary" id="cleanBtn" onclick="openCleanModal()">🧹 未完成を整理</button>
+<button class="btn secondary" id="bundleBtn" onclick="openBundleModal()" style="display:none">🧾 まとめて請求書を作成</button>
+<button class="btn secondary" onclick="openManual()">📖 マニュアル</button>
+</div>
+<div class="content">
+<div id="listArea" class="loading">読み込み中...</div>
+</div>
+<div class="modal-bg" id="modalBg">
+<div class="modal">
+<h3 id="modalTitle">新しい見積を作成</h3>
+<div id="quotePickArea" class="quote-pick" style="display:none">
+<input type="text" id="quoteSearchInput" placeholder="宛先・工事名・見積NOで検索" oninput="renderQuoteSearch()">
+<div id="quoteSearchResults" class="quote-pick-list"></div>
+</div>
+<div id="quotePickDivider" class="quote-pick-divider" style="display:none">見積を指定せず作成する場合はこちらに入力：</div>
+<input type="text" id="nameInput" placeholder="案件名（顧客名・工事名など）">
+<div class="field-msg" id="fieldMsg"></div>
+<div class="actions">
+<button class="btn secondary" onclick="closeModal()">キャンセル</button>
+<button class="btn" id="createBtn" onclick="submitCreate()">作成</button>
+</div>
+</div>
+</div>
+<div class="modal-bg" id="dupModalBg">
+<div class="modal">
+<h3>見積を複製</h3>
+<div class="dup-src" id="dupSrc"></div>
+<input type="text" id="dupNameInput" placeholder="案件名（顧客名・工事名など）">
+<div class="field-msg" id="dupFieldMsg"></div>
+<div class="actions">
+<button class="btn secondary" onclick="closeDupModal()">キャンセル</button>
+<button class="btn" id="dupBtn" onclick="submitDuplicate()">複製する</button>
+</div>
+</div>
+</div>
+<div class="modal-bg" id="cleanModalBg">
+<div class="modal wide">
+<h3>未完成の見積を整理</h3>
+<div class="clean-note">工事名・宛先・金額のいずれかが入っていない見積です。消したい行にチェックを入れてください。<br>一覧から消すと、<b>Googleドライブの見積書ファイルもゴミ箱へ移動します</b>（完全削除ではないので、ドライブのゴミ箱から元に戻せます）。<br>ほかの人が作った見積は、所有者しかゴミ箱に入れられないため「見積保存 ＞ 削除済み」フォルダへ移動します。</div>
+<div class="clean-tools"><a href="#" onclick="cleanSelectAll(true);return false;">すべて選ぶ</a>　/　<a href="#" onclick="cleanSelectAll(false);return false;">すべて外す</a></div>
+<div id="cleanList" class="clean-list"></div>
+<div class="field-msg" id="cleanMsg"></div>
+<div class="actions">
+<button class="btn secondary" onclick="closeCleanModal()">キャンセル</button>
+<button class="btn danger" id="cleanGoBtn" onclick="submitClean()">選んだ行を一覧から削除</button>
+</div>
+</div>
+</div>
+<div class="modal-bg" id="bundleModalBg">
+<div class="modal wide">
+<h3>まとめて請求書を作成</h3>
+<div class="clean-note">チェックを入れた見積を1枚の請求書にまとめます。各工事は内訳の1行（名称＝工事名称／数量1／呼称「式」）になり、金額はそれぞれの見積の合計金額がそのまま入ります（内訳の行数の都合で最大10件・同じ宛先の見積のみ）。工事ごとに工事完了日の入力が必要です。</div>
+<div id="bundleList" class="clean-list"></div>
+<div style="text-align:right;font-weight:bold;margin:10px 0;">合計：<span id="bundleTotal"></span></div>
+<input type="text" id="bundleNameInput" placeholder="請求書の「工事名称」欄に入れる件名（例：〇〇建設　9月分工事）">
+<div class="field-msg" id="bundleWarn" style="color:#c0392b;"></div>
+<div class="field-msg" id="bundleMsg"></div>
+<div class="actions">
+<button class="btn secondary" onclick="closeBundleModal()">キャンセル</button>
+<button class="btn" id="bundleGoBtn" onclick="submitBundle()">まとめて作成する</button>
+</div>
+</div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+var currentTab='quotes';
+var data={quotes:[],invoices:[]};
+var toastTimer=null;
+var aggregateMode=false;
+var quoteRows=[];
+var bundleSelected=new Set();
+var bundleDates={};
+function showToast(msg,isError,linkUrl){
+var t=document.getElementById('toast');
+t.innerHTML=esc(msg)+(linkUrl?' <a href="'+esc(linkUrl)+'" target="_blank">開く</a>':'');
+t.className='toast show'+(isError?' error':'');
+if(toastTimer)clearTimeout(toastTimer);
+toastTimer=setTimeout(function(){t.className='toast';},6000);
+}
+function switchTab(tab){
+currentTab=tab;
+aggregateMode=false;
+document.querySelectorAll('.tab').forEach(function(el){el.classList.toggle('active',el.dataset.tab===tab);});
+document.getElementById('searchBox').value='';
+document.getElementById('aggBtn').textContent='会社ごとに集計';
+document.getElementById('aggBtn').style.display=(tab==='invoices')?'':'none';
+document.getElementById('cleanBtn').style.display=(tab==='quotes')?'':'none';
+document.getElementById('bundleBtn').style.display=(tab==='quotes')?'':'none';
+bundleSelected.clear();
+bundleDates={};
+updateBundleBtn();
+render();
+document.getElementById('newBtn').textContent=(tab==='quotes')?'＋ 新規作成':'見積書から作成';
+document.getElementById('newBtn2').style.display=(tab==='quotes')?'none':'';
+document.getElementById('newBtn').onclick=openModal;
+}
+function toggleAggregate(){
+aggregateMode=!aggregateMode;
+document.getElementById('aggBtn').textContent=aggregateMode?'一覧に戻る':'会社ごとに集計';
+render();
+}
+function createBlankInvoice(){
+var newWin=window.open('','_blank');
+document.getElementById('newBtn2').disabled=true;
+google.script.run.withSuccessHandler(function(res){
+document.getElementById('newBtn2').disabled=false;
+if(res.success){
+showToast(res.message,false,res.url);
+if(newWin){newWin.location.href=res.url;}else{window.open(res.url,'_blank');}
+loadData();
+}else{
+if(newWin){newWin.close();}
+showToast(res.message,true);
+}
+}).withFailureHandler(function(err){
+document.getElementById('newBtn2').disabled=false;
+if(newWin){newWin.close();}
+showToast('エラー：'+err.message,true);
+}).createBlankInvoiceWeb();
+}
+function createBlankQuote(){
+var newWin=window.open('','_blank');
+document.getElementById('newBtn').disabled=true;
+google.script.run.withSuccessHandler(function(res){
+document.getElementById('newBtn').disabled=false;
+if(res.success){
+showToast(res.message,false,res.url);
+if(newWin){newWin.location.href=res.url;}else{window.open(res.url,'_blank');}
+loadData();
+}else{
+if(newWin){newWin.close();}
+showToast(res.message,true);
+}
+}).withFailureHandler(function(err){
+document.getElementById('newBtn').disabled=false;
+if(newWin){newWin.close();}
+showToast('エラー：'+err.message,true);
+}).createBlankQuoteWeb();
+}
+function render(){
+var q=document.getElementById('searchBox').value.trim();
+var area=document.getElementById('listArea');
+if(currentTab==='quotes'){
+var rows=data.quotes.filter(function(r){if(!q)return true;return (r.client+r.jobName+r.no).indexOf(q)!==-1;});
+quoteRows=rows;
+if(rows.length===0){area.innerHTML='<div class="empty">該当する見積がありません</div>';return;}
+var html='<table><thead><tr><th></th><th>見積NO</th><th>作成日</th><th>宛先</th><th>工事名称</th><th>部署</th><th>担当者</th><th class="amount">金額</th><th></th></tr></thead><tbody>';
+rows.forEach(function(r,i){
+html+='<tr><td><input type="checkbox" onchange="toggleBundleSelect(\''+esc(r.no)+'\',this.checked)"'+(bundleSelected.has(r.no)?' checked':'')+'></td><td>'+esc(r.no)+'</td><td>'+esc(r.date)+'</td><td>'+esc(r.client)+'</td><td>'+esc(r.jobName)+'</td><td>'+esc(r.dept)+'</td><td>'+esc(r.person)+'</td><td class="amount">'+fmtYen(r.total)+'</td><td class="row-actions"><a class="open-link" href="'+esc(r.url)+'" target="_blank">開く</a><button class="btn mini" onclick="openDupModal('+i+')">複製</button><button class="btn mini secondary" onclick="deleteQuoteRow('+i+')">削除</button></td></tr>';
+});
+html+='</tbody></table>';
+area.innerHTML=html;
+}else{
+var rows2=data.invoices.filter(function(r){if(!q)return true;return (String(r.client||'')+String(r.jobName||'')).indexOf(q)!==-1;});
+if(aggregateMode){
+area.innerHTML=renderInvoiceAggregate(rows2);
+return;
+}
+if(rows2.length===0){area.innerHTML='<div class="empty">該当する請求書がありません</div>';return;}
+var html2='<table><thead><tr><th>宛先</th><th>日付</th><th>工事名称</th><th class="amount">金額</th><th></th></tr></thead><tbody>';
+rows2.forEach(function(r){
+html2+='<tr><td>'+esc(r.client)+'</td><td>'+esc(r.date)+'</td><td>'+esc(r.jobName)+'</td><td class="amount">'+fmtYen(r.amount)+'</td><td>'+(r.url?'<a class="open-link" href="'+esc(r.url)+'" target="_blank">開く</a>':'')+'</td></tr>';
+});
+html2+='</tbody></table>';
+area.innerHTML=html2;
+}
+}
+function renderInvoiceAggregate(rows){
+if(!rows.length)return'<div class="empty">該当する請求書がありません</div>';
+var map={};
+rows.forEach(function(r){
+var key=r.client||'（宛先不明）';
+if(!map[key])map[key]={client:key,count:0,total:0};
+map[key].count++;
+map[key].total+=Number(r.amount)||0;
+});
+var list=Object.keys(map).map(function(k){return map[k];});
+list.sort(function(a,b){return b.total-a.total;});
+var html='<table><thead><tr><th>宛先</th><th>件数</th><th class="amount">合計金額</th></tr></thead><tbody>';
+list.forEach(function(r){
+html+='<tr><td>'+esc(r.client)+'</td><td>'+r.count+'</td><td class="amount">'+fmtYen(r.total)+'</td></tr>';
+});
+html+='</tbody></table>';
+return html;
+}
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function fmtYen(n){if(n===''||n==null)return'';return Number(n).toLocaleString('ja-JP')+'円';}
+function openModal(){
+document.getElementById('modalTitle').textContent=currentTab==='quotes'?'新しい見積を作成':'新しい請求書を作成';
+if(currentTab==='invoices'){
+document.getElementById('quotePickArea').style.display='';
+document.getElementById('quotePickDivider').style.display='';
+document.getElementById('quoteSearchInput').value='';
+renderQuoteSearch();
+}else{
+document.getElementById('quotePickArea').style.display='none';
+document.getElementById('quotePickDivider').style.display='none';
+}
+document.getElementById('nameInput').value='';
+document.getElementById('fieldMsg').textContent='';
+document.getElementById('modalBg').classList.add('show');
+document.getElementById('nameInput').focus();
+}
+function renderQuoteSearch(){
+var q=document.getElementById('quoteSearchInput').value.trim();
+var list=data.quotes.filter(function(r){
+if(!q)return true;
+return (r.client+r.jobName+r.no).indexOf(q)!==-1;
+}).slice(0,30);
+var area=document.getElementById('quoteSearchResults');
+if(!list.length){
+area.innerHTML='<div class="quote-pick-item">該当する見積がありません</div>';
+area._items=[];
+return;
+}
+area.innerHTML=list.map(function(r,i){
+return '<div class="quote-pick-item" onclick="pickQuoteForInvoice('+i+')">'+esc(r.client)+' / '+esc(r.jobName)+'<div class="qp-sub">見積NO '+esc(r.no)+'・'+esc(r.date)+'</div></div>';
+}).join('');
+area._items=list;
+}
+function pickQuoteForInvoice(i){
+var list=document.getElementById('quoteSearchResults')._items;
+var q=list&&list[i];
+if(!q)return;
+if(!confirm('見積NO「'+q.no+'」('+q.client+' / '+q.jobName+')から請求書を作成します。よろしいですか？'))return;
+document.getElementById('createBtn').disabled=true;
+document.getElementById('createBtn').textContent='作成中...';
+google.script.run.withSuccessHandler(function(res){
+document.getElementById('createBtn').disabled=false;
+document.getElementById('createBtn').textContent='作成';
+if(res.success){
+closeModal();
+showToast(res.message,false,res.url);
+loadData();
+}else{
+document.getElementById('fieldMsg').textContent=res.message;
+}
+}).withFailureHandler(function(err){
+document.getElementById('createBtn').disabled=false;
+document.getElementById('createBtn').textContent='作成';
+document.getElementById('fieldMsg').textContent='エラー：'+err.message;
+}).createInvoiceFromQuoteWeb(q);
+}
+var dupIndex=-1;
+function openDupModal(i){
+var r=quoteRows[i];
+if(!r||!r.id){showToast('この見積はファイルのリンクが無いため複製できません。',true);return;}
+dupIndex=i;
+document.getElementById('dupSrc').innerHTML='複製元：'+esc(r.no)+'<br>'+esc(r.client)+' / '+esc(r.jobName);
+document.getElementById('dupNameInput').value=String(r.jobName==null?'':r.jobName);
+document.getElementById('dupFieldMsg').textContent='';
+document.getElementById('dupModalBg').classList.add('show');
+document.getElementById('dupNameInput').focus();
+document.getElementById('dupNameInput').select();
+}
+function closeDupModal(){document.getElementById('dupModalBg').classList.remove('show');}
+function submitDuplicate(){
+var r=quoteRows[dupIndex];
+if(!r){closeDupModal();return;}
+var name=document.getElementById('dupNameInput').value.trim();
+if(!name){document.getElementById('dupFieldMsg').textContent='案件名を入力してください。';return;}
+document.getElementById('dupFieldMsg').textContent='';
+var btn=document.getElementById('dupBtn');
+btn.disabled=true;btn.textContent='複製中...';
+google.script.run.withSuccessHandler(function(res){
+btn.disabled=false;btn.textContent='複製する';
+if(res.success){
+closeDupModal();
+showToast(res.message,false,res.url);
+loadData();
+}else{
+document.getElementById('dupFieldMsg').textContent=res.message;
+}
+}).withFailureHandler(function(err){
+btn.disabled=false;btn.textContent='複製する';
+document.getElementById('dupFieldMsg').textContent='エラー：'+err.message;
+}).duplicateQuoteWeb(r.id,name);
+}
+var cleanRows=[];
+function quoteMissing(r){
+var miss=[];
+if(!String(r.client==null?'':r.client).trim())miss.push('宛先なし');
+if(!String(r.jobName==null?'':r.jobName).trim())miss.push('工事名なし');
+var t=r.total;
+if(t===''||t===null||typeof t==='undefined')miss.push('金額なし');
+else if(Number(t)===0)miss.push('金額0円');
+return miss;
+}
+function openCleanModal(){
+cleanRows=data.quotes.filter(function(r){return quoteMissing(r).length>0;});
+renderCleanList();
+document.getElementById('cleanMsg').textContent='';
+document.getElementById('cleanModalBg').classList.add('show');
+}
+function renderCleanList(){
+var area=document.getElementById('cleanList');
+if(!cleanRows.length){area.innerHTML='<div class="clean-item">該当する見積はありません。</div>';return;}
+area.innerHTML=cleanRows.map(function(r,i){
+return '<label class="clean-item"><input type="checkbox" data-i="'+i+'"><span>'+esc(r.no)+'　'+esc(r.client||'（宛先なし）')+' / '+esc(r.jobName||'（工事名なし）')+'<div class="cl-sub">'+esc(r.date)+'・'+esc(quoteMissing(r).join('・'))+'</div></span></label>';
+}).join('');
+}
+function cleanSelectAll(v){
+var list=document.querySelectorAll('#cleanList input[type=checkbox]');
+for(var i=0;i<list.length;i++)list[i].checked=v;
+}
+function closeCleanModal(){document.getElementById('cleanModalBg').classList.remove('show');}
+function submitClean(){
+var items=[];
+var list=document.querySelectorAll('#cleanList input[type=checkbox]');
+for(var i=0;i<list.length;i++){
+if(!list[i].checked)continue;
+var r=cleanRows[Number(list[i].getAttribute('data-i'))];
+if(r)items.push({sheetRow:r.sheetRow,no:r.no,id:r.id});
+}
+if(!items.length){document.getElementById('cleanMsg').textContent='削除する行にチェックを入れてください。';return;}
+if(!confirm(items.length+'件を見積一覧から削除し、ドライブの見積書ファイルもゴミ箱へ移動します。よろしいですか？\n\n（完全削除ではないので、ドライブのゴミ箱から元に戻せます。ほかの人が作った見積は「削除済み」フォルダへ移動します）'))return;
+var btn=document.getElementById('cleanGoBtn');
+btn.disabled=true;btn.textContent='削除中...';
+google.script.run.withSuccessHandler(function(res){
+btn.disabled=false;btn.textContent='選んだ行を一覧から削除';
+if(res.success){closeCleanModal();showToast(res.message,false);loadData();}
+else{document.getElementById('cleanMsg').textContent=res.message;}
+}).withFailureHandler(function(err){
+btn.disabled=false;btn.textContent='選んだ行を一覧から削除';
+document.getElementById('cleanMsg').textContent='エラー：'+err.message;
+}).removeQuotesFromIndexWeb(items);
+}
+function deleteQuoteRow(i){
+var r=quoteRows[i];
+if(!r)return;
+if(!confirm('見積NO「'+r.no+'」（'+(r.client||'宛先なし')+' / '+(r.jobName||'工事名なし')+'）を見積一覧から削除し、ドライブの見積書ファイルもゴミ箱へ移動します。\n\n（完全削除ではないので、ドライブのゴミ箱から元に戻せます。ほかの人が作った見積は「削除済み」フォルダへ移動します）\n\nよろしいですか？'))return;
+google.script.run.withSuccessHandler(function(res){
+showToast(res.message,!res.success);
+if(res.success)loadData();
+}).withFailureHandler(function(err){
+showToast('エラー：'+err.message,true);
+}).removeQuotesFromIndexWeb([{sheetRow:r.sheetRow,no:r.no,id:r.id}]);
+}
+function toggleBundleSelect(no,checked){
+if(checked)bundleSelected.add(no);else{bundleSelected.delete(no);delete bundleDates[no];}
+updateBundleBtn();
+}
+function updateBundleBtn(){
+var btn=document.getElementById('bundleBtn');
+if(!btn)return;
+var n=bundleSelected.size;
+btn.textContent=n>0?'🧾 まとめて請求書を作成（'+n+'件選択中）':'🧾 まとめて請求書を作成';
+}
+function bundleItems(){
+return data.quotes.filter(function(r){return bundleSelected.has(r.no);});
+}
+function openBundleModal(){
+var items=bundleItems();
+if(!items.length){showToast('見積一覧のチェック欄で、まとめたい見積を選んでから押してください。',true);return;}
+renderBundleModal(items);
+document.getElementById('bundleMsg').textContent='';
+document.getElementById('bundleModalBg').classList.add('show');
+}
+function renderBundleModal(items){
+document.getElementById('bundleList').innerHTML=items.map(function(r){
+return '<div class="clean-item bundle-row"><div>'+esc(r.no)+'　'+esc(r.client||'（宛先なし）')+' / '+esc(r.jobName||'（工事名なし）')+'<div class="cl-sub">'+fmtYen(r.total)+'</div></div>'+
+'<label class="bundle-date-label">工事完了日<input type="date" class="bundle-date" value="'+esc(bundleDates[r.no]||'')+'" onchange="updateBundleDate(\''+esc(r.no)+'\',this.value)"></label></div>';
+}).join('');
+validateBundleModal(items);
+var clientMap={};
+items.forEach(function(r){clientMap[r.client||'（宛先なし）']=true;});
+var clientKeys=Object.keys(clientMap);
+var nameInput=document.getElementById('bundleNameInput');
+if(!nameInput.value.trim()&&clientKeys.length===1){
+var now=new Date();
+nameInput.value=clientKeys[0]+'　'+(now.getMonth()+1)+'月分工事';
+}
+}
+function updateBundleDate(no,val){
+if(val)bundleDates[no]=val;else delete bundleDates[no];
+validateBundleModal(bundleItems());
+}
+function validateBundleModal(items){
+var total=items.reduce(function(s,r){return s+(Number(r.total)||0);},0);
+document.getElementById('bundleTotal').textContent=fmtYen(total);
+var clientMap={};
+items.forEach(function(r){clientMap[r.client||'（宛先なし）']=true;});
+var clientKeys=Object.keys(clientMap);
+var missingDate=items.some(function(r){return!bundleDates[r.no];});
+var warn=document.getElementById('bundleWarn');
+var goBtn=document.getElementById('bundleGoBtn');
+if(clientKeys.length>1){
+warn.textContent='宛先（取引会社）が異なる見積が含まれています。同じ宛先の見積だけを選び直してください：'+clientKeys.join('・');
+goBtn.disabled=true;
+}else if(items.length>10){
+warn.textContent='まとめられる工事は10件までです（内訳の行数の都合）。選び直してください。';
+goBtn.disabled=true;
+}else if(missingDate){
+warn.textContent='すべての工事に工事完了日を入力してください。';
+goBtn.disabled=true;
+}else{
+warn.textContent='';
+goBtn.disabled=false;
+}
+}
+function closeBundleModal(){document.getElementById('bundleModalBg').classList.remove('show');}
+function submitBundle(){
+var items=bundleItems();
+if(!items.length){closeBundleModal();return;}
+var label=document.getElementById('bundleNameInput').value.trim();
+var btn=document.getElementById('bundleGoBtn');
+btn.disabled=true;btn.textContent='作成中...';
+var newWin=window.open('','_blank');
+google.script.run.withSuccessHandler(function(res){
+btn.disabled=false;btn.textContent='まとめて作成する';
+if(res.success){
+closeBundleModal();
+showToast(res.message,false,res.url);
+if(newWin){newWin.location.href=res.url;}else{window.open(res.url,'_blank');}
+bundleSelected.clear();
+bundleDates={};
+updateBundleBtn();
+loadData();
+}else{
+if(newWin){newWin.close();}
+document.getElementById('bundleMsg').textContent=res.message;
+}
+}).withFailureHandler(function(err){
+btn.disabled=false;btn.textContent='まとめて作成する';
+if(newWin){newWin.close();}
+document.getElementById('bundleMsg').textContent='エラー：'+err.message;
+}).createBundledInvoiceWeb(items.map(function(r){return{no:r.no,client:r.client,jobName:r.jobName,dept:r.dept,person:r.person,total:r.total,completionDate:bundleDates[r.no]||''};}),label);
+}
+function closeModal(){document.getElementById('modalBg').classList.remove('show');}
+function submitCreate(){
+var name=document.getElementById('nameInput').value.trim();
+if(!name){document.getElementById('fieldMsg').textContent='案件名を入力してください。';return;}
+document.getElementById('fieldMsg').textContent='';
+document.getElementById('createBtn').disabled=true;
+document.getElementById('createBtn').textContent='作成中...';
+var fn=currentTab==='quotes'?'createQuoteWeb':'createInvoiceWeb';
+var newWin=(currentTab==='quotes')?window.open('','_blank'):null;
+google.script.run.withSuccessHandler(function(res){
+document.getElementById('createBtn').disabled=false;
+document.getElementById('createBtn').textContent='作成';
+if(res.success){
+closeModal();
+showToast(res.message,false,res.url);
+if(newWin){newWin.location.href=res.url;}
+loadData();
+}else{
+if(newWin){newWin.close();}
+document.getElementById('fieldMsg').textContent=res.message;
+}
+}).withFailureHandler(function(err){
+document.getElementById('createBtn').disabled=false;
+document.getElementById('createBtn').textContent='作成';
+if(newWin){newWin.close();}
+document.getElementById('fieldMsg').textContent='エラー：'+err.message;
+})[fn](name);
+}
+function openManual(){
+var newWin=window.open('','_blank');
+google.script.run.withSuccessHandler(function(res){
+if(res.success){
+if(newWin){newWin.location.href=res.url;}else{window.open(res.url,'_blank');}
+}else{
+if(newWin){newWin.close();}
+showToast(res.message,true);
+}
+}).withFailureHandler(function(err){
+if(newWin){newWin.close();}
+showToast('エラー：'+err.message,true);
+}).getManualUrl();
+}
+function loadData(){
+document.getElementById('listArea').innerHTML='<div class="loading">読み込み中...</div>';
+google.script.run.withSuccessHandler(function(res){
+data=res;
+render();
+}).withFailureHandler(function(err){
+document.getElementById('listArea').innerHTML='<div class="empty">読み込みに失敗しました：'+esc(err.message)+'</div>';
+}).getPortalData();
+}
+loadData();
+</script>
+</body>
+</html>
