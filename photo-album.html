@@ -72,6 +72,7 @@ body.move-mode .photo-cell:not(.move-source):hover{outline:2px dashed #1B3A6B;ou
 .photo-rotate{position:absolute;top:4px;left:4px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:none;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;z-index:5}
 .photo-board{position:absolute;top:4px;left:32px;height:24px;padding:0 8px;border-radius:12px;background:rgba(36,92,59,.9);color:#fff;border:none;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;display:flex;align-items:center;gap:3px;z-index:5}
 .photo-board.on{background:#16a34a}
+.photo-save{position:absolute;top:4px;left:108px;height:24px;padding:0 8px;border-radius:12px;background:rgba(27,58,107,.9);color:#fff;border:none;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;display:flex;align-items:center;z-index:5}
 /* 黒板モーダル */
 #board-modal .pp-modal-inner{max-width:900px;max-height:94vh}
 .bd-body{display:flex;gap:16px;flex-wrap:wrap}
@@ -177,7 +178,7 @@ body.move-mode .photo-cell:not(.move-source):hover{outline:2px dashed #1B3A6B;ou
   .pages{padding:0}
   .page{box-shadow:none;margin:0;page-break-after:always}
   .page:last-child{page-break-after:auto}
-  .photo-del,.photo-rotate,.photo-move,.photo-board{display:none!important}
+  .photo-del,.photo-rotate,.photo-move,.photo-board,.photo-save{display:none!important}
   .photo-cell .ph-placeholder{display:none}
   .info-val input,.info-comment textarea{background:transparent!important}
   /* 背景色(印刷時は白の塗りになる)や写真が枠線に接して上から描かれ、ビューア/プリンターによって罫線が消えるのを防ぐ */
@@ -196,6 +197,7 @@ body.move-mode .photo-cell:not(.move-source):hover{outline:2px dashed #1B3A6B;ou
     <button class="tb-btn ghost" onclick="location.href='index.html'">📋 日報</button>
     <button class="tb-btn ghost" onclick="addPage()">＋ 写真ページ追加</button>
     <button class="tb-btn ghost" onclick="openAlbumList()">📂 アルバム一覧</button>
+    <button class="tb-btn ghost" onclick="saveBoardPhotosZip(event)">🪧 黒板写真をJPEG保存</button>
     <button class="tb-btn green" onclick="saveData()">💾 保存</button>
     <button class="tb-btn orange" onclick="exportExcel()">📊 Excel出力</button>
     <button class="tb-btn primary" onclick="window.print()">🖨️ 印刷・PDF</button>
@@ -528,7 +530,7 @@ function loadPhoto(key,inp){
   setPhoto(key,f);
 }
 function photoFilledHtml(key, src){
-  return `<img src="${src}"><button class="photo-del" onclick="delPhoto('${key}')">✕</button><button class="photo-rotate" onclick="event.stopPropagation();rotatePhoto('${key}')" title="90度回転">↻</button><button type="button" class="photo-board${photoBoard[key]?' on':''}" onclick="event.stopPropagation();openBoard('${key}')" title="黒板を付ける・直す">🪧 ${photoBoard[key]?'黒板✓':'黒板'}</button><input type="file" accept="image/*" onchange="loadPhoto('${key}',this)">`
+  return `<img src="${src}"><button class="photo-del" onclick="delPhoto('${key}')">✕</button><button class="photo-rotate" onclick="event.stopPropagation();rotatePhoto('${key}')" title="90度回転">↻</button><button type="button" class="photo-board${photoBoard[key]?' on':''}" onclick="event.stopPropagation();openBoard('${key}')" title="黒板を付ける・直す">🪧 ${photoBoard[key]?'黒板✓':'黒板'}</button>${photoBoard[key]?`<button type="button" class="photo-save" onclick="event.stopPropagation();saveBoardPhoto('${key}')" title="この写真をJPEGで保存・送信">⬇ JPEG</button>`:''}<input type="file" accept="image/*" onchange="loadPhoto('${key}',this)">`
     + `<div class="photo-move"><button type="button" onclick="event.stopPropagation();moveStep('${key}',-1)" title="1つ前へ移動">▲</button><span class="photo-drag" draggable="true" onclick="event.stopPropagation();startMoveMode('${key}')" ondragstart="onPhotoDragStart(event,'${key}')" ondragend="onPhotoDragEnd()" title="クリックして移動先の枠をクリック、またはつかんで移動先の枠へドロップ">⇅ 移動</span><button type="button" onclick="event.stopPropagation();moveStep('${key}',1)" title="1つ後へ移動">▼</button></div>`;
 }
 function renderCell(key){
@@ -949,6 +951,77 @@ function removeBoard(){
 }
 document.addEventListener('keydown',e=>{ if(e.key==='Escape' && $('board-modal').classList.contains('show')) closeBoard(); });
 
+
+// ══════════ 黒板写真をJPEGで保存・送信 ══════════
+function safeName(t){ return String(t||'').replace(/[\\\/:*?"<>|\r\n\t]/g,'').replace(/\s+/g,'_').slice(0,40); }
+function boardFileName(key, no){
+  const b = photoBoard[key] || {};
+  const parts = [String(no).padStart(2,'0'), (b.date||'').replace(/-/g,''), safeName(b.kosyu), safeName(b.bui)].filter(Boolean);
+  return parts.join('_') + '.jpg';
+}
+function dataUrlToBlob(u){
+  const [head, b64] = u.split(',');
+  const bin = atob(b64); const arr = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+  return new Blob([arr], {type:(/data:([^;]+)/.exec(head)||[])[1]||'image/jpeg'});
+}
+function downloadBlob(blob, name){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download=name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
+}
+// スマホ(共有機能あり)はLINE・メール等へ直接送れる共有画面を出し、パソコンはダウンロードする
+async function shareOrDownload(files){
+  const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
+  if(isMobile && navigator.canShare && navigator.canShare({files})){
+    try{ await navigator.share({files}); return; }
+    catch(e){ if(e && e.name==='AbortError') return; }
+  }
+  files.forEach(f=>downloadBlob(f, f.name));
+}
+function boardKeysInOrder(){ return slotKeys().filter(k=>photoData[k] && photoBoard[k]); }
+function saveBoardPhoto(key){
+  const src = photoData[key];
+  if(!src || !src.startsWith('data:')){ alert('⚠️ この写真はまだ黒板付きの画像になっていません'); return; }
+  const no = boardKeysInOrder().indexOf(key) + 1;
+  const name = boardFileName(key, no || 1);
+  shareOrDownload([new File([dataUrlToBlob(src)], name, {type:'image/jpeg'})]);
+}
+function loadJSZip(){
+  if(window.JSZip) return Promise.resolve(window.JSZip);
+  return new Promise((res,rej)=>{
+    const sc=document.createElement('script');
+    sc.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+    sc.onload=()=>res(window.JSZip); sc.onerror=()=>rej(new Error('ZIP作成の準備に失敗しました（通信を確認してください）'));
+    document.head.appendChild(sc);
+  });
+}
+// 黒板付きの写真をまとめて保存。スマホは写真ごとに共有(LINE・メール・写真アプリへ保存)、パソコンはZIP1つにまとめる
+async function saveBoardPhotosZip(ev){
+  const keys = boardKeysInOrder().filter(k=>String(photoData[k]).startsWith('data:'));
+  if(!keys.length){ alert('⚠️ 黒板を付けた写真がありません。\n写真の「🪧 黒板」から先に黒板を付けてください。'); return; }
+  const files = keys.map((k,i)=>new File([dataUrlToBlob(photoData[k])], boardFileName(k,i+1), {type:'image/jpeg'}));
+  const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
+  if(isMobile && navigator.canShare && navigator.canShare({files})){
+    try{ await navigator.share({files}); return; }
+    catch(e){ if(e && e.name==='AbortError') return; }
+  }
+  const btn = ev && ev.currentTarget; const before = btn ? btn.innerHTML : '';
+  if(btn){ btn.disabled=true; btn.innerHTML='⏳ 作成中…'; }
+  try{
+    const JSZip = await loadJSZip();
+    const zip = new JSZip();
+    files.forEach(f=>zip.file(f.name, f));
+    const blob = await zip.generateAsync({type:'blob'});
+    const site = safeName(header.genba || header.koji || '工事写真');
+    downloadBlob(blob, `${site}_黒板写真_${ymd(new Date()).replace(/-/g,'')}.zip`);
+  }catch(e){
+    if(confirm('⚠️ '+e.message+'\nZIPにせず1枚ずつ保存しますか？')) files.forEach(f=>downloadBlob(f,f.name));
+  }finally{
+    if(btn){ btn.disabled=false; btn.innerHTML=before; }
+  }
+}
 
 // ドラッグ＆ドロップ
 function onCellDragOver(e,key){
