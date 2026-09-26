@@ -86,6 +86,8 @@ body.move-mode .photo-cell:not(.move-source):hover{outline:2px dashed #1B3A6B;ou
 .bd-chips{display:flex;gap:6px;flex-wrap:wrap}
 .bd-chips button{padding:5px 10px;border-radius:14px;border:1.5px solid #1B3A6B;background:#fff;color:#1B3A6B;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
 .bd-chips button.active{background:#1B3A6B;color:#fff}
+.bd-fill{display:flex;gap:6px;flex-wrap:wrap}
+.bd-fill button{padding:5px 9px;border-radius:6px;border:1.5px solid #245c3b;background:#f0fdf4;color:#245c3b;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
 .bd-all{font-size:12px;color:#334155;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px;line-height:1.5}
 .bd-all input{margin-right:4px;vertical-align:middle}
 .bd-footer{border-top:1px solid #eee;padding:10px 16px;display:flex;align-items:center;gap:10px;background:#f8fafc;flex-wrap:wrap}
@@ -263,6 +265,7 @@ body.move-mode .photo-cell:not(.move-source):hover{outline:2px dashed #1B3A6B;ou
     <div class="pp-modal-body bd-body">
       <div class="bd-preview"><canvas id="bd-canvas" width="10" height="10"></canvas><div id="bd-loading">写真を読み込み中…</div></div>
       <div class="bd-form">
+        <div class="bd-fill"><button type="button" onclick="fillBoardFrom('last')" title="前回付けた黒板の内容をすべて入れる">📋 前回の黒板を貼り付け</button><button type="button" onclick="fillBoardFrom('slot')" title="この写真の台帳の欄(工種・撮影場所・施工内容)と撮影日を入れる">📄 台帳の欄から読み込む</button></div>
         <div><label>工事名</label><input type="text" id="bd-koji" oninput="drawBoardPreview()"></div>
         <div><label>工種</label><input type="text" id="bd-kosyu" oninput="drawBoardPreview()"></div>
         <div><label>部位</label><input type="text" id="bd-bui" oninput="drawBoardPreview()"></div>
@@ -923,16 +926,40 @@ function setBoardBusy(on, msg){
   $('bd-msg').textContent = msg || '';
 }
 
+// 前回付けた黒板の内容(この端末に記憶。開き直しても残る)
+function lastBoard(){ try{ return JSON.parse(localStorage.getItem('lastBoard')||'null'); }catch(e){ return null; } }
+function rememberBoard(v){ try{ localStorage.setItem('lastBoard', JSON.stringify(Object.assign({}, v, {site:(header.genba||header.koji||'').trim()}))); }catch(e){} }
+function setBoardForm(v){
+  $('bd-koji').value  = v.koji  || '';
+  $('bd-kosyu').value = v.kosyu || '';
+  $('bd-bui').value   = v.bui   || '';
+  $('bd-naiyo').value = v.naiyo || '';
+  $('bd-date').value  = v.date  || ymd(new Date());
+  $('bd-sekou').value = v.sekou || '';
+}
+function fillBoardFrom(from, key){
+  key = key || boardKey;
+  if(from==='last'){
+    const lb = lastBoard();
+    if(!lb){ alert('前回の黒板がまだありません'); return; }
+    const v = Object.assign({}, lb);
+    // 別の現場の黒板だった場合、工事名・施工者はこの台帳のものにする
+    const site = (header.genba||header.koji||'').trim();
+    if(lb.site && site && lb.site!==site){ v.koji = header.koji; v.sekou = header.gyosha; }
+    setBoardForm(v);
+  }else{
+    setBoardForm({ koji:header.koji, sekou:header.gyosha, kosyu:slotVal(key,'kosyu'), bui:slotVal(key,'place'), naiyo:slotVal(key,'comment'), date:photoDate[key]||ymd(new Date()) });
+  }
+  drawBoardPreview();
+}
 function openBoard(key){
   if(!photoData[key]) return;
   boardKey = key; boardImg = null;
   const b = photoBoard[key];
-  $('bd-koji').value  = b ? b.koji  : header.koji;
-  $('bd-kosyu').value = b ? b.kosyu : slotVal(key,'kosyu');
-  $('bd-bui').value   = b ? b.bui   : slotVal(key,'place');
-  $('bd-naiyo').value = b ? (b.naiyo||'') : slotVal(key,'comment');
-  $('bd-date').value  = b ? b.date  : (photoDate[key] || ymd(new Date()));
-  $('bd-sekou').value = b ? b.sekou : header.gyosha;
+  // 黒板付きの写真はその内容、まだ無い写真は前回付けた黒板の内容をすべて引き継ぐ(前回が無ければ台帳の欄から)
+  if(b) setBoardForm(b);
+  else if(lastBoard()) fillBoardFrom('last', key);
+  else fillBoardFrom('slot', key);
   if(b){ boardPos=b.pos||boardPos; boardSize=b.size||boardSize; }
   $('bd-all').checked = false;
   $('bd-remove').style.display = b ? '' : 'none';
@@ -978,6 +1005,7 @@ function putBoard(key, img, orig, v){
 async function applyBoard(){
   if(!boardImg || !boardKey || boardBusy) return;
   const key = boardKey, v = boardFormValues();
+  rememberBoard(v);
   // 工種・部位が台帳側で空欄なら、黒板の内容を台帳にも入れる
   const setIfEmpty = (k,val)=>{ const el=document.querySelector(`[data-k="${key}-${k}"]`); if(el && !el.value && val) el.value=val; };
   setIfEmpty('kosyu', v.kosyu); setIfEmpty('place', v.bui); setIfEmpty('comment', v.naiyo);
