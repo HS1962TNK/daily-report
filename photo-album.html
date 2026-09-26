@@ -70,6 +70,28 @@ body.move-mode .photo-cell:not(.move-source):hover{outline:2px dashed #1B3A6B;ou
 .photo-cell input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
 .photo-del{position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:none;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;z-index:5}
 .photo-rotate{position:absolute;top:4px;left:4px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:none;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;z-index:5}
+.photo-board{position:absolute;top:4px;left:32px;height:24px;padding:0 8px;border-radius:12px;background:rgba(36,92,59,.9);color:#fff;border:none;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;display:flex;align-items:center;gap:3px;z-index:5}
+.photo-board.on{background:#16a34a}
+/* 黒板モーダル */
+#board-modal .pp-modal-inner{max-width:900px;max-height:94vh}
+.bd-body{display:flex;gap:16px;flex-wrap:wrap}
+.bd-preview{flex:1 1 380px;min-width:0;position:relative;background:#f1f5f9;border-radius:8px;display:flex;align-items:center;justify-content:center;min-height:220px}
+.bd-preview canvas{max-width:100%;max-height:58vh;display:block}
+#bd-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#64748b;font-size:13px;background:rgba(241,245,249,.85)}
+.bd-form{flex:1 1 260px;min-width:0;display:flex;flex-direction:column;gap:8px}
+.bd-form label{font-size:12px;font-weight:700;color:#1B3A6B;display:block;margin-bottom:2px}
+.bd-form input[type=text],.bd-form input[type=date]{width:100%;padding:7px 9px;border:1.5px solid #cbd5e1;border-radius:6px;font-size:14px;font-family:inherit}
+.bd-chips{display:flex;gap:6px;flex-wrap:wrap}
+.bd-chips button{padding:5px 10px;border-radius:14px;border:1.5px solid #1B3A6B;background:#fff;color:#1B3A6B;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
+.bd-chips button.active{background:#1B3A6B;color:#fff}
+.bd-all{font-size:12px;color:#334155;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px;line-height:1.5}
+.bd-all input{margin-right:4px;vertical-align:middle}
+.bd-footer{border-top:1px solid #eee;padding:10px 16px;display:flex;align-items:center;gap:10px;background:#f8fafc;flex-wrap:wrap}
+.bd-footer .bd-msg{font-size:12px;color:#1B3A6B;font-weight:700;margin-right:auto}
+.bd-footer button{padding:8px 14px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;border:1.5px solid #1B3A6B;background:#fff;color:#1B3A6B}
+.bd-footer button.primary{background:#245c3b;border-color:#245c3b;color:#fff}
+.bd-footer button.danger{border-color:#ef4444;color:#ef4444}
+.bd-footer button:disabled{opacity:.45;cursor:default}
 .photo-cell .ph-pick-btn{position:relative;z-index:6;margin-top:8px;background:#1B3A6B;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-family:inherit}
 .photo-cell .ph-pick-btn:hover{background:#14294d}
 
@@ -155,7 +177,7 @@ body.move-mode .photo-cell:not(.move-source):hover{outline:2px dashed #1B3A6B;ou
   .pages{padding:0}
   .page{box-shadow:none;margin:0;page-break-after:always}
   .page:last-child{page-break-after:auto}
-  .photo-del,.photo-rotate,.photo-move{display:none!important}
+  .photo-del,.photo-rotate,.photo-move,.photo-board{display:none!important}
   .photo-cell .ph-placeholder{display:none}
   .info-val input,.info-comment textarea{background:transparent!important}
   /* 背景色(印刷時は白の塗りになる)や写真が枠線に接して上から描かれ、ビューア/プリンターによって罫線が消えるのを防ぐ */
@@ -228,6 +250,34 @@ body.move-mode .photo-cell:not(.move-source):hover{outline:2px dashed #1B3A6B;ou
   </div>
 </div>
 
+<div class="pp-modal no-print" id="board-modal">
+  <div class="pp-modal-inner">
+    <div class="pp-modal-header">
+      <span>🪧 黒板を付ける</span>
+      <button onclick="closeBoard()">✕</button>
+    </div>
+    <div class="pp-modal-body bd-body">
+      <div class="bd-preview"><canvas id="bd-canvas" width="10" height="10"></canvas><div id="bd-loading">写真を読み込み中…</div></div>
+      <div class="bd-form">
+        <div><label>工事名</label><input type="text" id="bd-koji" oninput="drawBoardPreview()"></div>
+        <div><label>工種</label><input type="text" id="bd-kosyu" oninput="drawBoardPreview()"></div>
+        <div><label>部位</label><input type="text" id="bd-bui" oninput="drawBoardPreview()"></div>
+        <div><label>撮影日</label><input type="date" id="bd-date" oninput="drawBoardPreview()"></div>
+        <div><label>施工者</label><input type="text" id="bd-sekou" oninput="drawBoardPreview()"></div>
+        <div><label>黒板の位置</label><div class="bd-chips" id="bd-pos"></div></div>
+        <div><label>黒板の大きさ</label><div class="bd-chips" id="bd-size"></div></div>
+        <div class="bd-all"><label style="display:inline;font-weight:400;color:inherit"><input type="checkbox" id="bd-all">この台帳の<b>すべての写真</b>に付ける</label><br>工事名・施工者は上の内容で統一し、工種・部位・撮影日は各写真の「工種」「撮影場所」と撮影日を使います。</div>
+      </div>
+    </div>
+    <div class="bd-footer">
+      <span class="bd-msg" id="bd-msg"></span>
+      <button type="button" class="danger" id="bd-remove" onclick="removeBoard()">黒板を外す</button>
+      <button type="button" onclick="closeBoard()">キャンセル</button>
+      <button type="button" class="primary" id="bd-apply" onclick="applyBoard()">黒板を付ける</button>
+    </div>
+  </div>
+</div>
+
 <div class="pp-modal no-print" id="album-list-modal">
   <div class="pp-modal-inner">
     <div class="pp-modal-header">
@@ -245,6 +295,9 @@ let pageCount = 0;
 let header = { koji:'', genba:'', addr:'', gyosha:'' };
 let photoData = {};
 let photoSrc = {}; // 枠 -> 元のDrive写真ID(「現場の写真から選ぶ」で入れた写真。回転後も元の写真として取り込み済み判定に使う)
+let photoOrig = {};  // 枠 -> 黒板を付ける前の写真(黒板の作り直し・取り外し用)
+let photoBoard = {}; // 枠 -> 黒板の内容 {koji,kosyu,bui,date,sekou,pos,size}
+let photoDate = {};  // 枠 -> 撮影日(YYYY-MM-DD)
 let pickerTargetKey = null;
 let pickerPhotosCache = null;
 let pickerSelected = []; // ピッカーで選んだ写真(選んだ順)
@@ -467,7 +520,7 @@ function delPage(idx){
   const page=$('page-'+idx);
   if(page) page.remove();
   // 写真データも削除
-  for(let i=0;i<PHOTOS_PER_PAGE;i++){ delete photoData[`p${idx}-${i}`]; delete photoSrc[`p${idx}-${i}`]; }
+  for(let i=0;i<PHOTOS_PER_PAGE;i++){ clearPhotoState(`p${idx}-${i}`); }
 }
 
 function loadPhoto(key,inp){
@@ -475,7 +528,7 @@ function loadPhoto(key,inp){
   setPhoto(key,f);
 }
 function photoFilledHtml(key, src){
-  return `<img src="${src}"><button class="photo-del" onclick="delPhoto('${key}')">✕</button><button class="photo-rotate" onclick="event.stopPropagation();rotatePhoto('${key}')" title="90度回転">↻</button><input type="file" accept="image/*" onchange="loadPhoto('${key}',this)">`
+  return `<img src="${src}"><button class="photo-del" onclick="delPhoto('${key}')">✕</button><button class="photo-rotate" onclick="event.stopPropagation();rotatePhoto('${key}')" title="90度回転">↻</button><button type="button" class="photo-board${photoBoard[key]?' on':''}" onclick="event.stopPropagation();openBoard('${key}')" title="黒板を付ける・直す">🪧 ${photoBoard[key]?'黒板✓':'黒板'}</button><input type="file" accept="image/*" onchange="loadPhoto('${key}',this)">`
     + `<div class="photo-move"><button type="button" onclick="event.stopPropagation();moveStep('${key}',-1)" title="1つ前へ移動">▲</button><span class="photo-drag" draggable="true" onclick="event.stopPropagation();startMoveMode('${key}')" ondragstart="onPhotoDragStart(event,'${key}')" ondragend="onPhotoDragEnd()" title="クリックして移動先の枠をクリック、またはつかんで移動先の枠へドロップ">⇅ 移動</span><button type="button" onclick="event.stopPropagation();moveStep('${key}',1)" title="1つ後へ移動">▼</button></div>`;
 }
 function renderCell(key){
@@ -494,13 +547,16 @@ function slotKeys(){
   return keys;
 }
 function readSlot(key){
-  const s={photo:photoData[key]||'', src:photoSrc[key]||''};
+  const s={photo:photoData[key]||'', src:photoSrc[key]||'', orig:photoOrig[key]||'', board:photoBoard[key]||null, date:photoDate[key]||''};
   ['kosyu','place','comment'].forEach(k=>{const el=document.querySelector(`[data-k="${key}-${k}"]`);s[k]=el?el.value:'';});
   return s;
 }
 function writeSlot(key,s){
   if(s.photo) photoData[key]=s.photo; else delete photoData[key];
   if(s.src) photoSrc[key]=s.src; else delete photoSrc[key];
+  if(s.orig) photoOrig[key]=s.orig; else delete photoOrig[key];
+  if(s.board) photoBoard[key]=s.board; else delete photoBoard[key];
+  if(s.date) photoDate[key]=s.date; else delete photoDate[key];
   ['kosyu','place','comment'].forEach(k=>{const el=document.querySelector(`[data-k="${key}-${k}"]`);if(el) el.value=s[k]||'';});
   renderCell(key);
 }
@@ -595,9 +651,12 @@ function photoEmptyHtml(key){
 }
 // ✕ボタンで写真を削除し、そのマス目を未選択の状態(クリック/ドラッグ&ドロップで
 // 再度写真を追加できる状態)に戻す。
+function clearPhotoState(key){
+  delete photoData[key]; delete photoSrc[key];
+  delete photoOrig[key]; delete photoBoard[key]; delete photoDate[key];
+}
 function delPhoto(key){
-  delete photoData[key];
-  delete photoSrc[key];
+  clearPhotoState(key);
   const cell=$('cell-'+key);
   if(cell) cell.innerHTML=photoEmptyHtml(key);
 }
@@ -605,8 +664,9 @@ function setPhoto(key,file){
   if(!file||!file.type.startsWith('image/')){alert('⚠️ 画像ファイルを選択してください');return;}
   const r=new FileReader();
   r.onload=e=>{
+    clearPhotoState(key);
     photoData[key]=e.target.result;
-    delete photoSrc[key];
+    if(file.lastModified) photoDate[key]=ymd(new Date(file.lastModified));
     $('cell-'+key).innerHTML=photoFilledHtml(key, e.target.result);
   };
   r.readAsDataURL(file);
@@ -614,6 +674,7 @@ function setPhoto(key,file){
 function rotatePhoto(key){
   const src = photoData[key];
   if(!src) return;
+  if(photoBoard[key]){ alert('⚠️ 黒板付きの写真は回転できません。\n「🪧 黒板✓」→「黒板を外す」で外してから回転し、もう一度黒板を付けてください。'); return; }
 
   // Google Drive由来の写真はCORS制限で直接canvasに描画できないため、
   // GAS経由で実データ(base64)を取得してから回転する
@@ -661,6 +722,232 @@ function doRotate(key, src){
   };
   img.src = src;
 }
+
+
+// ══════════ 黒板 ══════════
+// 写真の隅に黒板(工事名/工種/部位/撮影日/施工者)を描き込んだ画像を作り、その枠の写真として置き換える。
+// 元の写真は photoOrig に残すので、何度でも作り直し・取り外しができる。
+function ymd(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function boardDateText(v){
+  const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(v||'');
+  return m ? `${m[1]}年${+m[2]}月${+m[3]}日` : (v||'');
+}
+const BOARD_POS = [['bl','左下'],['br','右下'],['tl','左上'],['tr','右上']];
+const BOARD_SIZE = [['s','小'],['m','中'],['l','大']];
+let boardKey = null, boardImg = null, boardBusy = false;
+let boardPos = (()=>{ try{ return localStorage.getItem('boardPos')||'bl'; }catch(e){ return 'bl'; } })();
+let boardSize = (()=>{ try{ return localStorage.getItem('boardSize')||'m'; }catch(e){ return 'm'; } })();
+
+// 写真(DriveのURL/画像データ)を canvas に描ける Image として読み込む
+function loadBoardImage(src){
+  return new Promise((resolve,reject)=>{
+    const done = dataUrl=>{ const img=new Image(); img.onload=()=>resolve(img); img.onerror=()=>reject(new Error('画像の読み込みに失敗しました')); img.src=dataUrl; };
+    const m = /^https:\/\/drive\.google\.com\/thumbnail\?id=([^&]+)/.exec(src||'');
+    if(m){
+      // Drive の写真はCORS制限で直接描けないため、GAS経由で画像データを取得する(回転と同じ方法)
+      fetch(GAS_URL + '?action=getPhotoData&id=' + encodeURIComponent(m[1]))
+        .then(r=>r.json())
+        .then(res=>{ if(res.status==='ok' && res.dataUrl) done(res.dataUrl); else reject(new Error('写真データの取得に失敗しました')); })
+        .catch(()=>reject(new Error('通信エラーで写真データを取得できませんでした')));
+    }else if(src){ done(src); }
+    else reject(new Error('写真がありません'));
+  });
+}
+// 黒板を付ける前の元写真。無ければ null(黒板付きの画像しか残っていない)
+function boardOriginal(key){
+  if(photoOrig[key]) return photoOrig[key];
+  if(photoBoard[key]) return null;
+  return photoData[key] || null;
+}
+
+// 黒板を描く。W,H=写真の大きさ
+function drawBoard(ctx, W, H, v, pos, size){
+  const f = {s:.24, m:.30, l:.38}[size] || .30;
+  const bw = Math.round(Math.min(W*0.62, Math.max(W,H)*f));
+  const rows = [['工事名',v.koji],['工　種',v.kosyu],['部　位',v.bui],['撮影日',boardDateText(v.date)],['施工者',v.sekou]];
+  const rowH = bw*0.13, bh = Math.round(rowH*rows.length);
+  const mg = Math.round(Math.min(W,H)*0.02);
+  const x = pos[1]==='r' ? W-bw-mg : mg;
+  const y = pos[0]==='b' ? H-bh-mg : mg;
+  const lw = Math.max(1, bw*0.006), labW = bw*0.24;
+  const font = "'Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic','Meiryo',sans-serif";
+  ctx.save();
+  ctx.fillStyle = '#245c3b';
+  ctx.fillRect(x, y, bw, bh);
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = lw*2;
+  ctx.strokeRect(x+lw, y+lw, bw-lw*2, bh-lw*2);
+  ctx.lineWidth = lw;
+  ctx.beginPath();
+  for(let i=1;i<rows.length;i++){ ctx.moveTo(x, y+rowH*i); ctx.lineTo(x+bw, y+rowH*i); }
+  ctx.moveTo(x+labW, y); ctx.lineTo(x+labW, y+bh);
+  ctx.stroke();
+  ctx.fillStyle = '#ffffff';
+  ctx.textBaseline = 'middle';
+  rows.forEach(([lab,val],i)=>{
+    const cy = y + rowH*i + rowH/2;
+    let fs = rowH*0.46;
+    ctx.font = `bold ${fs}px ${font}`;
+    ctx.textAlign = 'center';
+    ctx.fillText(lab, x+labW/2, cy);
+    const text = String(val||'');
+    const maxW = bw - labW - rowH*0.5;
+    const tx = x+labW+rowH*0.25;
+    ctx.textAlign = 'left';
+    fs = rowH*0.5;
+    ctx.font = `bold ${fs}px ${font}`;
+    while(fs > rowH*0.42 && ctx.measureText(text).width > maxW){ fs *= 0.94; ctx.font = `bold ${fs}px ${font}`; }
+    if(ctx.measureText(text).width <= maxW){ ctx.fillText(text, tx, cy); return; }
+    // 長い文字は2行に折り返す
+    const half = Math.ceil(text.length/2), l1 = text.slice(0,half), l2 = text.slice(half);
+    fs = rowH*0.36;
+    ctx.font = `bold ${fs}px ${font}`;
+    while(fs > rowH*0.2 && Math.max(ctx.measureText(l1).width, ctx.measureText(l2).width) > maxW){ fs *= 0.94; ctx.font = `bold ${fs}px ${font}`; }
+    ctx.fillText(l1, tx, cy - fs*0.55, maxW);
+    ctx.fillText(l2, tx, cy + fs*0.55, maxW);
+  });
+  ctx.restore();
+}
+// 写真+黒板 → 画像データ(JPEG)。長辺は最大2000pxに縮小して保存容量を抑える
+function composeBoard(img, v, pos, size, maxSide){
+  const s = Math.min(1, (maxSide||2000) / Math.max(img.naturalWidth, img.naturalHeight));
+  const W = Math.round(img.naturalWidth*s), H = Math.round(img.naturalHeight*s);
+  const c = document.createElement('canvas'); c.width=W; c.height=H;
+  const ctx = c.getContext('2d');
+  ctx.drawImage(img, 0, 0, W, H);
+  drawBoard(ctx, W, H, v, pos, size);
+  return c;
+}
+
+function slotVal(key,k){ const el=document.querySelector(`[data-k="${key}-${k}"]`); return el?el.value:''; }
+function boardFormValues(){
+  return { koji:$('bd-koji').value, kosyu:$('bd-kosyu').value, bui:$('bd-bui').value, date:$('bd-date').value, sekou:$('bd-sekou').value };
+}
+function renderBoardChips(){
+  $('bd-pos').innerHTML = BOARD_POS.map(([v,l])=>`<button type="button" class="${boardPos===v?'active':''}" onclick="setBoardOpt('pos','${v}')">${l}</button>`).join('');
+  $('bd-size').innerHTML = BOARD_SIZE.map(([v,l])=>`<button type="button" class="${boardSize===v?'active':''}" onclick="setBoardOpt('size','${v}')">${l}</button>`).join('');
+}
+function setBoardOpt(which, v){
+  if(which==='pos'){ boardPos=v; try{localStorage.setItem('boardPos',v);}catch(e){} }
+  else { boardSize=v; try{localStorage.setItem('boardSize',v);}catch(e){} }
+  renderBoardChips(); drawBoardPreview();
+}
+function drawBoardPreview(){
+  if(!boardImg) return;
+  const c = composeBoard(boardImg, boardFormValues(), boardPos, boardSize, 1000);
+  const view = $('bd-canvas');
+  view.width = c.width; view.height = c.height;
+  view.getContext('2d').drawImage(c, 0, 0);
+}
+function setBoardBusy(on, msg){
+  boardBusy = on;
+  $('bd-apply').disabled = on || !boardImg;
+  $('bd-remove').disabled = on;
+  $('bd-msg').textContent = msg || '';
+}
+
+function openBoard(key){
+  if(!photoData[key]) return;
+  boardKey = key; boardImg = null;
+  const b = photoBoard[key];
+  $('bd-koji').value  = b ? b.koji  : header.koji;
+  $('bd-kosyu').value = b ? b.kosyu : slotVal(key,'kosyu');
+  $('bd-bui').value   = b ? b.bui   : slotVal(key,'place');
+  $('bd-date').value  = b ? b.date  : (photoDate[key] || ymd(new Date()));
+  $('bd-sekou').value = b ? b.sekou : header.gyosha;
+  if(b){ boardPos=b.pos||boardPos; boardSize=b.size||boardSize; }
+  $('bd-all').checked = false;
+  $('bd-remove').style.display = b ? '' : 'none';
+  renderBoardChips();
+  const view = $('bd-canvas'); view.width=10; view.height=10;
+  $('bd-loading').style.display = 'flex';
+  $('bd-loading').textContent = '写真を読み込み中…';
+  $('board-modal').classList.add('show');
+  setBoardBusy(true, '');
+
+  let src = boardOriginal(key);
+  if(!src){
+    // 元の写真が残っていない(端末から取り込んだ写真で、ページを開き直した場合など)
+    if(!confirm('この写真の黒板前の元写真が見つかりません。\n今の黒板の上に新しい黒板を重ねて付けますか？\n（元の写真から付け直したい場合は、写真を入れ直してください）')){ closeBoard(); return; }
+    src = photoData[key];
+  }
+  loadBoardImage(src).then(img=>{
+    if(boardKey!==key) return;
+    boardImg = img;
+    $('bd-loading').style.display = 'none';
+    setBoardBusy(false, '');
+    drawBoardPreview();
+  }).catch(err=>{
+    if(boardKey!==key) return;
+    $('bd-loading').textContent = '⚠️ ' + err.message;
+    setBoardBusy(false, '');
+    $('bd-apply').disabled = true;
+  });
+}
+function closeBoard(){
+  if(boardBusy) return;
+  $('board-modal').classList.remove('show');
+  boardKey = null; boardImg = null;
+}
+// 1枚に黒板を付けて枠に反映
+function putBoard(key, img, orig, v){
+  const c = composeBoard(img, v, boardPos, boardSize, 2000);
+  if(!photoOrig[key]) photoOrig[key] = orig;
+  photoBoard[key] = Object.assign({}, v, {pos:boardPos, size:boardSize});
+  photoData[key] = c.toDataURL('image/jpeg', 0.88);
+  renderCell(key);
+}
+async function applyBoard(){
+  if(!boardImg || !boardKey || boardBusy) return;
+  const key = boardKey, v = boardFormValues();
+  // 工種・部位が台帳側で空欄なら、黒板の内容を台帳にも入れる
+  const setIfEmpty = (k,val)=>{ const el=document.querySelector(`[data-k="${key}-${k}"]`); if(el && !el.value && val) el.value=val; };
+  setIfEmpty('kosyu', v.kosyu); setIfEmpty('place', v.bui);
+  const orig = boardOriginal(key) || photoData[key];
+
+  if(!$('bd-all').checked){
+    putBoard(key, boardImg, orig, v);
+    boardBusy=false; closeBoard();
+    return;
+  }
+
+  // すべての写真に付ける
+  const keys = slotKeys().filter(k=>photoData[k]);
+  let ok=0, skipped=0, failed=0;
+  setBoardBusy(true, '');
+  for(let i=0;i<keys.length;i++){
+    const k = keys[i];
+    $('bd-msg').textContent = `黒板を付けています… ${i+1} / ${keys.length}`;
+    const vk = k===key ? v : {
+      koji: v.koji, sekou: v.sekou,
+      kosyu: slotVal(k,'kosyu'), bui: slotVal(k,'place'),
+      date: (photoBoard[k] && photoBoard[k].date) || photoDate[k] || v.date
+    };
+    if(k===key){ putBoard(k, boardImg, orig, vk); ok++; continue; }
+    const src = boardOriginal(k);
+    if(!src){ skipped++; continue; }
+    try{ const img = await loadBoardImage(src); putBoard(k, img, src, vk); ok++; }
+    catch(e){ failed++; }
+  }
+  setBoardBusy(false, '');
+  closeBoard();
+  let msg = `✅ ${ok}枚に黒板を付けました。`;
+  if(skipped) msg += `\n・元写真が見つからず飛ばした写真：${skipped}枚（写真を入れ直すと付けられます）`;
+  if(failed) msg += `\n・読み込みに失敗した写真：${failed}枚`;
+  msg += '\n\n最後に「💾 保存」を押してください。';
+  alert(msg);
+}
+function removeBoard(){
+  if(!boardKey || boardBusy) return;
+  const key = boardKey;
+  const orig = photoOrig[key];
+  if(!orig){ alert('⚠️ 元の写真が残っていないため、黒板を外せません。\n写真を入れ直してください。'); return; }
+  photoData[key] = orig;
+  delete photoOrig[key]; delete photoBoard[key];
+  renderCell(key);
+  closeBoard();
+}
+document.addEventListener('keydown',e=>{ if(e.key==='Escape' && $('board-modal').classList.contains('show')) closeBoard(); });
 
 
 // ドラッグ＆ドロップ
@@ -897,8 +1184,10 @@ function importPickerSelection(){
       pos++;
     }
     const key = keys[pos++];
+    clearPhotoState(key);
     photoData[key] = p.url;
     photoSrc[key] = p.id;
+    if(p.dateAdded){ const d=new Date(p.dateAdded); if(!isNaN(d)) photoDate[key]=ymd(d); }
     renderCell(key);
     filled.push(key);
   }
@@ -1025,7 +1314,10 @@ function syncHeader(){
 function saveData(){
   const fields={};
   document.querySelectorAll('[data-k]').forEach(el=>{fields[el.dataset.k]=el.value;});
-  const albumObj = {pageCount,header,photoData,photoSrc,fields};
+  // 黒板前の元写真は、Drive写真のURL(短い文字列)だけ保存する(画像データまで保存すると容量が倍になるため)
+  const origToSave={};
+  Object.entries(photoOrig).forEach(([k,v])=>{ if(v && !String(v).startsWith('data:')) origToSave[k]=v; });
+  const albumObj = {pageCount,header,photoData,photoSrc,photoOrig:origToSave,photoBoard,photoDate,fields};
   try{
     localStorage.setItem('photo-album',JSON.stringify(albumObj));
   }catch(e){/* ブラウザ内の一時保存に失敗しても、Driveへの保存は試みる */}
@@ -1056,6 +1348,9 @@ function restoreAlbum(data){
   header=data.header||{koji:'',genba:'',addr:'',gyosha:''};
   photoData=data.photoData||{};
   photoSrc=data.photoSrc||{};
+  photoOrig=data.photoOrig||{};
+  photoBoard=data.photoBoard||{};
+  photoDate=data.photoDate||{};
   $('h-koji').value=header.koji||'';
   $('h-genba').value=header.genba||'';
   $('h-addr').value=header.addr||'';
