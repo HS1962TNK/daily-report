@@ -515,6 +515,15 @@
   // ラスター画像(スキャン・写真)/画像PDFの自動トレース(OpenCV.jsによる直線検出)関連の状態。
   // 検出結果はvectorPathsにそのまま格納するため、DXF書き出し・吸着など既存のベクター処理をそのまま流用できる。
   let autoTraceOrigin = null;   // null | 'trace'  (vectorPathsが自動トレース由来かどうか。PDFベクター抽出とは区別する)
+  // スキャン画像をPDFにしただけの図面(＝線が画像。あとから寸法数値や室名だけを文字として入力したものを含む)を
+  // 見分けるための指標。PDFページに占める「画像の面積比(0〜1)」で、extractVectorPathsが算出する。
+  // 文字が1件でもあると「ベクター図面」と判定してしまい自動トレースが出せなかったため、この指標で判定し直す。
+  let pdfRasterCoverage = 0;
+  // PDFから抽出した本物のベクター線。自動トレースを実行するとvectorPathsが置き換わるため、
+  // 元の線を失わないように別に保持し、トレース結果と合わせてvectorPathsに入れる。
+  let pdfVectorPaths = [];
+  const RASTER_MAIN_COVERAGE = 0.5;  // これ以上を画像が占めるなら「図面の線は画像」とみなす
+  const RASTER_SOME_COVERAGE = 0.15; // ベクター図面でも、この程度の画像があれば自動トレースを選べるようにする
   let autoTraceBusy = false;
   let manualEditsSinceTrace = false; // 「線を編集」モードでの追加・削除がある状態で再トレースすると失われるため、確認ダイアログの要否判定に使う
   let hoveredVectorPathIndex = -1;   // 「線を編集」モードでのホバー中の線(削除プレビュー用)
@@ -1222,6 +1231,7 @@
   function resetAllState(){
     sourceImage = null; imgWidth = 0; imgHeight = 0; pdfInfo = null;
     vectorPaths = []; textItems = []; vectorStatusEl.innerHTML = '';
+    pdfRasterCoverage = 0; pdfVectorPaths = [];
     autoTraceOrigin = null; autoTraceBusy = false; manualEditsSinceTrace = false; hoveredVectorPathIndex = -1;
     view = {scale:1, offsetX:0, offsetY:0};
     resetMeasurementsOnly();
@@ -1308,7 +1318,9 @@
     sourceImage = off; imgWidth = off.width; imgHeight = off.height;
     pdfInfo.pageNum = n;
     autoTraceOrigin = null; manualEditsSinceTrace = false; hoveredVectorPathIndex = -1; // ページ切り替え時は自動トレース結果を引き継がない(ページごとに再実行が必要)
-    vectorPaths = await extractVectorPaths(page, viewport);
+    pdfRasterCoverage = 0;
+    vectorPaths = await extractVectorPaths(page, viewport); // この中でpdfRasterCoverageも算出される
+    pdfVectorPaths = vectorPaths.slice();
     textItems = await extractTextItems(page, viewport);
     updateVectorStatus();
   }
@@ -1324,6 +1336,10 @@
       const OPS = pdfjsLib.OPS;
       const opList = await page.getOperatorList();
       const result = [];
+      // ページに貼られた画像(スキャン等)の面積比。画像は「単位正方形をCTMで変換した領域」に描かれる
+      const imageOps = new Set([OPS.paintImageXObject, OPS.paintJpegXObject, OPS.paintImageMaskXObject, OPS.paintInlineImageXObject].filter(v=>v!==undefined));
+      const pageArea = Math.max(1, viewport.width * viewport.height);
+      let rasterCoverage = 0;
       let ctmStack = [];
       let ctm = [1,0,0,1,0,0];
       let subpaths = []; // 現在のパス(まだペイントされていない)のサブパス一覧
@@ -1421,12 +1437,20 @@
             subpaths = [];
             break;
           default:
+            if(imageOps.has(fn)){
+              const c = [toPixel(0,0), toPixel(1,0), toPixel(1,1), toPixel(0,1)];
+              let cross = 0;
+              for(let k=0;k<4;k++){ const p=c[k], q=c[(k+1)%4]; cross += p.x*q.y - q.x*p.y; }
+              rasterCoverage = Math.max(rasterCoverage, Math.abs(cross)/2/pageArea);
+            }
             break;
         }
       }
+      pdfRasterCoverage = Math.min(1, rasterCoverage);
       return result;
     }catch(err){
       console.error('ベクターパスの抽出に失敗しました', err);
+      pdfRasterCoverage = 0;
       return [];
     }
   }
@@ -1494,19 +1518,36 @@
     if(!sourceImage){ vectorStatusEl.innerHTML = ''; return; }
     // 実PDFからベクター線・文字が抽出できている場合を優先表示(自動トレースより情報として正確なため)
     const pdfVectorHasData = pdfInfo && autoTraceOrigin!=='trace' && ((vectorPaths && vectorPaths.length>0) || (textItems && textItems.length>0));
+    // スキャン画像をPDFにしただけの図面は、あとから入力した寸法数値・室名などの「文字」だけが
+    // ベクターデータとして入っていることが多い。文字が1件でもあると上のpdfVectorHasDataが真になり、
+    // 以前は自動トレースを出せなかった。画像の面積比で「線は画像」かどうかを見分ける。
+    const rasterMain = pdfInfo && autoTraceOrigin!=='trace' && pdfRasterCoverage >= RASTER_MAIN_COVERAGE;
+    const rasterSome = pdfInfo && autoTraceOrigin!=='trace' && !rasterMain && pdfRasterCoverage >= RASTER_SOME_COVERAGE;
     let html;
-    if(pdfVectorHasData){
+    if(rasterMain){
+      const parts = [];
+      if(textItems && textItems.length) parts.push('埋め込まれた文字 '+textItems.length+'件はそのままDXFに書き出せます');
+      if(vectorPaths && vectorPaths.length) parts.push('PDFに直接描かれた線 '+vectorPaths.length+'本も書き出せます');
+      html = '<span class="badge badge-off">画像の図面(スキャン等)</span><span class="scale-detail">この図面の線は<b>画像</b>です'+
+        (parts.length ? '。'+parts.join('。') : '(線・文字のデータはありません)')+'。<br>線をDXFにするには下の「自動トレース」で検出してください。</span>'+
+        traceControlsHtml(true);
+    } else if(pdfVectorHasData){
       html = '<span class="badge badge-on">ベクター図面を検出</span><span class="scale-detail">線 '+vectorPaths.length+'本・文字 '+textItems.length+'件(DXF書き出しに自動で含まれます)<br>クリック位置は近くの線の端点に自動で吸着します(精度向上)</span>';
+      if(rasterSome){
+        html += '<div style="margin-top:6px;font-size:11px;color:var(--bp-ink-dim)">図面の一部(約'+Math.round(pdfRasterCoverage*100)+'%)が画像です。その部分の線が必要なら自動トレースできます。</div>'+
+          traceControlsHtml(true);
+      }
     } else if(autoTraceOrigin==='trace' || (vectorPaths && vectorPaths.length>0)){
       // autoTraceOrigin==='trace'でなくてもvectorPathsが存在する場合(「線を編集」モードで
       // 自動トレースを一度も実行せず手動追加したケース)も同じ表示にする
-      html = '<span class="badge badge-on">自動トレース済み</span><span class="scale-detail">検出した線 '+vectorPaths.length+'本(画面にピンク色で表示・DXF書き出しに含まれます)<br>クリック位置は近くの線に自動で吸着します</span>'+
+      html = '<span class="badge badge-on">自動トレース済み</span><span class="scale-detail">線 '+vectorPaths.length+'本(画面にピンク色で表示・DXF書き出しに含まれます'+
+        (pdfVectorPaths.length? '。PDFに元から入っていた線も含みます':'')+(textItems && textItems.length? '。埋め込まれた文字 '+textItems.length+'件も書き出します':'')+')<br>クリック位置は近くの線に自動で吸着します</span>'+
         traceControlsHtml(false);
     } else {
       html = '<span class="badge badge-off">ベクター図形なし</span><span class="scale-detail">画像として扱います(手動計測のみDXF化されます)</span>'+
         traceControlsHtml(true);
     }
-    const hasAny = pdfVectorHasData || autoTraceOrigin==='trace' || (vectorPaths && vectorPaths.length>0);
+    const hasAny = pdfVectorHasData || rasterMain || autoTraceOrigin==='trace' || (vectorPaths && vectorPaths.length>0);
     if(dxfRegion){
       html += '<div style="margin-top:4px"><span class="badge badge-on">DXF範囲を指定中</span> <span class="completed-link" onclick="window.__clearDxfRegion()">解除</span></div>';
     } else if(hasAny){
@@ -1714,13 +1755,14 @@
         worker.postMessage({imageData, params, imgW:imgWidth, imgH:imgHeight}, [imageData.data.buffer]);
       });
 
-      vectorPaths = lines.map(l=>({points:[{x:l[0],y:l[1]},{x:l[2],y:l[3]}], closed:false}));
+      // PDFに元から入っていた線(あれば)は残したまま、トレースで見つけた線を足す
+      vectorPaths = pdfVectorPaths.concat(lines.map(l=>({points:[{x:l[0],y:l[1]},{x:l[2],y:l[3]}], closed:false})));
       autoTraceOrigin = 'trace';
       manualEditsSinceTrace = false;
       autoTraceBusy = false;
       updateVectorStatus();
       draw();
-      hintText.textContent = '自動トレース完了: 線 '+vectorPaths.length+'本を検出しました(下の設定を調整して「再トレース」で結果を変えられます)';
+      hintText.textContent = '自動トレース完了: 線 '+lines.length+'本を検出しました'+(pdfVectorPaths.length? '(PDFに元から入っていた線 '+pdfVectorPaths.length+'本も残しています)':'')+'(下の設定を調整して「再トレース」で結果を変えられます)';
     }catch(err){
       autoTraceBusy = false;
       console.error(err);
@@ -1732,7 +1774,7 @@
   window.__runAutoTrace = runAutoTrace;
 
   function clearAutoTrace(){
-    vectorPaths = [];
+    vectorPaths = pdfVectorPaths.slice(); // トレース結果だけ消し、PDF由来の線は戻す
     autoTraceOrigin = null;
     manualEditsSinceTrace = false;
     hoveredVectorPathIndex = -1;
