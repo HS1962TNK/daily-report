@@ -339,6 +339,10 @@
       <span class="zoom-label" id="zoomLabel">—</span>
       <button class="btn small" id="zoomInBtn" disabled>＋</button>
       <button class="btn small" id="zoomResetBtn" disabled>全体表示</button>
+      <button class="btn small" id="rotateLeftBtn" title="図面を左に90度回す" disabled>⟲</button>
+      <button class="btn small" id="rotateRightBtn" title="図面を右に90度回す" disabled>⟳</button>
+      <button class="btn small" id="deskewBtn" title="図面の傾きを自動で見つけてまっすぐにします" disabled>傾き補正</button>
+      <button class="btn small" id="rotateResetBtn" title="回転を取り消して元の向きに戻します" disabled>回転解除</button>
       <button class="btn small" id="saveImageBtn" disabled>画像保存</button>
     </div>
 
@@ -648,10 +652,56 @@ function rdp(pts, eps){
   return out;
 }
 
+// 図面の傾きを自動で見つける(投影プロファイル法)。
+// 図面は水平・垂直の線が多いので、正しい角度に回すと「同じ行に乗る線の画素」がぴたりと揃い、
+// 投影(行ごと・列ごとの画素数)の山が鋭くなる。その鋭さ(二乗和)が最大になる角度を探す。
+// 画素をすべて回すのではなく、暗い画素の座標だけを回して数えるので速い。
+function detectSkew(imageData){
+  var w = imageData.width, h = imageData.height, d = imageData.data, i, j;
+  var gray = new Uint8Array(w*h);
+  for(i=0,j=0;i<gray.length;i++,j+=4){
+    var a = d[j+3]/255;
+    gray[i] = Math.round((0.299*d[j] + 0.587*d[j+1] + 0.114*d[j+2])*a + 255*(1-a));
+  }
+  var t = otsu(gray);
+  var n = 0;
+  for(i=0;i<gray.length;i++) if(gray[i] < t) n++;
+  if(n < 200) return 0;                      // 線がほとんど無い画像は判定しない
+  var xs = new Float32Array(n), ys = new Float32Array(n), k = 0;
+  var cx = w/2, cy = h/2;
+  for(var y=0;y<h;y++) for(var x=0;x<w;x++){
+    if(gray[y*w+x] >= t) continue;
+    xs[k] = x - cx; ys[k] = y - cy; k++;
+  }
+  var size = Math.ceil(Math.sqrt(w*w + h*h)) + 2, off = size/2;
+  var ph = new Float64Array(size), pv = new Float64Array(size);
+  function score(deg){
+    ph.fill(0); pv.fill(0);
+    var r = deg*Math.PI/180, c = Math.cos(r), sn = Math.sin(r);
+    for(var m=0;m<n;m++){
+      var X = xs[m], Y = ys[m];
+      ph[( -X*sn + Y*c + off)|0]++;          // 角度-degだけ回したときの行
+      pv[(  X*c  + Y*sn + off)|0]++;         // 同じく列
+    }
+    var v = 0;
+    for(var q=0;q<size;q++) v += ph[q]*ph[q] + pv[q]*pv[q];
+    return v;
+  }
+  var best = 0, bestScore = -1, a;
+  for(a=-10; a<=10.0001; a+=0.5){ var sc = score(a); if(sc > bestScore){ bestScore = sc; best = a; } }
+  var lo = best-0.5, hi = best+0.5;
+  for(a=lo; a<=hi+0.0001; a+=0.05){ var sc2 = score(a); if(sc2 > bestScore){ bestScore = sc2; best = a; } }
+  return Math.round(best*100)/100;
+}
+
 self.onerror = function(e){ postMessage({error: 'Worker内エラー: ' + e.message}); };
 
 self.onmessage = function(ev){
   try{
+    if(ev.data.op === 'deskew'){
+      postMessage({angle: detectSkew(ev.data.imageData)});
+      return;
+    }
     var imageData = ev.data.imageData, params = ev.data.params || {};
     var w = imageData.width, h = imageData.height, d = imageData.data;
     var p = {
@@ -720,7 +770,7 @@ self.onmessage = function(ev){
   "use strict";
 
   /* ===== 改定時はこの2行だけ変更してください ===== */
-  const APP_VERSION = 'v1.8';
+  const APP_VERSION = 'v1.9';
   const APP_UPDATED = '2026-09-29';
   /* ============================================ */
 
@@ -752,6 +802,10 @@ self.onmessage = function(ev){
   const zoomOutBtn = document.getElementById('zoomOutBtn');
   const zoomResetBtn = document.getElementById('zoomResetBtn');
   const saveImageBtn = document.getElementById('saveImageBtn');
+  const rotateLeftBtn = document.getElementById('rotateLeftBtn');
+  const rotateRightBtn = document.getElementById('rotateRightBtn');
+  const deskewBtn = document.getElementById('deskewBtn');
+  const rotateResetBtn = document.getElementById('rotateResetBtn');
   const zoomLabel = document.getElementById('zoomLabel');
 
   const lengthUnitSel = document.getElementById('lengthUnitSel');
@@ -783,7 +837,11 @@ self.onmessage = function(ev){
   };
 
   /* ---------------- State ---------------- */
-  let sourceImage = null;       // HTMLImageElement or offscreen canvas
+  let sourceImage = null;       // HTMLImageElement or offscreen canvas(回転を適用した後のもの)
+  // 回転は「元画像から作り直す」方式にする。回すたびに前回の結果を回すと、そのたびに
+  // 画像が再サンプリングされて劣化していくため、元画像とその時点の角度だけを持っておく。
+  let sourceOriginal = null;    // 回転前の元画像
+  let rotationDeg = 0;          // 現在の回転角(時計回り・度)
   let imgWidth = 0, imgHeight = 0;
   let pdfInfo = null;           // {doc, pageNum, numPages}
   let view = {scale:1, offsetX:0, offsetY:0};
@@ -1311,6 +1369,114 @@ self.onmessage = function(ev){
   }
 
   /* ---------------- View controls ---------------- */
+  /* ---------------- 図面の回転 ----------------
+     横向きに読み込まれたPDFを正しい向きにしたり、スキャンの傾きを直したりするための機能。
+     画像だけでなく、計測結果・縮尺の基準線・変換済みの線・文字の位置と角度・DXF範囲も
+     まとめて同じだけ回す(でないと図面と計測結果がずれてしまう)。 */
+  function rotatedSize(w, h, deg){
+    const r = deg*Math.PI/180, c = Math.abs(Math.cos(r)), s2 = Math.abs(Math.sin(r));
+    return {w: Math.max(1, Math.round(w*c + h*s2)), h: Math.max(1, Math.round(w*s2 + h*c))};
+  }
+  function srcSize(img){
+    return {w: img.width || img.naturalWidth, h: img.height || img.naturalHeight};
+  }
+  function renderRotated(src, deg){
+    const o = srcSize(src);
+    const size = rotatedSize(o.w, o.h, deg);
+    const off = document.createElement('canvas');
+    off.width = size.w; off.height = size.h;
+    const c = off.getContext('2d');
+    c.fillStyle = '#ffffff';            // 回転で空いた四隅は白(図面の紙の色)で埋める
+    c.fillRect(0, 0, size.w, size.h);
+    c.translate(size.w/2, size.h/2);
+    c.rotate(deg*Math.PI/180);
+    c.drawImage(src, -o.w/2, -o.h/2);
+    return off;
+  }
+  // fromDegの座標系の点を、toDegの座標系へ移す関数を作る(いったん元画像の座標に戻してから回す)
+  function makeRotationMapper(fromDeg, toDeg){
+    const o = srcSize(sourceOriginal);
+    const a = rotatedSize(o.w, o.h, fromDeg), b = rotatedSize(o.w, o.h, toDeg);
+    const ra = -fromDeg*Math.PI/180, rb = toDeg*Math.PI/180;
+    const ca = Math.cos(ra), sa = Math.sin(ra), cb = Math.cos(rb), sb = Math.sin(rb);
+    return (p)=>{
+      const x = p.x - a.w/2, y = p.y - a.h/2;
+      const ox = x*ca - y*sa, oy = x*sa + y*ca;   // 元画像の中心を原点とした座標
+      return {x: ox*cb - oy*sb + b.w/2, y: ox*sb + oy*cb + b.h/2};
+    };
+  }
+  function applyRotation(newDeg){
+    if(!sourceOriginal) return;
+    newDeg = ((newDeg % 360) + 360) % 360;
+    if(Math.abs(newDeg - rotationDeg) < 1e-9) return;
+    const map = makeRotationMapper(rotationDeg, newDeg);
+    const delta = newDeg - rotationDeg;
+    sourceImage = (Math.abs(newDeg) < 1e-9) ? sourceOriginal : renderRotated(sourceOriginal, newDeg);
+    const sz = srcSize(sourceImage);
+    imgWidth = sz.w; imgHeight = sz.h;
+    const mapPts = arr => arr.map(map);
+    // pdfVectorPathsはvectorPathsと同じ線のオブジェクトを共有している(配列だけを複製しているため)。
+    // 素直に両方を回すと同じ線を2回回してしまうので、1回だけ回すように記録しながら処理する。
+    const rotated = new Set();
+    const rotatePath = vp => { if(rotated.has(vp)) return; rotated.add(vp); vp.points = mapPts(vp.points); };
+    vectorPaths.forEach(rotatePath);
+    pdfVectorPaths.forEach(rotatePath);
+    textItems.forEach(t=>{
+      const q = map(t); t.x = q.x; t.y = q.y;
+      // angleDegはY軸上向き(DXF向け)で持っているので、画像を時計回りに回した分だけ引く
+      t.angleDeg = (t.angleDeg || 0) - delta;
+    });
+    measurements.forEach(m=>{ m.points = mapPts(m.points); });
+    if(calibration && calibration.line) calibration.line = mapPts(calibration.line);
+    if(dxfRegion){
+      const cs = [{x:dxfRegion.x1,y:dxfRegion.y1},{x:dxfRegion.x2,y:dxfRegion.y1},
+                  {x:dxfRegion.x2,y:dxfRegion.y2},{x:dxfRegion.x1,y:dxfRegion.y2}].map(map);
+      const xs = cs.map(p=>p.x), ys = cs.map(p=>p.y);
+      dxfRegion = {x1:Math.min(...xs), y1:Math.min(...ys), x2:Math.max(...xs), y2:Math.max(...ys)};
+    }
+    traceMask = null;   // 芯線マスクは回転に追従できないので捨てる(「再変換」で作り直される)
+    rotationDeg = newDeg;
+    pendingPoints = [];
+    updateRotateButtons();
+    updateVectorStatus();
+    resizeCanvas(); fitToView(); draw(); updateHint();
+  }
+  function updateRotateButtons(){
+    if(!rotateResetBtn) return;
+    rotateResetBtn.disabled = !sourceOriginal || Math.abs(rotationDeg) < 1e-9;
+    rotateResetBtn.textContent = Math.abs(rotationDeg) < 1e-9 ? '回転解除' : '回転解除 ('+(rotationDeg>180?rotationDeg-360:rotationDeg).toFixed(rotationDeg%1?2:0)+'°)';
+  }
+
+  // 傾きを自動で見つけてまっすぐにする
+  async function runDeskew(){
+    if(!sourceImage || autoTraceBusy) return;
+    hintBar.hidden = false;
+    hintText.textContent = '図面の傾きを調べています…';
+    try{
+      const {imageData} = getImageDataFromSource(1400); // 傾きの判定は小さい画像で十分
+      const worker = getTraceWorker();
+      const angle = await new Promise((resolve, reject)=>{
+        const timer = setTimeout(()=>reject(new Error('傾きの判定がタイムアウトしました')), 60000);
+        worker.onmessage = (e)=>{
+          clearTimeout(timer);
+          if(e.data && e.data.error){ reject(new Error(e.data.error)); return; }
+          resolve(e.data ? e.data.angle : 0);
+        };
+        worker.onerror = (e)=>{ clearTimeout(timer); reject(new Error('Workerエラー: '+e.message)); };
+        worker.postMessage({op:'deskew', imageData}, [imageData.data.buffer]);
+      });
+      if(Math.abs(angle) < 0.03){
+        hintText.textContent = '傾きは見つかりませんでした(すでにまっすぐです)';
+        return;
+      }
+      applyRotation(rotationDeg - angle);   // 時計回りにangleだけ傾いているので、その分だけ戻す
+      hintText.textContent = '傾きを補正しました(' + angle.toFixed(2) + '° 傾いていました)。ずれていれば「回転解除」で元に戻せます。';
+    }catch(err){
+      console.error(err);
+      hintText.textContent = '傾きの補正に失敗しました: ' + (err && err.message ? err.message : '不明なエラー');
+    }
+  }
+
   function fitToView(){
     const rect = canvasWrap.getBoundingClientRect();
     const margin = 40;
@@ -1621,7 +1787,7 @@ self.onmessage = function(ev){
     renderList();
   }
   function resetAllState(){
-    sourceImage = null; imgWidth = 0; imgHeight = 0; pdfInfo = null;
+    sourceImage = null; sourceOriginal = null; rotationDeg = 0; imgWidth = 0; imgHeight = 0; pdfInfo = null;
     vectorPaths = []; textItems = []; vectorStatusEl.innerHTML = '';
     pdfRasterCoverage = 0; pdfVectorPaths = []; traceMask = null;
     autoTraceOrigin = null; autoTraceBusy = false; manualEditsSinceTrace = false; hoveredVectorPathIndex = -1;
@@ -1646,7 +1812,9 @@ self.onmessage = function(ev){
       else { await loadImage(file); }
       emptyState.hidden = true;
       hintBar.hidden = false;
-      [btnScale, btnPan, btnDxfRegion, btnTraceEdit, zoomInBtn, zoomOutBtn, zoomResetBtn, saveImageBtn].forEach(b=>b.disabled=false);
+      [btnScale, btnPan, btnDxfRegion, btnTraceEdit, zoomInBtn, zoomOutBtn, zoomResetBtn, saveImageBtn,
+       rotateLeftBtn, rotateRightBtn, deskewBtn].forEach(b=>b.disabled=false);
+      updateRotateButtons();
       updateVectorStatus(); // 画像アップロード時は上のPDF処理内から呼ばれないため、ここで確実に呼ぶ(自動トレース欄の表示に必要)
       resizeCanvas();
       fitToView();
@@ -1663,7 +1831,8 @@ self.onmessage = function(ev){
     return new Promise((resolve,reject)=>{
       const img = new Image();
       img.onload = ()=>{
-        sourceImage = img; imgWidth = img.naturalWidth; imgHeight = img.naturalHeight;
+        sourceImage = img; sourceOriginal = img; rotationDeg = 0;
+        imgWidth = img.naturalWidth; imgHeight = img.naturalHeight;
         pdfInfo = null; updatePdfNav();
         resolve();
       };
@@ -1707,13 +1876,17 @@ self.onmessage = function(ev){
     off.height = Math.ceil(viewport.height);
     const offCtx = off.getContext('2d');
     await page.render({canvasContext:offCtx, viewport}).promise;
-    sourceImage = off; imgWidth = off.width; imgHeight = off.height;
+    sourceImage = off; sourceOriginal = off; imgWidth = off.width; imgHeight = off.height;
     pdfInfo.pageNum = n;
     autoTraceOrigin = null; manualEditsSinceTrace = false; hoveredVectorPathIndex = -1; // ページ切り替え時は自動トレース結果を引き継がない(ページごとに再実行が必要)
     pdfRasterCoverage = 0;
     vectorPaths = await extractVectorPaths(page, viewport); // この中でpdfRasterCoverageも算出される
     pdfVectorPaths = vectorPaths.slice();
     textItems = await extractTextItems(page, viewport);
+    // ページを送っても向きは保つ。抽出した座標は回転前のものなので、ここで同じだけ回す。
+    if(Math.abs(rotationDeg) > 1e-9){
+      const keep = rotationDeg; rotationDeg = 0; applyRotation(keep);
+    }
     updateVectorStatus();
   }
 
@@ -2007,8 +2180,8 @@ self.onmessage = function(ev){
   // 生のImageDataに変換する。一旦オフスクリーンcanvasに描画することでどちらの型も統一的に扱う。
   // 大きすぎる画像はそのまま扱うと処理時間も点数も膨らむため、長辺がTRACE_MAX_DIMに収まるよう縮小する。
   // 縮小率(scale)を返し、呼び出し側で座標を元の画像サイズに戻す。
-  function getImageDataFromSource(){
-    const scale = Math.min(1, TRACE_MAX_DIM / Math.max(imgWidth, imgHeight));
+  function getImageDataFromSource(maxDim){
+    const scale = Math.min(1, (maxDim || TRACE_MAX_DIM) / Math.max(imgWidth, imgHeight));
     const w = Math.max(1, Math.round(imgWidth*scale)), h = Math.max(1, Math.round(imgHeight*scale));
     const off = document.createElement('canvas');
     off.width = w; off.height = h;
@@ -2499,6 +2672,13 @@ self.onmessage = function(ev){
 
   exportCsvBtn.addEventListener('click', exportCSV);
   document.getElementById('exportDxfBtn').addEventListener('click', exportDXF);
+  rotateLeftBtn.addEventListener('click', ()=>applyRotation(rotationDeg - 90));
+  rotateRightBtn.addEventListener('click', ()=>applyRotation(rotationDeg + 90));
+  rotateResetBtn.addEventListener('click', ()=>applyRotation(0));
+  deskewBtn.addEventListener('click', runDeskew);
+  window.__applyRotation = applyRotation;  // 自動テストから呼べるようにしておく
+  window.__runDeskew = runDeskew;
+  window.__rotationState = ()=>({rotationDeg, imgWidth, imgHeight});
   clearAllBtn.addEventListener('click', ()=>{
     if(measurements.length===0 && !calibration) return;
     openConfirm('すべての計測結果と縮尺設定を削除します。よろしいですか?', ()=>{
