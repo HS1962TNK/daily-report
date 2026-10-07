@@ -1266,6 +1266,10 @@ function uploadManualPdf_(base64Data){
 const OFFICE_SHEET = '所在地設定';
 const OFFICE_DEPT_CELL = 'J10';
 const OFFICE_DEFAULT = '本社';
+// 「所在地設定シートを作る」で大阪営業所の列に最初から入れておく内容（2026-10-07 菅原氏より）。
+// 大阪営業所はTELとFAXが同じ番号なので、TELの行に「TEL・FAX」でまとめ、FAXの行は空欄にする。
+const OSAKA_OFFICE_ADDRESS = '〒663-8002 兵庫県西宮市一里山町3-1-501';
+const OSAKA_OFFICE_TELFAX = 'TEL・FAX 0798-31-7478';
 
 function normalizeOfficeName_(s){
   return String(s||'').replace(/[\s　]/g,'');
@@ -1322,8 +1326,19 @@ function copyOfficeTableAndApply_(newSs,cover){
   }
 }
 
+// 本社の表紙の文言から、同じ行に入れる大阪営業所の文言を決める。
+function osakaValueFor_(v){
+  if(v.indexOf('〒')!==-1)return OSAKA_OFFICE_ADDRESS;
+  if(/FAX|ＦＡＸ/i.test(v))return /TEL|ＴＥＬ|電話/i.test(v)?OSAKA_OFFICE_TELFAX:'';
+  if(/TEL|ＴＥＬ|電話/i.test(v))return OSAKA_OFFICE_TELFAX;
+  if(/[都道府県].*[市区町村]|[市区町村].*[0-9０-９]/.test(v))return OSAKA_OFFICE_ADDRESS;
+  return v;
+}
+
 // 母艦に「所在地設定」シートを作る（メニュー用・初回のみ）。
-// 見積ひな形の表紙の上のほう（1〜10行目）から、会社名・住所・TEL・FAXらしいセルを拾って本社の列に入れておく。
+// 見積ひな形の表紙の右上（1〜10行目のI列より右）から、会社名・住所・TEL・FAXらしいセルを拾って本社の列に入れ、
+// 大阪営業所の列には同じ行に大阪営業所の内容を入れておく（会社名の行は本社と同じ）。
+// ※左側の宛先(B5)・工事場所(C10)の住所を拾わないように、I列より右だけを見る。
 function setupOfficeSheet(){
   var ui=SpreadsheetApp.getUi();
   var ss=SpreadsheetApp.getActiveSpreadsheet();
@@ -1340,10 +1355,10 @@ function setupOfficeSheet(){
     var cover=SpreadsheetApp.openById(TEMPLATE_FILE_ID).getSheetByName(COVER_SHEET);
     var values=cover.getRange(1,1,10,cover.getMaxColumns()).getDisplayValues();
     for(var r=0;r<values.length;r++){
-      for(var c=0;c<values[r].length;c++){
+      for(var c=8;c<values[r].length;c++){
         var v=String(values[r][c]||'');
         var a1=cover.getRange(r+1,c+1).getA1Notation();
-        if(v&&!skip[a1]&&pattern.test(v))rows.push([a1,v,'']);
+        if(v&&!skip[a1]&&pattern.test(v))rows.push([a1,v,osakaValueFor_(v)]);
       }
     }
   }catch(e){}
@@ -1366,6 +1381,6 @@ function setupOfficeSheet(){
   sheet.getRange(1,5).setFontWeight('bold');
   ss.setActiveSheet(sheet);
   ui.alert('「'+OFFICE_SHEET+'」シートを作りました。\n\n'+
-    (rows.length>2||rows[1][0]?'見積ひな形の表紙から、会社名・住所・TEL・FAXらしいセルを本社の列に拾ってあります。合っているか確認してください。\n':'')+
-    'C列（大阪営業所）に大阪営業所の内容を入れてください。');
+    (rows.length>2||rows[1][0]?'見積ひな形の表紙から会社名・住所・TEL・FAXのセルを拾い、本社と大阪営業所の内容を入れてあります。合っているか確認してください。':
+     'セルを拾えませんでした。A列にセル番地、B列に本社、C列に大阪営業所の内容を入れてください。'));
 }
