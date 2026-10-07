@@ -79,8 +79,7 @@ function onEdit(e) {
   try {
     if (!e || !e.range) return;
     const sheet = e.range.getSheet();
-    const name = sheet.getName();
-    if (name !== '見積書' && name !== '請求書') return;
+    if (sheet.getName() !== '見積書') return;
     const dept = sheet.getRange(OFFICE_DEPT_CELL);
     const r = e.range;
     if (dept.getRow() < r.getRow() || dept.getRow() > r.getLastRow() ||
@@ -95,7 +94,7 @@ function onEdit(e) {
 function applyOfficeAddressMenu() {
   const ui = SpreadsheetApp.getUi();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const cover = ss.getSheetByName('見積書') || ss.getSheetByName('請求書');
+  const cover = ss.getSheetByName('見積書');
   if (!cover) { ui.alert('見積書シートが見つかりません。'); return; }
   let table = null;
   try {

@@ -509,8 +509,8 @@ function resetAutoSyncTrigger(){
   let msg = '見積一覧を作り直しました（' + rows.length + '件）。';
   if (failed > 0) msg += '\n⚠️ ' + failed + '件の読み込みに失敗しました。「同期エラー」シートをご確認ください。';
   ui.alert(msg);
-}function setupInvoiceTemplate_(){var ss2=SpreadsheetApp.create('請求書ひな形');var file2=DriveApp.getFileById(ss2.getId());var folder=DriveApp.getFolderById(INVOICE_FOLDER_ID);folder.addFile(file2);try{DriveApp.getRootFolder().removeFile(file2);}catch(e){}var templateSs=SpreadsheetApp.openById(TEMPLATE_FILE_ID);var srcCover=templateSs.getSheetByName(COVER_SHEET);var newSheet=srcCover.copyTo(ss2);newSheet.setName(INVOICE_SHEET);var defaultSheet=ss2.getSheetByName('シート1');if(defaultSheet)ss2.deleteSheet(defaultSheet);newSheet.getRange('C1').setValue('御 請 求 書');newSheet.getRange('K2').setValue('請求書NO.');newSheet.getRange('K3').setValue('発行日');newSheet.getRange('K4').setValue('');newSheet.getRange('B7').setValue('御請求金額');newSheet.getRange('C7').setValue(0);newSheet.deleteRows(11,20);SpreadsheetApp.getUi().alert('請求書ひな形を作成しました。このIDをINVOICE_TEMPLATE_FILE_IDに設定してください: '+ss2.getId());}function nextInvoiceNo_(){var props=PropertiesService.getScriptProperties();var tz=Session.getScriptTimeZone();var today=Utilities.formatDate(new Date(),tz,'yyMMdd');var savedDate=props.getProperty('IN_DATE');var seq=1;if(savedDate===today){seq=parseInt(props.getProperty('IN_SEQ')||'0',10)+1;}props.setProperty('IN_DATE',today);props.setProperty('IN_SEQ',String(seq));return 'INV-'+today+'-'+('000'+seq).slice(-3);}function createInvoiceFromSelection(){var ui=SpreadsheetApp.getUi();if(!INVOICE_TEMPLATE_FILE_ID){ui.alert('請求書ひな形が未設定です。INVOICE_TEMPLATE_FILE_ID を設定してください。');return;}var ss=SpreadsheetApp.getActiveSpreadsheet();var sheet=ss.getActiveSheet();if(sheet.getName()!==INDEX_SHEET){ui.alert('「'+INDEX_SHEET+'」シートで、請求書を作成したい見積の行を選択してから実行してください。');return;}var row=sheet.getActiveCell().getRow();if(row<2){ui.alert('見積の行を選択してから実行してください。');return;}var data=sheet.getRange(row,1,1,8).getValues()[0];var quoteNo=data[0],client=data[2],jobName=data[3],dept=data[4],person=data[5],total=data[7];if(!quoteNo){ui.alert('この行には見積データがありません。');return;}var res=ui.alert('確認','見積NO「'+quoteNo+'」（'+client+'）から請求書を作成します。よろしいですか？',ui.ButtonSet.OK_CANCEL);if(res!==ui.Button.OK)return;try{var templateFile=DriveApp.getFileById(INVOICE_TEMPLATE_FILE_ID);var rootFolder=DriveApp.getFolderById(INVOICE_FOLDER_ID);var folder=getYearFolder_(rootFolder);var newFile=templateFile.makeCopy('請求書_'+String(client)+'_'+String(jobName),folder);var newSs=SpreadsheetApp.openById(newFile.getId());var cover=newSs.getSheetByName(INVOICE_SHEET);var invoiceNo=nextInvoiceNo_();cover.getRange('L2').setValue(invoiceNo);cover.getRange('L3').setValue(new Date());cover.getRange('B5').setValue(client);cover.getRange('C9').setValue(jobName);cover.getRange('C7').setValue(total);cover.getRange('J10').setValue(dept);cover.getRange('L10').setValue(person);copyOfficeTableAndApply_(newSs,cover);appendInvoiceListRow_(client,new Date(),jobName,total,newFile.getUrl(),quoteNo);ui.alert('請求書を作成しました。\n'+newFile.getUrl());}catch(e){ui.alert('請求書の作成に失敗しました：'+e.message);}}
-function createNewInvoice(){var ui=SpreadsheetApp.getUi();if(!INVOICE_TEMPLATE_FILE_ID){ui.alert('請求書ひな形が未設定です。INVOICE_TEMPLATE_FILE_ID を設定してください。');return;}var res=ui.prompt('新しい請求書を作成','案件名（顧客名・工事名など。ファイル名になります）を入力してください',ui.ButtonSet.OK_CANCEL);if(res.getSelectedButton()!==ui.Button.OK)return;var name=res.getResponseText();if(!name||!name.trim()){ui.alert('名前が入力されていません。');return;}var newFile;try{var templateFile=DriveApp.getFileById(INVOICE_TEMPLATE_FILE_ID);var rootFolder=DriveApp.getFolderById(INVOICE_FOLDER_ID);var folder=getYearFolder_(rootFolder);newFile=templateFile.makeCopy('請求書_'+name.trim(),folder);}catch(e){ui.alert('請求書ファイルの作成に失敗しました：'+e.message);return;}var newSs=SpreadsheetApp.openById(newFile.getId());var cover=newSs.getSheetByName(INVOICE_SHEET);if(!cover){ui.alert('作成はできましたが「'+INVOICE_SHEET+'」シートが見つかりません。ひな形ファイルの構成をご確認ください。');return;}var invoiceNo=nextInvoiceNo_();cover.getRange('L2').setValue(invoiceNo);cover.getRange('L3').setValue(new Date());copyOfficeTableAndApply_(newSs,cover);appendInvoiceListRow_('',new Date(),name.trim(),'',newFile.getUrl());ui.alert('新しい請求書ファイル「'+name.trim()+'」を作成しました。\n'+newFile.getUrl()+'\n\n宛先・工事名称・金額などは、開いたファイル内に直接入力してください。');}
+}function setupInvoiceTemplate_(){var ss2=SpreadsheetApp.create('請求書ひな形');var file2=DriveApp.getFileById(ss2.getId());var folder=DriveApp.getFolderById(INVOICE_FOLDER_ID);folder.addFile(file2);try{DriveApp.getRootFolder().removeFile(file2);}catch(e){}var templateSs=SpreadsheetApp.openById(TEMPLATE_FILE_ID);var srcCover=templateSs.getSheetByName(COVER_SHEET);var newSheet=srcCover.copyTo(ss2);newSheet.setName(INVOICE_SHEET);var defaultSheet=ss2.getSheetByName('シート1');if(defaultSheet)ss2.deleteSheet(defaultSheet);newSheet.getRange('C1').setValue('御 請 求 書');newSheet.getRange('K2').setValue('請求書NO.');newSheet.getRange('K3').setValue('発行日');newSheet.getRange('K4').setValue('');newSheet.getRange('B7').setValue('御請求金額');newSheet.getRange('C7').setValue(0);newSheet.deleteRows(11,20);SpreadsheetApp.getUi().alert('請求書ひな形を作成しました。このIDをINVOICE_TEMPLATE_FILE_IDに設定してください: '+ss2.getId());}function nextInvoiceNo_(){var props=PropertiesService.getScriptProperties();var tz=Session.getScriptTimeZone();var today=Utilities.formatDate(new Date(),tz,'yyMMdd');var savedDate=props.getProperty('IN_DATE');var seq=1;if(savedDate===today){seq=parseInt(props.getProperty('IN_SEQ')||'0',10)+1;}props.setProperty('IN_DATE',today);props.setProperty('IN_SEQ',String(seq));return 'INV-'+today+'-'+('000'+seq).slice(-3);}function createInvoiceFromSelection(){var ui=SpreadsheetApp.getUi();if(!INVOICE_TEMPLATE_FILE_ID){ui.alert('請求書ひな形が未設定です。INVOICE_TEMPLATE_FILE_ID を設定してください。');return;}var ss=SpreadsheetApp.getActiveSpreadsheet();var sheet=ss.getActiveSheet();if(sheet.getName()!==INDEX_SHEET){ui.alert('「'+INDEX_SHEET+'」シートで、請求書を作成したい見積の行を選択してから実行してください。');return;}var row=sheet.getActiveCell().getRow();if(row<2){ui.alert('見積の行を選択してから実行してください。');return;}var data=sheet.getRange(row,1,1,8).getValues()[0];var quoteNo=data[0],client=data[2],jobName=data[3],dept=data[4],person=data[5],total=data[7];if(!quoteNo){ui.alert('この行には見積データがありません。');return;}var res=ui.alert('確認','見積NO「'+quoteNo+'」（'+client+'）から請求書を作成します。よろしいですか？',ui.ButtonSet.OK_CANCEL);if(res!==ui.Button.OK)return;try{var templateFile=DriveApp.getFileById(INVOICE_TEMPLATE_FILE_ID);var rootFolder=DriveApp.getFolderById(INVOICE_FOLDER_ID);var folder=getYearFolder_(rootFolder);var newFile=templateFile.makeCopy('請求書_'+String(client)+'_'+String(jobName),folder);var newSs=SpreadsheetApp.openById(newFile.getId());var cover=newSs.getSheetByName(INVOICE_SHEET);var invoiceNo=nextInvoiceNo_();cover.getRange('L2').setValue(invoiceNo);cover.getRange('L3').setValue(new Date());cover.getRange('B5').setValue(client);cover.getRange('C9').setValue(jobName);cover.getRange('C7').setValue(total);cover.getRange('J10').setValue(dept);cover.getRange('L10').setValue(person);appendInvoiceListRow_(client,new Date(),jobName,total,newFile.getUrl(),quoteNo);ui.alert('請求書を作成しました。\n'+newFile.getUrl());}catch(e){ui.alert('請求書の作成に失敗しました：'+e.message);}}
+function createNewInvoice(){var ui=SpreadsheetApp.getUi();if(!INVOICE_TEMPLATE_FILE_ID){ui.alert('請求書ひな形が未設定です。INVOICE_TEMPLATE_FILE_ID を設定してください。');return;}var res=ui.prompt('新しい請求書を作成','案件名（顧客名・工事名など。ファイル名になります）を入力してください',ui.ButtonSet.OK_CANCEL);if(res.getSelectedButton()!==ui.Button.OK)return;var name=res.getResponseText();if(!name||!name.trim()){ui.alert('名前が入力されていません。');return;}var newFile;try{var templateFile=DriveApp.getFileById(INVOICE_TEMPLATE_FILE_ID);var rootFolder=DriveApp.getFolderById(INVOICE_FOLDER_ID);var folder=getYearFolder_(rootFolder);newFile=templateFile.makeCopy('請求書_'+name.trim(),folder);}catch(e){ui.alert('請求書ファイルの作成に失敗しました：'+e.message);return;}var newSs=SpreadsheetApp.openById(newFile.getId());var cover=newSs.getSheetByName(INVOICE_SHEET);if(!cover){ui.alert('作成はできましたが「'+INVOICE_SHEET+'」シートが見つかりません。ひな形ファイルの構成をご確認ください。');return;}var invoiceNo=nextInvoiceNo_();cover.getRange('L2').setValue(invoiceNo);cover.getRange('L3').setValue(new Date());appendInvoiceListRow_('',new Date(),name.trim(),'',newFile.getUrl());ui.alert('新しい請求書ファイル「'+name.trim()+'」を作成しました。\n'+newFile.getUrl()+'\n\n宛先・工事名称・金額などは、開いたファイル内に直接入力してください。');}
 const MOTHER_SS_ID='18XrMR3ZdcuvpS-dmkvF_LArDsOWaUHrF2IK6P8SHb-w';
 function doGet(e){return HtmlService.createTemplateFromFile('Portal').evaluate().setTitle('見積・請求ポータル').addMetaTag('viewport','width=device-width, initial-scale=1');}
 
@@ -911,7 +911,7 @@ function usageSheetLines_(){
     '②-2 所在地（本社／大阪営業所）',
     '　見積ファイルの担当部署で「大阪営業所」を選ぶと、表紙の所在地・電話番号などが大阪営業所のものに自動で切り替わります。',
     '　それ以外の部署はすべて本社です。住所や電話番号を変えるときは、このファイルの「所在地設定」シートを直してください',
-    '　（以後に作る見積・請求書に反映されます）。シートが無いときは「見積書メーカー」→「所在地設定シートを作る（初回のみ）」。',
+    '　（以後に作る見積に反映されます。請求書は常に本社です）。シートが無いときは「見積書メーカー」→「所在地設定シートを作る（初回のみ）」。',
     '',
     '③ 過去の見積を探す',
     '　下の「見積一覧」シートで宛先や工事名を並べ替え・フィルタして探し、その行の「開く」リンクを押します。',
@@ -1038,7 +1038,7 @@ function createQuoteWeb(name){
   idx.getRange(row,8).setValue(newCover.getRange('C7').getValue());
   return{success:true,url:newFile.getUrl(),message:'新しい見積ファイル「'+fileName+'」を作成しました。'};
 }
-function createInvoiceWeb(name){if(!name||!name.trim())return{success:false,message:'名前が入力されていません。'};if(!INVOICE_TEMPLATE_FILE_ID)return{success:false,message:'請求書ひな形が未設定です。'};var newFile;try{var templateFile=DriveApp.getFileById(INVOICE_TEMPLATE_FILE_ID);var rootFolder=DriveApp.getFolderById(INVOICE_FOLDER_ID);var folder=getYearFolder_(rootFolder);newFile=templateFile.makeCopy('請求書_'+name.trim(),folder);}catch(e){return{success:false,message:'請求書ファイルの作成に失敗しました：'+e.message};}var newSs=SpreadsheetApp.openById(newFile.getId());var cover=newSs.getSheetByName(INVOICE_SHEET);if(!cover)return{success:false,message:'作成はできましたが「'+INVOICE_SHEET+'」シートが見つかりません。'};var invoiceNo=nextInvoiceNo_();cover.getRange('L2').setValue(invoiceNo);cover.getRange('L3').setValue(new Date());copyOfficeTableAndApply_(newSs,cover);appendInvoiceListRow_('',new Date(),name.trim(),'',newFile.getUrl());return{success:true,url:newFile.getUrl(),message:'新しい請求書ファイル「'+name.trim()+'」を作成しました。'};}
+function createInvoiceWeb(name){if(!name||!name.trim())return{success:false,message:'名前が入力されていません。'};if(!INVOICE_TEMPLATE_FILE_ID)return{success:false,message:'請求書ひな形が未設定です。'};var newFile;try{var templateFile=DriveApp.getFileById(INVOICE_TEMPLATE_FILE_ID);var rootFolder=DriveApp.getFolderById(INVOICE_FOLDER_ID);var folder=getYearFolder_(rootFolder);newFile=templateFile.makeCopy('請求書_'+name.trim(),folder);}catch(e){return{success:false,message:'請求書ファイルの作成に失敗しました：'+e.message};}var newSs=SpreadsheetApp.openById(newFile.getId());var cover=newSs.getSheetByName(INVOICE_SHEET);if(!cover)return{success:false,message:'作成はできましたが「'+INVOICE_SHEET+'」シートが見つかりません。'};var invoiceNo=nextInvoiceNo_();cover.getRange('L2').setValue(invoiceNo);cover.getRange('L3').setValue(new Date());appendInvoiceListRow_('',new Date(),name.trim(),'',newFile.getUrl());return{success:true,url:newFile.getUrl(),message:'新しい請求書ファイル「'+name.trim()+'」を作成しました。'};}
 
 function createInvoiceFromQuoteWeb(q){
   if(!q||!q.client||!q.jobName){
@@ -1069,7 +1069,6 @@ function createInvoiceFromQuoteWeb(q){
   cover.getRange('C7').setValue(q.total);
   cover.getRange('J10').setValue(q.dept);
   cover.getRange('L10').setValue(q.person);
-  copyOfficeTableAndApply_(newSs,cover);
   appendInvoiceListRow_(q.client,new Date(),q.jobName,q.total,newFile.getUrl(),q.no);
   return{success:true,url:newFile.getUrl(),message:'見積NO「'+q.no+'」('+q.client+')から請求書を作成しました。'};
 }
@@ -1129,7 +1128,6 @@ function createBundledInvoiceWeb(items,label){
   cover.getRange('C9').setValue(fileLabel);
   cover.getRange('J10').setValue(items[0].dept||'');
   cover.getRange('L10').setValue(items[0].person||'');
-  copyOfficeTableAndApply_(newSs,cover);
   var tz=Session.getScriptTimeZone();
   for(var k=0;k<items.length;k++){
     var row=12+k;
@@ -1171,7 +1169,6 @@ function createBlankInvoiceWeb(){
   var invoiceNo=nextInvoiceNo_();
   cover.getRange('L2').setValue(invoiceNo);
   cover.getRange('L3').setValue(new Date());
-  copyOfficeTableAndApply_(newSs,cover);
   appendInvoiceListRow_('',new Date(),name,'',newFile.getUrl());
   return{success:true,url:newFile.getUrl(),message:'新しい請求書ファイルを作成しました。'};
 }
@@ -1261,7 +1258,8 @@ function uploadManualPdf_(base64Data){
 // どのセルに何を入れるかは、母艦の「所在地設定」シートで決める（コードを直さずに住所・電話番号を変えられるように）。
 //   A列=表紙のセル番地（結合セルは左上のセル）／B列=本社／C列=大阪営業所（C列より右に拠点を足すこともできる）
 //   1行目の見出し（「大阪営業所」など）と担当部署の名前が一致したらその列、一致しなければ本社(B列)を使う。
-// 母艦の表は、見積・請求書を作るたびにそのファイルの「所在地設定」シート（非表示）へ写す。
+// 請求書は担当部署に関係なく本社扱い（ひな形の所在地のまま）なので、切り替えるのは見積だけ。
+// 母艦の表は、見積を作る・複製するたびにそのファイルの「所在地設定」シート（非表示）へ写す。
 // 見積ファイル側は、担当部署を選び直したときに onEdit でその写しから表紙を書き換える（見積ファイル側_コード.gs）。
 const OFFICE_SHEET = '所在地設定';
 const OFFICE_DEPT_CELL = 'J10';
@@ -1309,8 +1307,8 @@ function applyOfficeAddress_(cover,table){
   return normalizeOfficeName_(table[0][col])||OFFICE_DEFAULT;
 }
 
-// 新しく作った見積・請求書ファイルへ、母艦の所在地設定を写して表紙に反映する。
-// 失敗しても見積・請求書の作成そのものは止めない（従来どおりひな形の所在地のまま）。
+// 新しく作った見積ファイルへ、母艦の所在地設定を写して表紙に反映する。
+// 失敗しても見積の作成そのものは止めない（従来どおりひな形の所在地のまま）。
 function copyOfficeTableAndApply_(newSs,cover){
   try{
     var table=readOfficeTable_(SpreadsheetApp.openById(MOTHER_SS_ID).getSheetByName(OFFICE_SHEET));
@@ -1374,7 +1372,7 @@ function setupOfficeSheet(){
     ['・A列に、見積書の表紙で所在地などが入っているセル番地（例：J5）を書きます。結合セルは左上のセルです。'],
     ['・B列に本社、C列に大阪営業所の内容を書きます（その行のセルにそのまま入ります。空欄なら空欄になります）。'],
     ['・表紙の担当部署が「大阪営業所」なら大阪営業所の列、それ以外の部署はすべて本社の列が使われます。'],
-    ['・ここを直すと、以後に作る見積・請求書に反映されます（作成済みのファイルは、そのファイルの'],
+    ['・ここを直すと、以後に作る見積に反映されます（請求書は常に本社のままです。作成済みの見積は、そのファイルの'],
     ['　メニュー「見積機能」→「所在地を担当部署に合わせる」を押すと最新の内容になります）。']
   ];
   sheet.getRange(1,5,notes.length,1).setValues(notes);
