@@ -121,6 +121,8 @@ textarea{min-height:60px;resize:vertical;line-height:1.5}
 .chat-msg{margin-bottom:12px;max-width:80%}
 .chat-msg-author{font-size:11px;color:#6b7280;margin-bottom:2px;font-weight:600}
 .chat-msg-bubble{background:#fff;padding:8px 12px;border-radius:12px;font-size:13px;line-height:1.5;color:#1a1a1a;white-space:pre-wrap;word-break:break-word;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.chat-link{color:#0369a1;text-decoration:underline}
+.chat-msg-mine .chat-link{color:#fff}
 .chat-msg-time{font-size:10px;color:#9ca3af;margin-top:2px}
 .chat-msg-mine{margin-left:auto}
 .chat-msg-mine .chat-msg-author{text-align:right}
@@ -364,6 +366,15 @@ function esc(s){
   return String(s||'')
     .replace(/&/g,'&amp;').replace(/</g,'&lt;')
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// チャット本文: URLをタップできるリンクにする(URL以外は従来どおりエスケープ)
+function linkifyChat(s){
+  return String(s||'').split(/(https?:\/\/[^\s<>"'　]+)/).map((part, i) => {
+    if(i % 2 === 0) return esc(part);
+    const m = part.match(/^(.*?)([.,、。)）\]]*)$/);
+    return '<a href="' + esc(m[1]) + '" target="_blank" rel="noopener noreferrer" class="chat-link">' + esc(m[1]) + '</a>' + esc(m[2]);
+  }).join('');
 }
 
 function uid(){ return 'id' + Date.now() + Math.random().toString(36).slice(2,6); }
@@ -876,7 +887,7 @@ function renderChatMessages(messages){
   body.innerHTML = messages.map(m => `
     <div class="chat-msg ${m.author === chatAuthorName ? 'chat-msg-mine' : ''}">
       <div class="chat-msg-author">${esc(m.author)}</div>
-      <div class="chat-msg-bubble">${esc(m.message)}</div>
+      <div class="chat-msg-bubble">${linkifyChat(m.message)}</div>
       <div class="chat-msg-time">${formatChatTime(m.time)}</div>
     </div>
   `).join('');
