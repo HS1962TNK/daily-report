@@ -994,21 +994,24 @@ function closePhotoZoom(){
 let scSite='';
 let scData=null;      // getScheduleの応答
 let scEdits={};       // 日付 → 'A'|'B'|''(写しと違う日だけ)
+let scCounts={};      // 日付 → 人数(写しと違う人数にした日だけ。2026-10-19追加)
+let scMode='mark';    // 'mark'=赤・緑を変える / 'count'=人数を変える
 let scReq=0;
 const SC_LABEL={A:'赤',B:'緑','':'なし'};
+const scHas=(o,d)=>Object.prototype.hasOwnProperty.call(o,d);
 
 function openSchedule(){
   const site=$('f-site').value.trim();
   if(!site){ toast('⚠️ 先に現場を選択してください'); return; }
   scSite=site;
-  scEdits={};
+  scEdits={}; scCounts={}; scMode='mark';
   $('sc-site').textContent=site;
   $('sc-modal').classList.add('show');
   loadSchedule();
 }
 function closeSchedule(){
-  if(Object.keys(scEdits).length && !confirm('送っていない変更があります。閉じると変更は消えます。閉じますか？')) return;
-  scEdits={};
+  if(scChangedDates().length && !confirm('送っていない変更があります。閉じると変更は消えます。閉じますか？')) return;
+  scEdits={}; scCounts={};
   $('sc-modal').classList.remove('show');
 }
 async function loadSchedule(){
@@ -1020,33 +1023,57 @@ async function loadSchedule(){
     if(req!==scReq) return;
     if(j.status!=='ok') throw new Error(j.message||'error');
     scData=j;
+    scData.counts=scData.counts||{};
     // 送る前に取り直した場合、写しと同じになった日は変更から外す
     Object.keys(scEdits).forEach(d=>{ if((scData.marks[d]||'')===scEdits[d]) delete scEdits[d]; });
+    Object.keys(scCounts).forEach(d=>{ if(!scMark(d)||scData.counts[d]===scCounts[d]) delete scCounts[d]; });
     renderSchedule();
   }catch(e){
     if(req!==scReq) return;
     $('sc-body').innerHTML='<div class="pv-empty">読み込みに失敗しました<br>電波の良い場所で🔄を押してもう一度お試しください</div>';
   }
 }
-function scMark(d){ return Object.prototype.hasOwnProperty.call(scEdits,d) ? scEdits[d] : (scData.marks[d]||''); }
+function scMark(d){ return scHas(scEdits,d) ? scEdits[d] : (scData.marks[d]||''); }
+function scIsAdded(d){ return !scData.marks[d] && !!scMark(d); }
+// 表示する人数: 人数を変えた日はその人数、足した日は個別の人数か下の「追加した日の人数」、それ以外は写しの人数
+function scCountOf(d){
+  if(!scMark(d)) return undefined;
+  if(scHas(scCounts,d)) return scCounts[d];
+  if(scIsAdded(d)){ const v=Math.round(Number(($('sc-count')||{}).value)); return v>=1?v:undefined; }
+  return scData.counts[d];
+}
+function scChangedDates(){ return Array.from(new Set(Object.keys(scEdits).concat(Object.keys(scCounts)))).sort(); }
 function scBCount(d){ return (scData.othersB[d]||0)+(scMark(d)==='B'?1:0); }
 function scGreenFull(d){ return scData.machines>0 && (scData.othersB[d]||0)>=scData.machines; }   // 他の現場で緑が台数分使われている日
 // 日を足すときの人数の初期値: 足した日にいちばん近い日の人数(無ければ空)
 function scDefaultCount(){
-  const added=Object.keys(scEdits).filter(d=>!scData.marks[d]&&scEdits[d]);
-  const known=Object.keys(scData.counts||{});
+  const added=Object.keys(scEdits).filter(scIsAdded);
+  const known=Object.keys(scData.counts);
   if(!added.length||!known.length) return '';
   const t=new Date(added[0]).getTime();
   known.sort((a,b)=>Math.abs(new Date(a)-t)-Math.abs(new Date(b)-t));
   return String(scData.counts[known[0]]);
 }
-function scHasAdded(){ return Object.keys(scEdits).some(d=>!scData.marks[d]&&scEdits[d]); }
+// 「追加した日の人数」欄が要るか(足した日のうち、個別に人数を入れていない日がある)
+function scNeedsBulkCount(){ return Object.keys(scEdits).some(d=>scIsAdded(d)&&!scHas(scCounts,d)); }
 function scDateLabel(d){
   const t=new Date(d+'T00:00:00');
   return (t.getMonth()+1)+'/'+t.getDate()+'('+['日','月','火','水','木','金','土'][t.getDay()]+')';
 }
+function setScheduleMode(m){ scMode=m; renderSchedule(); }
 function tapScheduleDay(d){
   if(d<scData.today) return;
+  if(scMode==='count'){
+    if(!scMark(d)){ toast('⚠️ 人数は赤か緑の日に入れます。先に「赤・緑を変える」で日を足してください'); return; }
+    const cur=scCountOf(d);
+    const v=prompt(scDateLabel(d)+'の人数（1〜99）', cur===undefined?'':String(cur));
+    if(v===null) return;
+    const n=Math.round(Number(v));
+    if(!(n>=1&&n<=99)){ toast('⚠️ 人数は1〜99で入れてください'); return; }
+    if(!scIsAdded(d) && scData.counts[d]===n) delete scCounts[d]; else scCounts[d]=n;
+    renderSchedule();
+    return;
+  }
   const cur=scMark(d);
   let next=cur===''?'A':(cur==='A'?'B':'');   // 掲示板用工程表のクリックと同じ順(なし→赤→緑→なし)
   if(next==='B' && (scData.marks[d]||'')!=='B' && scGreenFull(d)){
@@ -1054,6 +1081,7 @@ function tapScheduleDay(d){
     toast('⚠️ '+scDateLabel(d)+'は緑(機械)が'+scData.machines+'台とも使われています');
   }
   if(next===(scData.marks[d]||'')) delete scEdits[d]; else scEdits[d]=next;
+  if(!next) delete scCounts[d];   // 外した日の人数は消える
   renderSchedule();
 }
 function scMonthHtml(ym){
@@ -1070,20 +1098,28 @@ function scMonthHtml(ym){
     if(mk) cls.push(mk);
     if(d<scData.today) cls.push('past');
     if(new Date(y,m-1,day).getDay()===0) cls.push('sun');
-    if(Object.prototype.hasOwnProperty.call(scEdits,d)) cls.push('chg');
+    if(scHas(scEdits,d)||scHas(scCounts,d)) cls.push('chg');
+    const cnt=scCountOf(d);
     let sub='';
-    if(mk==='B' && scData.machines>0) sub=`<span class="sc-cnt">緑${scBCount(d)}/${scData.machines}</span>`;
-    else if(mk && !Object.prototype.hasOwnProperty.call(scEdits,d) && scData.counts && scData.counts[d]!==undefined) sub=`<span class="sc-cnt">${scData.counts[d]}人</span>`;
+    if(cnt!==undefined) sub+=`<span class="sc-cnt">${cnt}人</span>`;
+    if(mk==='B' && scData.machines>0) sub+=`<span class="sc-cnt">緑${scBCount(d)}/${scData.machines}</span>`;
     h+=`<button type="button" class="${cls.join(' ')}" onclick="tapScheduleDay('${d}')">${day}${sub}</button>`;
   }
   return h+'</div>';
 }
 function scReqHtml(r){
   const st={'未反映':['st-wait','反映待ち'],'反映済':['st-done','反映済み'],'却下':['st-ng','反映できず'],'取消':['st-cancel','取消']}[r.state]||['st-cancel',r.state];
-  const ch=r.changes.map(c=>scDateLabel(c.date)+' '+SC_LABEL[c.from]+'→'+SC_LABEL[c.to]+(c.count?'('+c.count+'人)':'')).join('、');
+  const ch=r.changes.map(c=>scDateLabel(c.date)+' '+(c.from===c.to?SC_LABEL[c.to]:SC_LABEL[c.from]+'→'+SC_LABEL[c.to])+(c.count?'('+(c.from&&c.prevCount?c.prevCount+'→':'')+c.count+'人)':'')).join('、');
   return `<div class="sc-req">${r.state==='未反映'?`<button onclick="cancelScheduleReq('${esc(r.id)}')">取り消す</button>`:''}
     <span class="st ${st[0]}">${st[1]}</span>${esc(r.receivedAt)}　${esc(r.requester)}<br>${esc(ch)}
     ${r.note?'<br>メモ: '+esc(r.note):''}${r.resolveMemo?'<br>'+(r.state==='却下'?'理由: ':'')+esc(r.resolveMemo):''}</div>`;
+}
+function scChangeLine(d){
+  const j=scData, from=j.marks[d]||'', to=scMark(d);
+  let s=scDateLabel(d)+'　';
+  s+= from===to ? SC_LABEL[to] : `${SC_LABEL[from]} → <b>${SC_LABEL[to]}</b>${!from?'（追加）':(!to?'（外す）':'')}`;
+  if(to && scHas(scCounts,d)) s+=`　人数 ${from&&j.counts[d]!==undefined?j.counts[d]+'人 → ':''}<b>${scCounts[d]}人</b>`;
+  return s;
 }
 function renderSchedule(){
   const j=scData;
@@ -1092,22 +1128,23 @@ function renderSchedule(){
     return;
   }
   const pending=j.requests.filter(r=>r.state==='未反映').length;
-  const changes=Object.keys(scEdits).sort();
-  let h=`<div class="sc-info">掲示板の工程表（${esc(j.syncedAt)} 時点）です。日をタップすると <b>なし→赤→緑→なし</b> の順に変わります。変えたら下の「変更を依頼する」を押してください。会社のPCが<b>10分ほどで</b>掲示板の工程表と工事予定表に反映します。</div>`;
+  const changes=scChangedDates();
+  let h=`<div class="sc-info">掲示板の工程表（${esc(j.syncedAt)} 時点）です。変えたら下の「変更を依頼する」を押してください。会社のPCが<b>10分ほどで</b>掲示板の工程表と工事予定表に反映します。</div>`;
   if(!j.onBoard) h+='<div class="sc-list">この現場はまだ掲示板の工程表に載っていません。日をタップして依頼すると、空いている枠に追加されます。</div>';
   if(pending) h+=`<div class="sc-list">⏳ 反映待ちの依頼が${pending}件あります（下の「この現場の依頼」）。</div>`;
+  const mc=(m,l)=>`<button type="button" class="pv-chip${scMode===m?' active':''}" onclick="setScheduleMode('${m}')">${l}</button>`;
+  h+=`<div class="pv-bar">${mc('mark','🟥🟩 赤・緑・日を変える')}${mc('count','👷 人数を変える')}</div>`;
+  h+= scMode==='count'
+    ? '<div class="sc-info">赤か緑の日をタップすると、その日の人数を入れられます。</div>'
+    : '<div class="sc-info">日をタップすると <b>なし→赤→緑→なし</b> の順に変わります。</div>';
   h+=`<div class="sc-legend"><span><i style="background:#e53935"></i>赤</span><span><i style="background:#43a047"></i>緑（機械）</span><span><i style="box-shadow:0 0 0 2.5px #f39c12 inset;background:#fff"></i>変更した日</span>${j.machines>0?`<span>緑の日は「全現場の緑/機械${j.machines}台」</span>`:''}</div>`;
   h+=scMonthHtml(j.leftYM)+scMonthHtml(j.rightYM);
   h+='<div class="sec-title" style="margin-top:14px">変更の内容</div>';
-  if(changes.length){
-    h+='<div class="sc-list">'+changes.map(d=>`${scDateLabel(d)}　${SC_LABEL[j.marks[d]||'']} → <b>${SC_LABEL[scEdits[d]]}</b>${!j.marks[d]?'（追加）':(!scEdits[d]?'（外す）':'')}`).join('<br>')+'</div>';
-  } else {
-    h+='<div class="sc-info">まだ変更はありません。</div>';
-  }
+  h+= changes.length ? '<div class="sc-list">'+changes.map(scChangeLine).join('<br>')+'</div>' : '<div class="sc-info">まだ変更はありません。</div>';
   const rep=($('sc-requester')&&$('sc-requester').value.trim())||$('f-rep').value.trim()||(()=>{try{return localStorage.getItem('sc-requester')||'';}catch(e){return '';}})();
-  if(scHasAdded()){
+  if(scNeedsBulkCount()){
     const cnt=($('sc-count')&&$('sc-count').value)||scDefaultCount();
-    h+=`<div class="fl"><label>追加した日の人数（工事予定表に入ります）</label><input type="number" id="sc-count" min="1" max="99" placeholder="人数" value="${esc(cnt)}"></div>`;
+    h+=`<div class="fl"><label>追加した日の人数（工事予定表に入ります。日ごとに変えるときは「人数を変える」）</label><input type="number" id="sc-count" min="1" max="99" placeholder="人数" value="${esc(cnt)}" onchange="renderSchedule()"></div>`;
   }
   h+=`<div class="fl"><label>依頼者</label><input type="text" id="sc-requester" placeholder="氏名" value="${esc(rep)}"></div>
     <div class="fl"><label>メモ（理由など・任意）</label><textarea id="sc-note" style="min-height:52px" placeholder="例：雨で1日ずれたため"></textarea></div>
@@ -1115,19 +1152,25 @@ function renderSchedule(){
   h+='<div class="sec-title" style="margin-top:16px">この現場の依頼（新しい順）</div>';
   h+=j.requests.length?j.requests.map(scReqHtml).join(''):'<div class="sc-info">依頼はまだありません。</div>';
   const keepNote=$('sc-note')?$('sc-note').value:'';
+  const scrollTop=$('sc-body').scrollTop;
   $('sc-body').innerHTML=h;
+  $('sc-body').scrollTop=scrollTop;
   if(keepNote) $('sc-note').value=keepNote;
 }
 async function sendScheduleRequest(){
-  let count=0;
-  if(scHasAdded()){
-    count=Math.round(Number($('sc-count').value));
-    if(!(count>=1&&count<=99)){ toast('⚠️ 追加した日の人数を入れてください'); return; }
+  let bulk=0;
+  if(scNeedsBulkCount()){
+    bulk=Math.round(Number($('sc-count').value));
+    if(!(bulk>=1&&bulk<=99)){ toast('⚠️ 追加した日の人数を入れてください'); return; }
   }
-  const changes=Object.keys(scEdits).sort().map(d=>{
-    const from=scData.marks[d]||'', to=scEdits[d];
-    return {date:d,from,to,count:(!from&&to)?count:0};
-  });
+  const changes=scChangedDates().map(d=>{
+    const from=scData.marks[d]||'', to=scMark(d);
+    let count=0, prevCount=0;
+    if(to && scHas(scCounts,d)) count=scCounts[d];
+    else if(!from && to) count=bulk;
+    if(from && count) prevCount=scData.counts[d]||0;   // 依頼したときに見ていた人数(反映時の食い違いチェック用)
+    return {date:d,from,to,count,prevCount};
+  }).filter(c=>c.from!==c.to||c.count);
   if(!changes.length) return;
   const requester=$('sc-requester').value.trim();
   if(!requester){ toast('⚠️ 依頼者の名前を入れてください'); return; }
@@ -1138,7 +1181,7 @@ async function sendScheduleRequest(){
     const res=await fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'requestScheduleChange',site:scSite,requester,note:$('sc-note').value.trim(),changes,baseSyncedAt:scData.syncedAt})});
     const j=await res.json();
     if(j.status!=='ok'){ toast('⚠️ '+(j.message||'送信できませんでした')); btn.disabled=false; btn.textContent='📤 変更を依頼する'; return; }
-    scEdits={};
+    scEdits={}; scCounts={};
     $('sc-note').value='';
     toast('✅ 変更を依頼しました。10分ほどで工程表に反映されます');
     loadSchedule();
