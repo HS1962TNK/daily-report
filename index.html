@@ -108,7 +108,7 @@ input[type=range]{width:100%;accent-color:#185FA5}
 .sc-req .st{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:5px;margin-right:4px}
 .st-wait{background:#fff3cd;color:#8a5a00}.st-done{background:#E6F4EC;color:#1a7a3e}.st-ng{background:#FEE;color:#c0392b}.st-cancel{background:#eee;color:#777}
 .sc-req button{float:right;font-size:11px;padding:3px 8px;border:1px solid #ddd;border-radius:6px;background:#fff;color:#777;cursor:pointer;font-family:inherit}
-.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#2c2c2a;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
+.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#2c2c2a;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;width:max-content;max-width:calc(100vw - 32px);box-sizing:border-box;text-align:center}
 .toast.show{opacity:1}
 .xl-section{background:#fff;border-radius:12px;margin:10px;padding:14px 15px}
 .xl-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f0f0f0}
@@ -463,9 +463,10 @@ function updatePhotoLabel(id,val){const p=photos.find(x=>x.id===id);if(p)p.label
 
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
 
-function toast(msg){
+function toast(msg,ms){
   const t=$('toast');t.textContent=msg;t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'),2800);
+  clearTimeout(toast.timer);
+  toast.timer=setTimeout(()=>t.classList.remove('show'),ms||2800);
 }
 
 // GASへPOSTし、実際のJSONレスポンス({status:'ok'|'error',...})を読んで返す。
@@ -996,6 +997,7 @@ let scData=null;      // getScheduleの応答
 let scEdits={};       // 日付 → 'A'|'B'|''(写しと違う日だけ)
 let scCounts={};      // 日付 → 人数(写しと違う人数にした日だけ。2026-10-19追加)
 let scMode='mark';    // 'mark'=赤・緑を変える / 'count'=人数を変える
+let scCountHint=false; // 「人数を変える」の案内を出したか(画面を開くごとに1回)
 let scReq=0;
 const SC_LABEL={A:'赤',B:'緑','':'なし'};
 const scHas=(o,d)=>Object.prototype.hasOwnProperty.call(o,d);
@@ -1004,7 +1006,7 @@ function openSchedule(){
   const site=$('f-site').value.trim();
   if(!site){ toast('⚠️ 先に現場を選択してください'); return; }
   scSite=site;
-  scEdits={}; scCounts={}; scMode='mark';
+  scEdits={}; scCounts={}; scMode='mark'; scCountHint=false;
   $('sc-site').textContent=site;
   $('sc-modal').classList.add('show');
   loadSchedule();
@@ -1079,6 +1081,10 @@ function tapScheduleDay(d){
   if(next==='B' && (scData.marks[d]||'')!=='B' && scGreenFull(d)){
     next='';
     toast('⚠️ '+scDateLabel(d)+'は緑(機械)が'+scData.machines+'台とも使われています');
+  } else if(cur && !scCountHint){
+    // 赤・緑の日をタップした人は人数を変えたいこともあるので、切り替えボタンを1回だけ案内する
+    scCountHint=true;
+    toast('💡 人数を変えるときは、上の「👷 人数を変える」を押してから日をタップしてください',5000);
   }
   if(next===(scData.marks[d]||'')) delete scEdits[d]; else scEdits[d]=next;
   if(!next) delete scCounts[d];   // 外した日の人数は消える
