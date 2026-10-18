@@ -102,7 +102,6 @@ input[type=range]{width:100%;accent-color:#185FA5}
 .sc-day.past.B{background:#a9d4ab;border-color:#a9d4ab}
 .sc-day.chg{box-shadow:0 0 0 2.5px #f39c12 inset}
 .sc-day .sc-cnt{display:block;font-size:9px;line-height:1.2;margin-top:2px}
-.sc-day .sc-over{display:block;font-size:9px;font-weight:700;background:#fff3cd;color:#8a5a00;border-radius:3px;margin:2px 1px 0}
 .sc-empty{visibility:hidden}
 .sc-list{font-size:13px;line-height:1.7;margin:6px 0 10px;padding:8px 10px;background:#fffaf0;border:1px solid #f5d9a8;border-radius:8px}
 .sc-req{border:1px solid #eee;border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12px;line-height:1.6}
@@ -988,9 +987,10 @@ function closePhotoZoom(){
 //  工程を見る・変更を依頼(掲示板用工程表の赤(A)/緑(B))
 // ══════════════════════════════════════════
 // 掲示板用工程表.xlsm はスマホから直接書き換えられないため、ここでは「変更依頼」を送るだけ。
-// 事務所が掲示板用工程表の「スマホの変更を取込」ボタンで確認して反映する(反映後に同期すると
-// 現場情報・作業員配置表の工期にもつながる)。表示している工程は、掲示板用工程表で最後に
-// 「同期」を押した時点の写し。
+// 会社PCのタスクスケジューラで動く「スマホ工程反映.ps1」が数分おきに依頼を取りに来て、
+// 掲示板用工程表と工事予定表.xlsm(人数)に自動で反映し、現場マスターの工期も更新する。
+// 表示している工程は、反映スクリプトが最後に読み込んだ掲示板用工程表の写し。
+// 緑(機械)は台数が限られているので、台数分使われている日は緑を選べないようにしている(GAS側でも拒否)。
 let scSite='';
 let scData=null;      // getScheduleの応答
 let scEdits={};       // 日付 → 'A'|'B'|''(写しと違う日だけ)
@@ -1030,7 +1030,17 @@ async function loadSchedule(){
 }
 function scMark(d){ return Object.prototype.hasOwnProperty.call(scEdits,d) ? scEdits[d] : (scData.marks[d]||''); }
 function scBCount(d){ return (scData.othersB[d]||0)+(scMark(d)==='B'?1:0); }
-function scOver(d){ return scData.machines>0 && scMark(d)==='B' && scBCount(d)>scData.machines; }
+function scGreenFull(d){ return scData.machines>0 && (scData.othersB[d]||0)>=scData.machines; }   // 他の現場で緑が台数分使われている日
+// 日を足すときの人数の初期値: 足した日にいちばん近い日の人数(無ければ空)
+function scDefaultCount(){
+  const added=Object.keys(scEdits).filter(d=>!scData.marks[d]&&scEdits[d]);
+  const known=Object.keys(scData.counts||{});
+  if(!added.length||!known.length) return '';
+  const t=new Date(added[0]).getTime();
+  known.sort((a,b)=>Math.abs(new Date(a)-t)-Math.abs(new Date(b)-t));
+  return String(scData.counts[known[0]]);
+}
+function scHasAdded(){ return Object.keys(scEdits).some(d=>!scData.marks[d]&&scEdits[d]); }
 function scDateLabel(d){
   const t=new Date(d+'T00:00:00');
   return (t.getMonth()+1)+'/'+t.getDate()+'('+['日','月','火','水','木','金','土'][t.getDay()]+')';
@@ -1038,7 +1048,11 @@ function scDateLabel(d){
 function tapScheduleDay(d){
   if(d<scData.today) return;
   const cur=scMark(d);
-  const next=cur===''?'A':(cur==='A'?'B':'');   // 掲示板用工程表のクリックと同じ順(なし→赤→緑→なし)
+  let next=cur===''?'A':(cur==='A'?'B':'');   // 掲示板用工程表のクリックと同じ順(なし→赤→緑→なし)
+  if(next==='B' && (scData.marks[d]||'')!=='B' && scGreenFull(d)){
+    next='';
+    toast('⚠️ '+scDateLabel(d)+'は緑(機械)が'+scData.machines+'台とも使われています');
+  }
   if(next===(scData.marks[d]||'')) delete scEdits[d]; else scEdits[d]=next;
   renderSchedule();
 }
@@ -1058,41 +1072,43 @@ function scMonthHtml(ym){
     if(new Date(y,m-1,day).getDay()===0) cls.push('sun');
     if(Object.prototype.hasOwnProperty.call(scEdits,d)) cls.push('chg');
     let sub='';
-    if(scOver(d)) sub=`<span class="sc-over">緑${scBCount(d)}/${scData.machines}台</span>`;
-    else if(mk==='B' && scData.machines>0) sub=`<span class="sc-cnt">緑${scBCount(d)}/${scData.machines}</span>`;
+    if(mk==='B' && scData.machines>0) sub=`<span class="sc-cnt">緑${scBCount(d)}/${scData.machines}</span>`;
+    else if(mk && !Object.prototype.hasOwnProperty.call(scEdits,d) && scData.counts && scData.counts[d]!==undefined) sub=`<span class="sc-cnt">${scData.counts[d]}人</span>`;
     h+=`<button type="button" class="${cls.join(' ')}" onclick="tapScheduleDay('${d}')">${day}${sub}</button>`;
   }
   return h+'</div>';
 }
 function scReqHtml(r){
-  const st={'未反映':['st-wait','確認待ち'],'反映済':['st-done','反映済み'],'却下':['st-ng','却下'],'取消':['st-cancel','取消']}[r.state]||['st-cancel',r.state];
-  const ch=r.changes.map(c=>scDateLabel(c.date)+' '+SC_LABEL[c.from]+'→'+SC_LABEL[c.to]).join('、');
+  const st={'未反映':['st-wait','反映待ち'],'反映済':['st-done','反映済み'],'却下':['st-ng','反映できず'],'取消':['st-cancel','取消']}[r.state]||['st-cancel',r.state];
+  const ch=r.changes.map(c=>scDateLabel(c.date)+' '+SC_LABEL[c.from]+'→'+SC_LABEL[c.to]+(c.count?'('+c.count+'人)':'')).join('、');
   return `<div class="sc-req">${r.state==='未反映'?`<button onclick="cancelScheduleReq('${esc(r.id)}')">取り消す</button>`:''}
     <span class="st ${st[0]}">${st[1]}</span>${esc(r.receivedAt)}　${esc(r.requester)}<br>${esc(ch)}
-    ${r.note?'<br>メモ: '+esc(r.note):''}${r.resolveMemo?'<br>事務所より: '+esc(r.resolveMemo):''}</div>`;
+    ${r.note?'<br>メモ: '+esc(r.note):''}${r.resolveMemo?'<br>'+(r.state==='却下'?'理由: ':'')+esc(r.resolveMemo):''}</div>`;
 }
 function renderSchedule(){
   const j=scData;
   if(!j.leftYM){
-    $('sc-body').innerHTML='<div class="pv-empty">掲示板の工程表がまだ同期されていません。<br>事務所に連絡してください。</div>';
+    $('sc-body').innerHTML='<div class="pv-empty">掲示板の工程表がまだ読み込まれていません。<br>事務所に連絡してください。</div>';
     return;
   }
   const pending=j.requests.filter(r=>r.state==='未反映').length;
   const changes=Object.keys(scEdits).sort();
-  let h=`<div class="sc-info">掲示板の工程表（${esc(j.syncedAt)} 時点）です。日をタップすると <b>なし→赤→緑→なし</b> の順に変わります。変えたら下の「変更を依頼する」を押してください。事務所が確認してから工程表に反映されます。</div>`;
-  if(!j.onBoard) h+='<div class="sc-list">この現場はまだ掲示板の工程表に載っていません。日をタップして依頼すると、事務所が工程表に追加します。</div>';
-  if(pending) h+=`<div class="sc-list">⏳ まだ反映されていない依頼が${pending}件あります（下の「この現場の依頼」）。</div>`;
-  h+=`<div class="sc-legend"><span><i style="background:#e53935"></i>赤</span><span><i style="background:#43a047"></i>緑（機械）</span><span><i style="box-shadow:0 0 0 2.5px #f39c12 inset;background:#fff"></i>変更した日</span>${j.machines>0?`<span>緑の数は「全現場の緑/機械の台数」</span>`:''}</div>`;
+  let h=`<div class="sc-info">掲示板の工程表（${esc(j.syncedAt)} 時点）です。日をタップすると <b>なし→赤→緑→なし</b> の順に変わります。変えたら下の「変更を依頼する」を押してください。会社のPCが<b>10分ほどで</b>掲示板の工程表と工事予定表に反映します。</div>`;
+  if(!j.onBoard) h+='<div class="sc-list">この現場はまだ掲示板の工程表に載っていません。日をタップして依頼すると、空いている枠に追加されます。</div>';
+  if(pending) h+=`<div class="sc-list">⏳ 反映待ちの依頼が${pending}件あります（下の「この現場の依頼」）。</div>`;
+  h+=`<div class="sc-legend"><span><i style="background:#e53935"></i>赤</span><span><i style="background:#43a047"></i>緑（機械）</span><span><i style="box-shadow:0 0 0 2.5px #f39c12 inset;background:#fff"></i>変更した日</span>${j.machines>0?`<span>緑の日は「全現場の緑/機械${j.machines}台」</span>`:''}</div>`;
   h+=scMonthHtml(j.leftYM)+scMonthHtml(j.rightYM);
   h+='<div class="sec-title" style="margin-top:14px">変更の内容</div>';
   if(changes.length){
-    const over=changes.filter(scOver);
-    h+='<div class="sc-list">'+changes.map(d=>`${scDateLabel(d)}　${SC_LABEL[j.marks[d]||'']} → <b>${SC_LABEL[scEdits[d]]}</b>${scOver(d)?'　⚠️ 緑が'+scBCount(d)+'現場（機械'+j.machines+'台）':''}`).join('<br>')+'</div>';
-    if(over.length) h+=`<div class="sc-info" style="color:#8a5a00">⚠️ 緑の現場が機械の台数を超える日があります。依頼はできますが、事務所で調整が必要です。</div>`;
+    h+='<div class="sc-list">'+changes.map(d=>`${scDateLabel(d)}　${SC_LABEL[j.marks[d]||'']} → <b>${SC_LABEL[scEdits[d]]}</b>${!j.marks[d]?'（追加）':(!scEdits[d]?'（外す）':'')}`).join('<br>')+'</div>';
   } else {
     h+='<div class="sc-info">まだ変更はありません。</div>';
   }
   const rep=($('sc-requester')&&$('sc-requester').value.trim())||$('f-rep').value.trim()||(()=>{try{return localStorage.getItem('sc-requester')||'';}catch(e){return '';}})();
+  if(scHasAdded()){
+    const cnt=($('sc-count')&&$('sc-count').value)||scDefaultCount();
+    h+=`<div class="fl"><label>追加した日の人数（工事予定表に入ります）</label><input type="number" id="sc-count" min="1" max="99" placeholder="人数" value="${esc(cnt)}"></div>`;
+  }
   h+=`<div class="fl"><label>依頼者</label><input type="text" id="sc-requester" placeholder="氏名" value="${esc(rep)}"></div>
     <div class="fl"><label>メモ（理由など・任意）</label><textarea id="sc-note" style="min-height:52px" placeholder="例：雨で1日ずれたため"></textarea></div>
     <button class="btn-save" id="sc-send" onclick="sendScheduleRequest()"${changes.length?'':' disabled'}>📤 変更を依頼する</button>`;
@@ -1103,7 +1119,15 @@ function renderSchedule(){
   if(keepNote) $('sc-note').value=keepNote;
 }
 async function sendScheduleRequest(){
-  const changes=Object.keys(scEdits).sort().map(d=>({date:d,from:scData.marks[d]||'',to:scEdits[d]}));
+  let count=0;
+  if(scHasAdded()){
+    count=Math.round(Number($('sc-count').value));
+    if(!(count>=1&&count<=99)){ toast('⚠️ 追加した日の人数を入れてください'); return; }
+  }
+  const changes=Object.keys(scEdits).sort().map(d=>{
+    const from=scData.marks[d]||'', to=scEdits[d];
+    return {date:d,from,to,count:(!from&&to)?count:0};
+  });
   if(!changes.length) return;
   const requester=$('sc-requester').value.trim();
   if(!requester){ toast('⚠️ 依頼者の名前を入れてください'); return; }
@@ -1116,7 +1140,7 @@ async function sendScheduleRequest(){
     if(j.status!=='ok'){ toast('⚠️ '+(j.message||'送信できませんでした')); btn.disabled=false; btn.textContent='📤 変更を依頼する'; return; }
     scEdits={};
     $('sc-note').value='';
-    toast('✅ 変更を依頼しました。事務所の確認後に反映されます');
+    toast('✅ 変更を依頼しました。10分ほどで工程表に反映されます');
     loadSchedule();
   }catch(e){
     toast('⚠️ 送信に失敗しました。電波の良い場所でもう一度押してください');
