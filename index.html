@@ -86,6 +86,29 @@ input[type=range]{width:100%;accent-color:#185FA5}
 .pv-zoom img{max-width:100%;max-height:76vh;object-fit:contain;border-radius:6px}
 .pv-zoom-info{color:#fff;font-size:12px;text-align:center;line-height:1.6;word-break:break-all}
 .pv-zoom-close{position:absolute;top:8px;right:14px;background:none;border:none;color:#fff;font-size:26px;cursor:pointer;font-family:inherit}
+.sc-open{width:100%;padding:9px;background:#fff;border:1.5px solid #185FA5;border-radius:8px;cursor:pointer;color:#185FA5;font-size:13px;font-weight:600;font-family:inherit}
+.sc-info{font-size:12px;color:#666;line-height:1.6;margin-bottom:8px}
+.sc-legend{display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:#555;margin-bottom:10px;align-items:center}
+.sc-legend i{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;margin-right:3px}
+.sc-month{font-size:14px;font-weight:700;margin:12px 0 6px}
+.sc-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.sc-wd{font-size:10px;color:#888;text-align:center;padding:2px 0}
+.sc-day{position:relative;min-height:44px;border-radius:6px;border:1px solid #e3e3e3;background:#fff;font-size:12px;text-align:center;padding:3px 1px;cursor:pointer;-webkit-user-select:none;user-select:none;font-family:inherit;color:#111}
+.sc-day.past{background:#f3f3f3;color:#bbb;cursor:default}
+.sc-day.sun{color:#c0392b}
+.sc-day.A{background:#e53935;border-color:#e53935;color:#fff}
+.sc-day.B{background:#43a047;border-color:#43a047;color:#fff}
+.sc-day.past.A{background:#f2b1b0;border-color:#f2b1b0}
+.sc-day.past.B{background:#a9d4ab;border-color:#a9d4ab}
+.sc-day.chg{box-shadow:0 0 0 2.5px #f39c12 inset}
+.sc-day .sc-cnt{display:block;font-size:9px;line-height:1.2;margin-top:2px}
+.sc-day .sc-over{display:block;font-size:9px;font-weight:700;background:#fff3cd;color:#8a5a00;border-radius:3px;margin:2px 1px 0}
+.sc-empty{visibility:hidden}
+.sc-list{font-size:13px;line-height:1.7;margin:6px 0 10px;padding:8px 10px;background:#fffaf0;border:1px solid #f5d9a8;border-radius:8px}
+.sc-req{border:1px solid #eee;border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12px;line-height:1.6}
+.sc-req .st{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:5px;margin-right:4px}
+.st-wait{background:#fff3cd;color:#8a5a00}.st-done{background:#E6F4EC;color:#1a7a3e}.st-ng{background:#FEE;color:#c0392b}.st-cancel{background:#eee;color:#777}
+.sc-req button{float:right;font-size:11px;padding:3px 8px;border:1px solid #ddd;border-radius:6px;background:#fff;color:#777;cursor:pointer;font-family:inherit}
 .toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:#2c2c2a;color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
 .toast.show{opacity:1}
 .xl-section{background:#fff;border-radius:12px;margin:10px;padding:14px 15px}
@@ -132,6 +155,7 @@ input[type=range]{width:100%;accent-color:#185FA5}
 </div>
 </div>
 <div class="fl"><label>報告者名</label><input type="text" id="f-rep" placeholder="氏名"></div>
+<button class="sc-open" onclick="openSchedule()">📅 この現場の工程を見る・変更を依頼</button>
 </div>
 <div class="section">
 <div class="sec-title">🌤️ 天気・気温</div>
@@ -210,6 +234,17 @@ input[type=range]{width:100%;accent-color:#185FA5}
       <div class="pv-bar" id="pv-bar"></div>
       <div id="pv-content"></div>
     </div>
+  </div>
+</div>
+<div class="pv-modal" id="sc-modal">
+  <div class="pv-inner">
+    <div class="pv-head">
+      <span>📅 工程</span>
+      <span class="pv-site" id="sc-site"></span>
+      <button onclick="loadSchedule()" title="最新に更新">🔄</button>
+      <button onclick="closeSchedule()" title="閉じる">✕</button>
+    </div>
+    <div class="pv-body" id="sc-body"></div>
   </div>
 </div>
 <div class="pv-zoom" id="pv-zoom" onclick="closePhotoZoom()">
@@ -947,6 +982,155 @@ function openPhotoZoom(i){
 function closePhotoZoom(){
   $('pv-zoom').classList.remove('show');
   $('pv-zoom-img').src='';
+}
+
+// ══════════════════════════════════════════
+//  工程を見る・変更を依頼(掲示板用工程表の赤(A)/緑(B))
+// ══════════════════════════════════════════
+// 掲示板用工程表.xlsm はスマホから直接書き換えられないため、ここでは「変更依頼」を送るだけ。
+// 事務所が掲示板用工程表の「スマホの変更を取込」ボタンで確認して反映する(反映後に同期すると
+// 現場情報・作業員配置表の工期にもつながる)。表示している工程は、掲示板用工程表で最後に
+// 「同期」を押した時点の写し。
+let scSite='';
+let scData=null;      // getScheduleの応答
+let scEdits={};       // 日付 → 'A'|'B'|''(写しと違う日だけ)
+let scReq=0;
+const SC_LABEL={A:'赤',B:'緑','':'なし'};
+
+function openSchedule(){
+  const site=$('f-site').value.trim();
+  if(!site){ toast('⚠️ 先に現場を選択してください'); return; }
+  scSite=site;
+  scEdits={};
+  $('sc-site').textContent=site;
+  $('sc-modal').classList.add('show');
+  loadSchedule();
+}
+function closeSchedule(){
+  if(Object.keys(scEdits).length && !confirm('送っていない変更があります。閉じると変更は消えます。閉じますか？')) return;
+  scEdits={};
+  $('sc-modal').classList.remove('show');
+}
+async function loadSchedule(){
+  const req=++scReq;
+  $('sc-body').innerHTML='<div class="pv-empty">読み込み中...</div>';
+  try{
+    const res=await fetch(GAS_URL+'?action=getSchedule&site='+encodeURIComponent(scSite),{cache:'no-store'});
+    const j=await res.json();
+    if(req!==scReq) return;
+    if(j.status!=='ok') throw new Error(j.message||'error');
+    scData=j;
+    // 送る前に取り直した場合、写しと同じになった日は変更から外す
+    Object.keys(scEdits).forEach(d=>{ if((scData.marks[d]||'')===scEdits[d]) delete scEdits[d]; });
+    renderSchedule();
+  }catch(e){
+    if(req!==scReq) return;
+    $('sc-body').innerHTML='<div class="pv-empty">読み込みに失敗しました<br>電波の良い場所で🔄を押してもう一度お試しください</div>';
+  }
+}
+function scMark(d){ return Object.prototype.hasOwnProperty.call(scEdits,d) ? scEdits[d] : (scData.marks[d]||''); }
+function scBCount(d){ return (scData.othersB[d]||0)+(scMark(d)==='B'?1:0); }
+function scOver(d){ return scData.machines>0 && scMark(d)==='B' && scBCount(d)>scData.machines; }
+function scDateLabel(d){
+  const t=new Date(d+'T00:00:00');
+  return (t.getMonth()+1)+'/'+t.getDate()+'('+['日','月','火','水','木','金','土'][t.getDay()]+')';
+}
+function tapScheduleDay(d){
+  if(d<scData.today) return;
+  const cur=scMark(d);
+  const next=cur===''?'A':(cur==='A'?'B':'');   // 掲示板用工程表のクリックと同じ順(なし→赤→緑→なし)
+  if(next===(scData.marks[d]||'')) delete scEdits[d]; else scEdits[d]=next;
+  renderSchedule();
+}
+function scMonthHtml(ym){
+  const [y,m]=ym.split('-').map(Number);
+  const first=new Date(y,m-1,1).getDay();
+  const days=new Date(y,m,0).getDate();
+  let h=`<div class="sc-month">${y}年${m}月</div><div class="sc-grid">`;
+  h+=['日','月','火','水','木','金','土'].map(w=>`<div class="sc-wd">${w}</div>`).join('');
+  for(let i=0;i<first;i++) h+='<div class="sc-empty"></div>';
+  for(let day=1;day<=days;day++){
+    const d=ym+'-'+String(day).padStart(2,'0');
+    const mk=scMark(d);
+    const cls=['sc-day'];
+    if(mk) cls.push(mk);
+    if(d<scData.today) cls.push('past');
+    if(new Date(y,m-1,day).getDay()===0) cls.push('sun');
+    if(Object.prototype.hasOwnProperty.call(scEdits,d)) cls.push('chg');
+    let sub='';
+    if(scOver(d)) sub=`<span class="sc-over">緑${scBCount(d)}/${scData.machines}台</span>`;
+    else if(mk==='B' && scData.machines>0) sub=`<span class="sc-cnt">緑${scBCount(d)}/${scData.machines}</span>`;
+    h+=`<button type="button" class="${cls.join(' ')}" onclick="tapScheduleDay('${d}')">${day}${sub}</button>`;
+  }
+  return h+'</div>';
+}
+function scReqHtml(r){
+  const st={'未反映':['st-wait','確認待ち'],'反映済':['st-done','反映済み'],'却下':['st-ng','却下'],'取消':['st-cancel','取消']}[r.state]||['st-cancel',r.state];
+  const ch=r.changes.map(c=>scDateLabel(c.date)+' '+SC_LABEL[c.from]+'→'+SC_LABEL[c.to]).join('、');
+  return `<div class="sc-req">${r.state==='未反映'?`<button onclick="cancelScheduleReq('${esc(r.id)}')">取り消す</button>`:''}
+    <span class="st ${st[0]}">${st[1]}</span>${esc(r.receivedAt)}　${esc(r.requester)}<br>${esc(ch)}
+    ${r.note?'<br>メモ: '+esc(r.note):''}${r.resolveMemo?'<br>事務所より: '+esc(r.resolveMemo):''}</div>`;
+}
+function renderSchedule(){
+  const j=scData;
+  if(!j.leftYM){
+    $('sc-body').innerHTML='<div class="pv-empty">掲示板の工程表がまだ同期されていません。<br>事務所に連絡してください。</div>';
+    return;
+  }
+  const pending=j.requests.filter(r=>r.state==='未反映').length;
+  const changes=Object.keys(scEdits).sort();
+  let h=`<div class="sc-info">掲示板の工程表（${esc(j.syncedAt)} 時点）です。日をタップすると <b>なし→赤→緑→なし</b> の順に変わります。変えたら下の「変更を依頼する」を押してください。事務所が確認してから工程表に反映されます。</div>`;
+  if(!j.onBoard) h+='<div class="sc-list">この現場はまだ掲示板の工程表に載っていません。日をタップして依頼すると、事務所が工程表に追加します。</div>';
+  if(pending) h+=`<div class="sc-list">⏳ まだ反映されていない依頼が${pending}件あります（下の「この現場の依頼」）。</div>`;
+  h+=`<div class="sc-legend"><span><i style="background:#e53935"></i>赤</span><span><i style="background:#43a047"></i>緑（機械）</span><span><i style="box-shadow:0 0 0 2.5px #f39c12 inset;background:#fff"></i>変更した日</span>${j.machines>0?`<span>緑の数は「全現場の緑/機械の台数」</span>`:''}</div>`;
+  h+=scMonthHtml(j.leftYM)+scMonthHtml(j.rightYM);
+  h+='<div class="sec-title" style="margin-top:14px">変更の内容</div>';
+  if(changes.length){
+    const over=changes.filter(scOver);
+    h+='<div class="sc-list">'+changes.map(d=>`${scDateLabel(d)}　${SC_LABEL[j.marks[d]||'']} → <b>${SC_LABEL[scEdits[d]]}</b>${scOver(d)?'　⚠️ 緑が'+scBCount(d)+'現場（機械'+j.machines+'台）':''}`).join('<br>')+'</div>';
+    if(over.length) h+=`<div class="sc-info" style="color:#8a5a00">⚠️ 緑の現場が機械の台数を超える日があります。依頼はできますが、事務所で調整が必要です。</div>`;
+  } else {
+    h+='<div class="sc-info">まだ変更はありません。</div>';
+  }
+  const rep=($('sc-requester')&&$('sc-requester').value.trim())||$('f-rep').value.trim()||(()=>{try{return localStorage.getItem('sc-requester')||'';}catch(e){return '';}})();
+  h+=`<div class="fl"><label>依頼者</label><input type="text" id="sc-requester" placeholder="氏名" value="${esc(rep)}"></div>
+    <div class="fl"><label>メモ（理由など・任意）</label><textarea id="sc-note" style="min-height:52px" placeholder="例：雨で1日ずれたため"></textarea></div>
+    <button class="btn-save" id="sc-send" onclick="sendScheduleRequest()"${changes.length?'':' disabled'}>📤 変更を依頼する</button>`;
+  h+='<div class="sec-title" style="margin-top:16px">この現場の依頼（新しい順）</div>';
+  h+=j.requests.length?j.requests.map(scReqHtml).join(''):'<div class="sc-info">依頼はまだありません。</div>';
+  const keepNote=$('sc-note')?$('sc-note').value:'';
+  $('sc-body').innerHTML=h;
+  if(keepNote) $('sc-note').value=keepNote;
+}
+async function sendScheduleRequest(){
+  const changes=Object.keys(scEdits).sort().map(d=>({date:d,from:scData.marks[d]||'',to:scEdits[d]}));
+  if(!changes.length) return;
+  const requester=$('sc-requester').value.trim();
+  if(!requester){ toast('⚠️ 依頼者の名前を入れてください'); return; }
+  try{ localStorage.setItem('sc-requester',requester); }catch(e){}
+  const btn=$('sc-send');
+  btn.disabled=true; btn.textContent='📤 送信中…';
+  try{
+    const res=await fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'requestScheduleChange',site:scSite,requester,note:$('sc-note').value.trim(),changes,baseSyncedAt:scData.syncedAt})});
+    const j=await res.json();
+    if(j.status!=='ok'){ toast('⚠️ '+(j.message||'送信できませんでした')); btn.disabled=false; btn.textContent='📤 変更を依頼する'; return; }
+    scEdits={};
+    $('sc-note').value='';
+    toast('✅ 変更を依頼しました。事務所の確認後に反映されます');
+    loadSchedule();
+  }catch(e){
+    toast('⚠️ 送信に失敗しました。電波の良い場所でもう一度押してください');
+    btn.disabled=false; btn.textContent='📤 変更を依頼する';
+  }
+}
+async function cancelScheduleReq(id){
+  if(!confirm('この依頼を取り消しますか？')) return;
+  try{
+    const res=await fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'cancelScheduleRequest',id})});
+    const j=await res.json();
+    toast(j.status==='ok'?'✅ 依頼を取り消しました':'⚠️ '+(j.message||'取り消せませんでした'));
+  }catch(e){ toast('⚠️ 通信に失敗しました'); }
+  loadSchedule();
 }
 
 initDate();loadSiteList();addW();addM();initSafety();renderPhotos();
