@@ -770,7 +770,7 @@ self.onmessage = function(ev){
   "use strict";
 
   /* ===== 改定時はこの2行だけ変更してください ===== */
-  const APP_VERSION = 'v1.9';
+  const APP_VERSION = 'v2.0';
   const APP_UPDATED = '2026-09-29';
   /* ============================================ */
 
@@ -848,7 +848,8 @@ self.onmessage = function(ev){
   let baseScale = 1;
   let mode = null;              // 'scale' | 'length' | 'area' | 'pan'
   let pendingPoints = [];
-  let calibration = null;       // {metersPerPixel, line:[p1,p2], label}
+  let calibration = null;       // {g:[gxx,gxy,gyy], metersPerPixel, refs:[{line:[p1,p2], label}], label}
+  let calibDraft = null;        // 縦横2方向校正の1本目 {line:[p1,p2], meters}(2本目を引き終わるまで保持)
   let measurements = [];        // {id,type,points,meters|sqMeters+perimMeters}
   let vectorPaths = [];         // ベクターPDFから抽出した線データ {points:[{x,y}...], closed} (画像ピクセル座標系)
   let textItems = [];           // PDFに埋め込まれた文字(寸法数値・室名など) {text,x,y,heightPx} (画像ピクセル座標系)
@@ -922,22 +923,68 @@ self.onmessage = function(ev){
       s += a.x*b.y - b.x*a.y;
     }
     const pxArea = Math.abs(s)/2;
-    return pxArea * calibration.metersPerPixel * calibration.metersPerPixel;
+    const g = calibration.g;
+    return pxArea * Math.sqrt(g[0]*g[2] - g[1]*g[1]);
   }
   function polygonPerimeterMeters(pts){
     let s=0;
     for(let i=0;i<pts.length;i++){
       const a=pts[i], b=pts[(i+1)%pts.length];
-      s += Math.hypot(b.x-a.x,b.y-a.y);
+      s += pxDistMeters(b.x-a.x, b.y-a.y);
     }
-    return s * calibration.metersPerPixel;
+    return s;
   }
   function pathLengthMeters(pts){
     let s=0;
     for(let i=0;i<pts.length-1;i++){
-      s += Math.hypot(pts[i+1].x-pts[i].x, pts[i+1].y-pts[i].y);
+      s += pxDistMeters(pts[i+1].x-pts[i].x, pts[i+1].y-pts[i].y);
     }
-    return s * calibration.metersPerPixel;
+    return s;
+  }
+
+  /* 縮尺は「画像ピクセルの差(dx,dy) → 実寸m」の換算を、対称2×2行列 G=[gxx gxy; gxy gyy] で持つ。
+     実寸² = gxx·dx² + 2·gxy·dx·dy + gyy·dy²、面積倍率 = √det(G)。
+     基準線1本の校正なら G = m²·I(縦横同じ倍率)。航空写真のスクショ等は縦と横で倍率が微妙に違うことがあるため、
+     縦横2方向校正では元画像の横・縦それぞれの倍率 sx,sy を求めて G = diag(sx²,sy²) とする。
+     画像を回転したら G も回す(G' = R·G·Rᵀ)ので、回転後も同じ実寸で測れる。 */
+  function makeCalibration(g, refs, label){
+    const det = g[0]*g[2] - g[1]*g[1];
+    return {g, metersPerPixel: Math.sqrt(Math.sqrt(det)), refs, label};
+  }
+  function pxDistMeters(dx, dy){
+    const g = calibration.g;
+    return Math.sqrt(Math.max(0, g[0]*dx*dx + 2*g[1]*dx*dy + g[2]*dy*dy));
+  }
+  // 点の写像(回転)から、ベクトルを回す行列Rの各成分を取り出して G' = R·G·Rᵀ を返す
+  function rotateMetric(g, map){
+    const o = map({x:0,y:0}), ex = map({x:1,y:0}), ey = map({x:0,y:1});
+    const r00 = ex.x-o.x, r10 = ex.y-o.y, r01 = ey.x-o.x, r11 = ey.y-o.y;
+    // R·G
+    const a00 = r00*g[0] + r01*g[1], a01 = r00*g[1] + r01*g[2];
+    const a10 = r10*g[0] + r11*g[1], a11 = r10*g[1] + r11*g[2];
+    return [a00*r00 + a01*r01, a00*r10 + a01*r11, a10*r10 + a11*r11];
+  }
+  // 縦横2方向校正: 2本の基準線(画像ピクセルの差ベクトル)と実寸から、元画像の横・縦の倍率を解く。
+  // 戻り値 {g} か {error}
+  function solveTwoAxisCalibration(line1, meters1, line2, meters2){
+    // 回転補正済みの画像でも、スクショのゆがみは元画像の縦横方向に乗っているので、元画像の向きに戻して解く
+    const toOrig = makeRotationMapper(rotationDeg, 0);
+    const vec = ([p,q])=>{ const a = toOrig(p), b = toOrig(q); return {x:b.x-a.x, y:b.y-a.y}; };
+    const d1 = vec(line1), d2 = vec(line2);
+    const x1 = d1.x*d1.x, y1 = d1.y*d1.y, x2 = d2.x*d2.x, y2 = d2.y*d2.y;
+    const det = x1*y2 - x2*y1;
+    // 2本が同じような向きだと解けない(誤差が極端に大きくなる)。片方が横・片方が縦に近いほど1に近づく指標
+    if(Math.abs(det) / ((x1+y1)*(x2+y2)) < 0.5){
+      return {error:'2本の基準線の向きが近すぎます。1本目と直角に近い向き(1本目が横なら縦、縦なら横)で2本目を引いてください。'};
+    }
+    const L1 = meters1*meters1, L2 = meters2*meters2;
+    const a = (L1*y2 - L2*y1) / det;   // 横方向 sx²
+    const b = (x1*L2 - x2*L1) / det;   // 縦方向 sy²
+    if(!(a>0) || !(b>0)){
+      return {error:'入力した2つの長さの組み合わせでは縮尺を計算できません。長さの入力や線の位置を確認してください。'};
+    }
+    const gOrig = [a, 0, b];
+    return {g: Math.abs(rotationDeg) < 1e-9 ? gOrig : rotateMetric(gOrig, makeRotationMapper(0, rotationDeg))};
   }
 
   // Catmull-Romスプラインで点列をなめらかにサンプリング
@@ -1055,19 +1102,28 @@ self.onmessage = function(ev){
     ctx.restore();
   }
 
+  // 表示する基準線の一覧。縦横2方向校正の途中(2本目を引く前)は1本目も表示する
+  function calibrationRefsToDraw(){
+    if(calibDraft && mode==='scale') return [{line:calibDraft.line, label:'基準1  '+formatLength(calibDraft.meters)}];
+    if(!calibration) return [];
+    const multi = calibration.refs.length > 1;
+    return calibration.refs.map((r,i)=>({line:r.line, label:(multi ? '基準'+(i+1) : '基準')+'  '+r.label}));
+  }
+
   function drawCalibrationLine(){
-    if(!calibration) return;
-    const [p1,p2] = calibration.line.map(imageToScreen);
-    ctx.save();
-    ctx.setLineDash([6,4]);
-    ctx.strokeStyle = COLORS.accent;
-    ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
-    ctx.setLineDash([]);
-    [p1,p2].forEach(p=>{ ctx.fillStyle = COLORS.accent; ctx.beginPath(); ctx.arc(p.x,p.y,3,0,Math.PI*2); ctx.fill(); });
-    const mid = {x:(p1.x+p2.x)/2, y:(p1.y+p2.y)/2};
-    drawLabel(mid.x, mid.y-16, '基準  '+calibration.label, {border:COLORS.accent});
-    ctx.restore();
+    calibrationRefsToDraw().forEach(r=>{
+      const [p1,p2] = r.line.map(imageToScreen);
+      ctx.save();
+      ctx.setLineDash([6,4]);
+      ctx.strokeStyle = COLORS.accent;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
+      ctx.setLineDash([]);
+      [p1,p2].forEach(p=>{ ctx.fillStyle = COLORS.accent; ctx.beginPath(); ctx.arc(p.x,p.y,3,0,Math.PI*2); ctx.fill(); });
+      const mid = {x:(p1.x+p2.x)/2, y:(p1.y+p2.y)/2};
+      drawLabel(mid.x, mid.y-16, r.label, {border:COLORS.accent});
+      ctx.restore();
+    });
   }
 
   // クリック位置(画像ピクセル座標)から最も近いベクター線の端点を探す。
@@ -1270,7 +1326,7 @@ self.onmessage = function(ev){
       } else {
         const lastImgPt = pendingPoints[pendingPoints.length-1];
         const curImgPt = screenToImage(lastMouseScreen);
-        const segMeters = Math.hypot(curImgPt.x-lastImgPt.x, curImgPt.y-lastImgPt.y) * calibration.metersPerPixel;
+        const segMeters = pxDistMeters(curImgPt.x-lastImgPt.x, curImgPt.y-lastImgPt.y);
         labelText = formatLength(segMeters);
       }
       const lastScreen = pts[pts.length-1];
@@ -1338,7 +1394,8 @@ self.onmessage = function(ev){
   function updateScaleBarDisplay(){
     if(!sourceImage || !calibration){ scaleBarEl.hidden = true; return; }
     scaleBarEl.hidden = false;
-    const metersPerScreenPx = calibration.metersPerPixel / view.scale;
+    // スケールバーは画面の横向きに描くので、横方向の倍率を使う(縦横2方向校正のときに縦と違うため)
+    const metersPerScreenPx = Math.sqrt(calibration.g[0]) / view.scale;
     const candidates = [0.01,0.02,0.05,0.1,0.2,0.25,0.5,1,2,5,10,20,25,50,100,200,500,1000,2000,5000];
     let chosen = candidates[0];
     for(const m of candidates){
@@ -1427,7 +1484,11 @@ self.onmessage = function(ev){
       t.angleDeg = (t.angleDeg || 0) - delta;
     });
     measurements.forEach(m=>{ m.points = mapPts(m.points); });
-    if(calibration && calibration.line) calibration.line = mapPts(calibration.line);
+    if(calibration){
+      calibration.refs.forEach(r=>{ r.line = mapPts(r.line); });
+      calibration.g = rotateMetric(calibration.g, map);
+    }
+    if(calibDraft) calibDraft.line = mapPts(calibDraft.line);
     if(dxfRegion){
       const cs = [{x:dxfRegion.x1,y:dxfRegion.y1},{x:dxfRegion.x2,y:dxfRegion.y1},
                   {x:dxfRegion.x2,y:dxfRegion.y2},{x:dxfRegion.x1,y:dxfRegion.y2}].map(map);
@@ -1522,6 +1583,7 @@ self.onmessage = function(ev){
     if((newMode==='length'||newMode==='area'||newMode==='curve') && !calibration) return;
     mode = newMode;
     pendingPoints = [];
+    calibDraft = null;
     Object.entries(modeButtons).forEach(([k,btn])=>btn.classList.toggle('active', k===newMode));
     canvasWrap.style.cursor = newMode==='pan' ? 'grab' : 'crosshair';
     smoothToggleWrap.hidden = newMode!=='area';
@@ -1534,7 +1596,12 @@ self.onmessage = function(ev){
     let text = '';
     if(!sourceImage){ text = '図面(画像またはPDF)をアップロードしてください'; }
     else if(mode==='pan'){ text = 'ドラッグして図面を移動できます(ホイールで拡大縮小)'; }
-    else if(mode==='scale'){ text = pendingPoints.length===0 ? '基準線の始点をクリック' : '基準線の終点をクリック'; }
+    else if(mode==='scale'){
+      if(calibDraft) text = pendingPoints.length===0
+        ? '2本目の基準線の始点をクリック(1本目と直角に近い向きで。1本目が横なら縦)'
+        : '2本目の基準線の終点をクリック';
+      else text = pendingPoints.length===0 ? '基準線の始点をクリック' : '基準線の終点をクリック';
+    }
     else if(mode==='length'){
       if(!calibration) text = '先に縮尺を設定してください';
       else text = pendingPoints.length===0 ? '測定する線の始点をクリック' : '終点をクリック(Escでキャンセル)';
@@ -1617,8 +1684,7 @@ self.onmessage = function(ev){
 
   function finalizeLength(){
     const [p1,p2] = pendingPoints;
-    const pixelDist = Math.hypot(p2.x-p1.x, p2.y-p1.y);
-    const meters = pixelDist * calibration.metersPerPixel;
+    const meters = pxDistMeters(p2.x-p1.x, p2.y-p1.y);
     measurements.push({id:uid(), type:'length', points:[p1,p2], meters});
     pendingPoints = [];
     renderList();
@@ -1651,13 +1717,15 @@ self.onmessage = function(ev){
     const [p1,p2] = pendingPoints;
     const pixelDist = Math.hypot(p2.x-p1.x, p2.y-p1.y);
     const hasVec = vectorPaths && vectorPaths.length > 0;
+    const second = !!calibDraft;   // 縦横2方向校正の2本目
     const tip = '<p class="modal-sub" style="margin-top:-8px;font-size:11px;line-height:1.7">'+
       '💡 精度のコツ: ①なるべく長い寸法線を基準に選ぶ(短いと誤差の影響が大きくなります) '+
       (hasVec ? '②基準線の両端は、はっきりした線の交点を選ぶ(近くの線の端点に自動で吸着します) ' : '') +
       '③設定後、別の場所の既知の寸法を測って検算する'+
+      (second ? '' : '<br>📷 航空写真・地図のスクショは縦と横で倍率が少し違うことがあります。「2本目を引く」で縦横別に校正できます。')+
       '</p>';
     modalBox.innerHTML =
-      '<h3>基準線の実際の長さ</h3>'+
+      '<h3>'+(second ? '2本目の基準線の実際の長さ' : '基準線の実際の長さ')+'</h3>'+
       '<p class="modal-sub">この線が図面上で実際に何mmまたは何mかを入力してください。</p>'+
       tip+
       '<div class="modal-field">'+
@@ -1668,21 +1736,51 @@ self.onmessage = function(ev){
           '<option value="m">m</option>'+
         '</select>'+
       '</div>'+
+      '<p class="modal-sub" id="calibError" style="color:var(--bp-danger,#e5484d);margin-top:-6px" hidden></p>'+
       '<div class="modal-actions">'+
         '<button class="btn" id="calibCancel">キャンセル</button>'+
-        '<button class="btn primary" id="calibOk">縮尺を設定</button>'+
+        (second ? '' : '<button class="btn" id="calibSecond">2本目を引く(縦横別)</button>')+
+        '<button class="btn primary" id="calibOk">'+(second ? '縦横別に縮尺を設定' : '縮尺を設定')+'</button>'+
       '</div>';
     modalOverlay.hidden = false;
     const valueInput = modalBox.querySelector('#calibValue');
     const unitSelect = modalBox.querySelector('#calibUnit');
+    const errorEl = modalBox.querySelector('#calibError');
     valueInput.focus();
-    modalBox.querySelector('#calibCancel').onclick = ()=>{ pendingPoints=[]; closeModal(); draw(); updateHint(); };
-    modalBox.querySelector('#calibOk').onclick = ()=>{
+    const readMeters = ()=>{
       const val = parseFloat(valueInput.value);
-      if(!val || val<=0){ valueInput.focus(); return; }
+      if(!val || val<=0){ valueInput.focus(); return null; }
       const unit = unitSelect.value;
-      const meters = unit==='mm' ? val/1000 : (unit==='cm' ? val/100 : val);
-      calibration = {metersPerPixel: meters/pixelDist, line:[p1,p2], label: formatLength(meters)};
+      return unit==='mm' ? val/1000 : (unit==='cm' ? val/100 : val);
+    };
+    // 2本目のキャンセルは1本目を残したまま引き直せるようにする
+    modalBox.querySelector('#calibCancel').onclick = ()=>{ pendingPoints=[]; closeModal(); draw(); updateHint(); };
+    if(!second){
+      modalBox.querySelector('#calibSecond').onclick = ()=>{
+        const meters = readMeters();
+        if(meters===null) return;
+        calibDraft = {line:[p1,p2], meters};
+        pendingPoints = [];
+        closeModal();
+        draw(); updateHint();
+      };
+    }
+    modalBox.querySelector('#calibOk').onclick = ()=>{
+      const meters = readMeters();
+      if(meters===null) return;
+      if(second){
+        const res = solveTwoAxisCalibration(calibDraft.line, calibDraft.meters, [p1,p2], meters);
+        if(res.error){ errorEl.textContent = res.error; errorEl.hidden = false; return; }
+        const sx = Math.sqrt(res.g[0]), sy = Math.sqrt(res.g[2]);
+        const label = formatLength(calibDraft.meters)+' / '+formatLength(meters)+
+          '(縦横の倍率差 '+(Math.abs(sx/sy-1)*100).toFixed(1)+'%)';
+        calibration = makeCalibration(res.g,
+          [{line:calibDraft.line, label:formatLength(calibDraft.meters)}, {line:[p1,p2], label:formatLength(meters)}], label);
+        calibDraft = null;
+      } else {
+        const m = meters/pixelDist;
+        calibration = makeCalibration([m*m, 0, m*m], [{line:[p1,p2], label:formatLength(meters)}], formatLength(meters));
+      }
       pendingPoints = [];
       closeModal();
       onCalibrationSet();
@@ -1715,7 +1813,9 @@ self.onmessage = function(ev){
     if(!calibration){
       scaleStatusEl.innerHTML = '<span class="badge badge-off">縮尺 未設定</span>';
     } else {
-      scaleStatusEl.innerHTML = '<span class="badge badge-on">縮尺 設定済み</span><span class="scale-detail">基準線 = '+calibration.label+'</span>';
+      const twoAxis = calibration.refs.length > 1;
+      scaleStatusEl.innerHTML = '<span class="badge badge-on">縮尺 設定済み'+(twoAxis ? '(縦横別)' : '')+'</span>'+
+        '<span class="scale-detail">基準線 = '+calibration.label+'</span>';
     }
   }
 
@@ -1780,7 +1880,7 @@ self.onmessage = function(ev){
 
   /* ---------------- File loading ---------------- */
   function resetMeasurementsOnly(){
-    calibration = null; measurements = []; pendingPoints = []; hoveredId = null; dxfRegion = null;
+    calibration = null; calibDraft = null; measurements = []; pendingPoints = []; hoveredId = null; dxfRegion = null;
     btnLength.disabled = true; btnCurve.disabled = true; btnArea.disabled = true;
     updateScaleStatus();
     updateVectorStatus();
@@ -2355,8 +2455,8 @@ self.onmessage = function(ev){
     }
 
     // 基準線
-    if(calibration){
-      const [p1,p2] = calibration.line;
+    calibrationRefsToDraw().forEach(r=>{
+      const [p1,p2] = r.line;
       octx.save();
       octx.setLineDash([6*s,4*s]);
       octx.strokeStyle = COLORS.accent; octx.lineWidth = lineW;
@@ -2364,9 +2464,9 @@ self.onmessage = function(ev){
       octx.setLineDash([]);
       [p1,p2].forEach(p=>{ octx.fillStyle = COLORS.accent; octx.beginPath(); octx.arc(p.x,p.y,3*s,0,Math.PI*2); octx.fill(); });
       const mid = {x:(p1.x+p2.x)/2, y:(p1.y+p2.y)/2};
-      label(mid.x, mid.y - 16*s, '基準  ' + calibration.label, {border:COLORS.accent});
+      label(mid.x, mid.y - 16*s, r.label, {border:COLORS.accent});
       octx.restore();
-    }
+    });
 
     // 各計測
     measurements.forEach((m, idx)=>{
@@ -2429,9 +2529,14 @@ self.onmessage = function(ev){
 
   /* ---------------- DXF export (JW_CADなどCADソフトへの取り込み用) ---------------- */
   // 画像ピクセル座標 → 実寸mm。CADはY軸上向きが慣習のため反転する
+  // 縦横2方向校正のときは縦と横で倍率が違うため、Gの平方根行列 S(S·S=G)で実寸に直す。
+  // 2×2の正定値対称行列なら S = (G + √det·I) / √(trace + 2√det) で求まる(1本校正なら S = m·I)
   function toDxfPoint(p){
-    const mmPerPixel = calibration.metersPerPixel * 1000;
-    return { x: p.x * mmPerPixel, y: -p.y * mmPerPixel };
+    const g = calibration.g;
+    const r = Math.sqrt(g[0]*g[2] - g[1]*g[1]);
+    const t = Math.sqrt(g[0] + g[2] + 2*r);
+    const s00 = (g[0]+r)/t, s01 = g[1]/t, s11 = (g[2]+r)/t;
+    return { x: (s00*p.x + s01*p.y) * 1000, y: -(s01*p.x + s11*p.y) * 1000 };
   }
   /* JW_CAD等の日本語CADはDXFをShift_JIS(CP932)として読む。UTF-8のまま書き出すと、
      日本語のTEXT文字列のバイト列の末尾がShift_JISの2バイト文字の1バイト目(0x81-0x9F,0xE0-0xFC)に
@@ -2679,6 +2784,8 @@ self.onmessage = function(ev){
   window.__applyRotation = applyRotation;  // 自動テストから呼べるようにしておく
   window.__runDeskew = runDeskew;
   window.__rotationState = ()=>({rotationDeg, imgWidth, imgHeight});
+  window.__imageToScreen = imageToScreen;  // 自動テストで画像上の位置をクリックするため
+  window.__calibrationState = ()=>calibration && {g: calibration.g.slice(), label: calibration.label};
   clearAllBtn.addEventListener('click', ()=>{
     if(measurements.length===0 && !calibration) return;
     openConfirm('すべての計測結果と縮尺設定を削除します。よろしいですか?', ()=>{
