@@ -697,6 +697,9 @@ function clearForm(){
 async function saveSite(){
   const name = document.getElementById('g-name').value.trim();
   if(!name){ showToast('⚠️ 現場名は必須です'); return; }
+  // 現場名の変更(仮称→正式名称など)は、日報・写真・チャット・作業員配置表・掲示板用工程表/工事予定表(Excel)にも反映される
+  const renaming = editingName && name !== editingName;
+  if(renaming && !confirm('現場名を変更します。\n\n「' + editingName + '」\n　↓\n「' + name + '」\n\n日報・写真フォルダ・チャット・作業員配置表も新しい名前になります。\n掲示板用工程表・工事予定表(Excel)は、会社PCが動いていれば5分ほどで新しい名前になります。\n\nよろしいですか?')) return;
 
   const btn = document.getElementById('save-btn');
   btn.disabled    = true;
@@ -709,7 +712,7 @@ async function saveSite(){
   btn.textContent = editingName ? '💾 更新する' : '💾 登録する';
 
   if(success){
-    showToast(editingName ? '✅ 更新しました' : '✅ 登録しました');
+    showToast(renaming ? '✅ 現場名を変更しました' : editingName ? '✅ 更新しました' : '✅ 登録しました');
     closeForm();
     loadSites();
   }
